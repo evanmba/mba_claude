@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "CMS Dashboard",
-  description: "Content Management System Dashboard",
+  title: "Mendoza Baseball Academy — Social Dashboard",
+  description: "Social media management dashboard for @mendoza.baseball.academy",
 };
 
 export default function RootLayout({

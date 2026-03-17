@@ -4,14 +4,17 @@ import { usePathname } from "next/navigation";
 import { Bell, Search } from "lucide-react";
 
 const pageTitles: Record<string, { title: string; description: string }> = {
-  "/": { title: "Dashboard", description: "Overview of your content operations" },
-  "/instagram": { title: "Instagram Manager", description: "Manage your Instagram content and posts" },
-  "/analytics": { title: "Analytics", description: "Track performance and engagement metrics" },
-  "/calendar": { title: "Content Calendar", description: "Plan and schedule your content" },
+  "/": { title: "Dashboard", description: "Overview of @mendoza.baseball.academy" },
+  "/instagram": { title: "Instagram", description: "@mendoza.baseball.academy · Instagram" },
+  "/youtube": { title: "YouTube", description: "Mendoza Baseball Academy · YouTube Channel" },
+  "/facebook": { title: "Facebook", description: "Mendoza Baseball Academy · Facebook Page" },
+  "/tiktok": { title: "TikTok", description: "@mendoza.baseball.academy · TikTok" },
+  "/analytics": { title: "Analytics", description: "Cross-platform performance and engagement" },
+  "/calendar": { title: "Content Calendar", description: "Plan and schedule content across all platforms" },
   "/competitors": { title: "Competitor Tracker", description: "Monitor competitor activity and trends" },
   "/news": { title: "News Consolidator", description: "Aggregated news and industry updates" },
   "/notifications": { title: "Notifications", description: "Your latest alerts and updates" },
-  "/settings": { title: "Settings", description: "Configure your dashboard preferences" },
+  "/settings": { title: "Settings", description: "Connect and manage your social media accounts" },
 };
 
 export function Header() {
@@ -73,7 +76,7 @@ export function Header() {
           className="w-9 h-9 rounded-lg flex items-center justify-center text-sm font-semibold text-white"
           style={{ background: "var(--primary)" }}
         >
-          U
+          M
         </div>
       </div>
     </header>

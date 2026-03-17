@@ -4,6 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Instagram,
+  Youtube,
+  Facebook,
+  Music2,
   BarChart3,
   CalendarDays,
   Users,
@@ -13,51 +16,70 @@ import {
   Bell,
 } from "lucide-react";
 
-const navItems = [
-  {
-    label: "Dashboard",
-    href: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    label: "Instagram Manager",
-    href: "/instagram",
-    icon: Instagram,
-  },
-  {
-    label: "Analytics",
-    href: "/analytics",
-    icon: BarChart3,
-  },
-  {
-    label: "Content Calendar",
-    href: "/calendar",
-    icon: CalendarDays,
-  },
-  {
-    label: "Competitor Tracker",
-    href: "/competitors",
-    icon: Users,
-  },
-  {
-    label: "News Consolidator",
-    href: "/news",
-    icon: Newspaper,
-  },
+const socialItems = [
+  { label: "Dashboard", href: "/", icon: LayoutDashboard },
+  { label: "Instagram", href: "/instagram", icon: Instagram, color: "#d946ef" },
+  { label: "YouTube", href: "/youtube", icon: Youtube, color: "#ef4444" },
+  { label: "Facebook", href: "/facebook", icon: Facebook, color: "#3b82f6" },
+  { label: "TikTok", href: "/tiktok", icon: Music2, color: "#94a3b8" },
+];
+
+const toolsItems = [
+  { label: "Analytics", href: "/analytics", icon: BarChart3 },
+  { label: "Content Calendar", href: "/calendar", icon: CalendarDays },
+  { label: "Competitor Tracker", href: "/competitors", icon: Users },
+  { label: "News Consolidator", href: "/news", icon: Newspaper },
 ];
 
 const bottomNavItems = [
-  {
-    label: "Notifications",
-    href: "/notifications",
-    icon: Bell,
-  },
-  {
-    label: "Settings",
-    href: "/settings",
-    icon: Settings,
-  },
+  { label: "Notifications", href: "/notifications", icon: Bell },
+  { label: "Settings", href: "/settings", icon: Settings },
 ];
+
+function NavLink({
+  href,
+  icon: Icon,
+  label,
+  isActive,
+  accentColor,
+}: {
+  href: string;
+  icon: React.ElementType;
+  label: string;
+  isActive: boolean;
+  accentColor?: string;
+}) {
+  const activeColor = accentColor ?? "var(--primary)";
+  const activeBg = accentColor ? accentColor + "1a" : "rgba(59, 130, 246, 0.1)";
+  return (
+    <li>
+      <Link
+        href={href}
+        className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150"
+        style={{
+          color: isActive ? activeColor : "var(--muted-foreground)",
+          background: isActive ? activeBg : "transparent",
+          borderLeft: isActive ? `2px solid ${activeColor}` : "2px solid transparent",
+        }}
+        onMouseEnter={(e) => {
+          if (!isActive) {
+            e.currentTarget.style.background = "var(--accent)";
+            e.currentTarget.style.color = "var(--foreground)";
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!isActive) {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = "var(--muted-foreground)";
+          }
+        }}
+      >
+        <Icon size={18} style={isActive && accentColor ? { color: accentColor } : undefined} />
+        {label}
+      </Link>
+    </li>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -71,23 +93,23 @@ export function Sidebar() {
         borderColor: "var(--sidebar-border)",
       }}
     >
-      {/* Logo / Brand */}
+      {/* Brand */}
       <div
         className="flex items-center gap-3 px-6 py-5 border-b"
         style={{ borderColor: "var(--sidebar-border)" }}
       >
         <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold"
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
           style={{ background: "var(--primary)" }}
         >
-          C
+          M
         </div>
-        <div>
-          <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-            CMS Dashboard
+        <div className="min-w-0">
+          <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
+            Mendoza Baseball
           </p>
-          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            Content Management
+          <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
+            @mendoza.baseball.academy
           </p>
         </div>
       </div>
@@ -98,81 +120,55 @@ export function Sidebar() {
           className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider"
           style={{ color: "var(--muted-foreground)" }}
         >
-          Main Menu
+          Social Platforms
+        </p>
+        <ul className="space-y-1 mb-5">
+          {socialItems.map((item) => (
+            <NavLink
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+              isActive={pathname === item.href}
+              accentColor={"color" in item ? item.color : undefined}
+            />
+          ))}
+        </ul>
+
+        <p
+          className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          Tools
         </p>
         <ul className="space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150"
-                  style={{
-                    color: isActive ? "var(--primary)" : "var(--muted-foreground)",
-                    background: isActive ? "rgba(59, 130, 246, 0.1)" : "transparent",
-                    borderLeft: isActive ? "2px solid var(--primary)" : "2px solid transparent",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.background = "var(--accent)";
-                      e.currentTarget.style.color = "var(--foreground)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.background = "transparent";
-                      e.currentTarget.style.color = "var(--muted-foreground)";
-                    }
-                  }}
-                >
-                  <Icon size={18} />
-                  {item.label}
-                </Link>
-              </li>
-            );
-          })}
+          {toolsItems.map((item) => (
+            <NavLink
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+              isActive={pathname === item.href}
+            />
+          ))}
         </ul>
       </nav>
 
-      {/* Bottom Navigation */}
+      {/* Bottom */}
       <div
         className="px-3 py-4 border-t"
         style={{ borderColor: "var(--sidebar-border)" }}
       >
         <ul className="space-y-1">
-          {bottomNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150"
-                  style={{
-                    color: isActive ? "var(--primary)" : "var(--muted-foreground)",
-                    background: isActive ? "rgba(59, 130, 246, 0.1)" : "transparent",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.background = "var(--accent)";
-                      e.currentTarget.style.color = "var(--foreground)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isActive) {
-                      e.currentTarget.style.background = "transparent";
-                      e.currentTarget.style.color = "var(--muted-foreground)";
-                    }
-                  }}
-                >
-                  <Icon size={18} />
-                  {item.label}
-                </Link>
-              </li>
-            );
-          })}
+          {bottomNavItems.map((item) => (
+            <NavLink
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+              isActive={pathname === item.href}
+            />
+          ))}
         </ul>
       </div>
     </aside>
