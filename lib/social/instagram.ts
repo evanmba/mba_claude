@@ -17,11 +17,16 @@ async function getIgUserId(): Promise<string | null> {
   }
   try {
     const res = await fetch(`${BASE}/me?fields=id&access_token=${TOKEN}`);
-    if (!res.ok) { cachedIgId = null; return null; }
     const data = await res.json();
+    if (!res.ok) {
+      console.error("[Instagram] /me error:", JSON.stringify(data));
+      cachedIgId = null;
+      return null;
+    }
     cachedIgId = data.id ?? null;
     return cachedIgId as string | null;
-  } catch {
+  } catch (e) {
+    console.error("[Instagram] /me fetch failed:", e);
     cachedIgId = null;
     return null;
   }
@@ -64,11 +69,13 @@ export async function getInstagramProfile(): Promise<InstagramProfile | null> {
   try {
     const res = await fetch(
       `${BASE}/${igId}?fields=id,name,username,biography,followers_count,follows_count,media_count,profile_picture_url,website&access_token=${TOKEN}`,
-      { next: { revalidate: 300 } }
+      { cache: "no-store" }
     );
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
+    const data = await res.json();
+    if (!res.ok) { console.error("[Instagram] profile error:", JSON.stringify(data)); return null; }
+    return data;
+  } catch (e) {
+    console.error("[Instagram] profile fetch failed:", e);
     return null;
   }
 }
@@ -80,12 +87,13 @@ export async function getInstagramMedia(limit = 12): Promise<InstagramMedia[]> {
   try {
     const res = await fetch(
       `${BASE}/${igId}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,like_count,comments_count,permalink&limit=${limit}&access_token=${TOKEN}`,
-      { next: { revalidate: 300 } }
+      { cache: "no-store" }
     );
-    if (!res.ok) return [];
     const data = await res.json();
+    if (!res.ok) { console.error("[Instagram] media error:", JSON.stringify(data)); return []; }
     return data.data ?? [];
-  } catch {
+  } catch (e) {
+    console.error("[Instagram] media fetch failed:", e);
     return [];
   }
 }

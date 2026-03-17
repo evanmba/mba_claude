@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PlaceholderCard } from "@/components/shared/PlaceholderCard";
 import { StatCard } from "@/components/shared/StatCard";
@@ -14,13 +17,35 @@ import {
   Clock,
   Link as LinkIcon,
   AlertCircle,
+  Loader2,
 } from "lucide-react";
-import {
-  getInstagramProfile,
-  getInstagramMedia,
-  isInstagramConnected,
-} from "@/lib/social/instagram";
-import Link from "next/link";
+
+const BASE = "https://graph.facebook.com/v19.0";
+const TOKEN = process.env.NEXT_PUBLIC_INSTAGRAM_ACCESS_TOKEN;
+
+interface InstagramProfile {
+  id: string;
+  name: string;
+  username: string;
+  biography: string;
+  followers_count: number;
+  follows_count: number;
+  media_count: number;
+  profile_picture_url: string;
+  website: string;
+}
+
+interface InstagramMedia {
+  id: string;
+  caption?: string;
+  media_type: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
+  media_url?: string;
+  thumbnail_url?: string;
+  timestamp: string;
+  like_count: number;
+  comments_count: number;
+  permalink: string;
+}
 
 function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -44,12 +69,51 @@ const placeholderPosts = [
   { type: "Story", status: "Expired", time: "5 days ago", likes: "—", comments: "—" },
 ];
 
-export default async function InstagramPage() {
-  const connected = isInstagramConnected();
-  const [profile, media] = connected
-    ? await Promise.all([getInstagramProfile(), getInstagramMedia(6)])
-    : [null, []];
+export default function InstagramPage() {
+  const [profile, setProfile] = useState<InstagramProfile | null>(null);
+  const [media, setMedia] = useState<InstagramMedia[]>([]);
+  const [loading, setLoading] = useState(!!TOKEN);
+  const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!TOKEN) return;
+
+    async function load() {
+      setLoading(true);
+      setError(null);
+      try {
+        // 1. Resolve IG user ID
+        const meRes = await fetch(`${BASE}/me?fields=id&access_token=${TOKEN}`);
+        const meData = await meRes.json();
+        if (!meRes.ok) {
+          setError(meData?.error?.message ?? "Failed to authenticate with Instagram.");
+          setLoading(false);
+          return;
+        }
+        const igId: string = meData.id;
+
+        // 2. Fetch profile + media in parallel
+        const [profileRes, mediaRes] = await Promise.all([
+          fetch(`${BASE}/${igId}?fields=id,name,username,biography,followers_count,follows_count,media_count,profile_picture_url,website&access_token=${TOKEN}`),
+          fetch(`${BASE}/${igId}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,like_count,comments_count,permalink&limit=6&access_token=${TOKEN}`),
+        ]);
+
+        const profileData = await profileRes.json();
+        const mediaData = await mediaRes.json();
+
+        if (profileRes.ok) setProfile(profileData);
+        if (mediaRes.ok) setMedia(mediaData.data ?? []);
+      } catch (e) {
+        setError(String(e));
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
+  }, []);
+
+  const connected = !!TOKEN && !error;
   const followers = profile ? formatCount(profile.followers_count) : "87.4K";
   const avgLikes =
     media.length > 0
@@ -62,39 +126,41 @@ export default async function InstagramPage() {
 
   return (
     <DashboardLayout>
-      {/* Not-connected banner */}
-      {!connected && (
-        <div
-          className="flex items-center gap-3 px-4 py-3 rounded-xl border mb-6 text-sm"
-          style={{
-            background: "rgba(245, 158, 11, 0.08)",
-            borderColor: "rgba(245, 158, 11, 0.3)",
-            color: "#f59e0b",
-          }}
-        >
-          <AlertCircle size={16} />
-          <span>
-            Instagram is not connected — showing placeholder data.{" "}
-            <Link href="/settings" className="underline underline-offset-2 font-medium">
-              Connect your account →
-            </Link>
-          </span>
+      {/* Loading */}
+      {loading && (
+        <div className="flex items-center gap-2 px-4 py-3 rounded-xl border mb-6 text-sm"
+          style={{ background: "rgba(59,130,246,0.08)", borderColor: "rgba(59,130,246,0.3)", color: "#3b82f6" }}>
+          <Loader2 size={16} className="animate-spin" />
+          <span>Loading Instagram data…</span>
         </div>
       )}
 
-      {/* Profile banner (when connected) */}
-      {connected && profile && (
-        <div
-          className="flex items-center gap-4 px-5 py-4 rounded-xl border mb-6"
-          style={{ background: "var(--card)", borderColor: "var(--border)" }}
-        >
+      {/* Error */}
+      {!loading && error && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border mb-6 text-sm"
+          style={{ background: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.3)", color: "#ef4444" }}>
+          <AlertCircle size={16} />
+          <span>{error} — showing placeholder data.</span>
+        </div>
+      )}
+
+      {/* Not connected */}
+      {!TOKEN && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border mb-6 text-sm"
+          style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.3)", color: "#f59e0b" }}>
+          <AlertCircle size={16} />
+          <span>Instagram is not connected — showing placeholder data.</span>
+        </div>
+      )}
+
+      {/* Profile banner */}
+      {!loading && profile && (
+        <div className="flex items-center gap-4 px-5 py-4 rounded-xl border mb-6"
+          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
           {profile.profile_picture_url && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={profile.profile_picture_url}
-              alt={profile.username}
-              className="w-12 h-12 rounded-full object-cover"
-            />
+            <img src={profile.profile_picture_url} alt={profile.username}
+              className="w-12 h-12 rounded-full object-cover" />
           )}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
@@ -105,13 +171,8 @@ export default async function InstagramPage() {
             </p>
           </div>
           {profile.website && (
-            <a
-              href={profile.website}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs"
-              style={{ color: "var(--primary)" }}
-            >
+            <a href={profile.website} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1 text-xs" style={{ color: "var(--primary)" }}>
               <LinkIcon size={12} /> {profile.website.replace(/^https?:\/\//, "")}
             </a>
           )}
@@ -130,33 +191,25 @@ export default async function InstagramPage() {
         {/* Post Queue / Recent Media */}
         <div className="lg:col-span-2">
           <PlaceholderCard
-            title={connected && media.length > 0 ? "Recent Posts" : "Post Queue"}
+            title={!loading && media.length > 0 ? "Recent Posts" : "Post Queue"}
             description={
-              connected && media.length > 0
-                ? "Latest published content from @mendoza.baseball.academy"
+              !loading && media.length > 0
+                ? `Latest published content from @${profile?.username ?? "your account"}`
                 : "Upcoming and recent posts across Instagram."
             }
           >
             <div className="mt-4 space-y-0">
-              {connected && media.length > 0
+              {!loading && media.length > 0
                 ? media.map((post) => (
-                    <div
-                      key={post.id}
-                      className="flex items-center justify-between py-3 border-t"
-                      style={{ borderColor: "var(--border)" }}
-                    >
+                    <div key={post.id} className="flex items-center justify-between py-3 border-t"
+                      style={{ borderColor: "var(--border)" }}>
                       <div className="flex items-center gap-3">
-                        <div
-                          className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden"
-                          style={{ background: "rgba(217, 70, 239, 0.15)", color: "#d946ef" }}
-                        >
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden"
+                          style={{ background: "rgba(217, 70, 239, 0.15)", color: "#d946ef" }}>
                           {post.thumbnail_url || post.media_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={post.thumbnail_url ?? post.media_url}
-                              alt=""
-                              className="w-full h-full object-cover rounded-lg"
-                            />
+                            <img src={post.thumbnail_url ?? post.media_url} alt=""
+                              className="w-full h-full object-cover rounded-lg" />
                           ) : post.media_type === "VIDEO" ? (
                             <Video size={16} />
                           ) : (
@@ -165,94 +218,53 @@ export default async function InstagramPage() {
                         </div>
                         <div>
                           <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                            {post.media_type === "CAROUSEL_ALBUM"
-                              ? "Carousel"
-                              : post.media_type === "VIDEO"
-                              ? "Reel / Video"
+                            {post.media_type === "CAROUSEL_ALBUM" ? "Carousel"
+                              : post.media_type === "VIDEO" ? "Reel / Video"
                               : "Image"}
                           </p>
-                          <p
-                            className="text-xs flex items-center gap-1"
-                            style={{ color: "var(--muted-foreground)" }}
-                          >
+                          <p className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
                             <Clock size={11} /> {formatRelativeTime(post.timestamp)}
                             {post.caption && ` · ${post.caption.slice(0, 40)}…`}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-4 text-xs" style={{ color: "var(--muted-foreground)" }}>
-                        <span className="flex items-center gap-1">
-                          <Heart size={12} /> {formatCount(post.like_count)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <MessageCircle size={12} /> {formatCount(post.comments_count)}
-                        </span>
-                        <a
-                          href={post.permalink}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <span className="flex items-center gap-1"><Heart size={12} /> {formatCount(post.like_count)}</span>
+                        <span className="flex items-center gap-1"><MessageCircle size={12} /> {formatCount(post.comments_count)}</span>
+                        <a href={post.permalink} target="_blank" rel="noopener noreferrer"
                           className="px-2 py-0.5 rounded-full text-xs"
-                          style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e" }}
-                        >
+                          style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e" }}>
                           View
                         </a>
                       </div>
                     </div>
                   ))
                 : placeholderPosts.map((post, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between py-3 border-t"
-                      style={{ borderColor: "var(--border)" }}
-                    >
+                    <div key={i} className="flex items-center justify-between py-3 border-t"
+                      style={{ borderColor: "var(--border)" }}>
                       <div className="flex items-center gap-3">
-                        <div
-                          className="w-9 h-9 rounded-lg flex items-center justify-center"
-                          style={{ background: "rgba(217, 70, 239, 0.15)", color: "#d946ef" }}
-                        >
-                          {post.type === "Reel" || post.type === "Story" ? (
-                            <Video size={16} />
-                          ) : (
-                            <ImageIcon size={16} />
-                          )}
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center"
+                          style={{ background: "rgba(217, 70, 239, 0.15)", color: "#d946ef" }}>
+                          {post.type === "Reel" || post.type === "Story" ? <Video size={16} /> : <ImageIcon size={16} />}
                         </div>
                         <div>
-                          <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                            {post.type}
-                          </p>
+                          <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{post.type}</p>
                           <p className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
                             <Clock size={11} /> {post.time}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-4 text-xs" style={{ color: "var(--muted-foreground)" }}>
-                        {post.likes !== "—" && (
-                          <span className="flex items-center gap-1">
-                            <Heart size={12} /> {post.likes}
-                          </span>
-                        )}
-                        {post.comments !== "—" && (
-                          <span className="flex items-center gap-1">
-                            <MessageCircle size={12} /> {post.comments}
-                          </span>
-                        )}
-                        <span
-                          className="px-2 py-0.5 rounded-full text-xs"
-                          style={{
-                            background:
-                              post.status === "Scheduled"
-                                ? "rgba(59,130,246,0.15)"
-                                : post.status === "Published"
-                                ? "rgba(34,197,94,0.15)"
-                                : "rgba(100,116,139,0.15)",
-                            color:
-                              post.status === "Scheduled"
-                                ? "#3b82f6"
-                                : post.status === "Published"
-                                ? "#22c55e"
-                                : "var(--muted-foreground)",
-                          }}
-                        >
+                        {post.likes !== "—" && <span className="flex items-center gap-1"><Heart size={12} /> {post.likes}</span>}
+                        {post.comments !== "—" && <span className="flex items-center gap-1"><MessageCircle size={12} /> {post.comments}</span>}
+                        <span className="px-2 py-0.5 rounded-full text-xs" style={{
+                          background: post.status === "Scheduled" ? "rgba(59,130,246,0.15)"
+                            : post.status === "Published" ? "rgba(34,197,94,0.15)"
+                            : "rgba(100,116,139,0.15)",
+                          color: post.status === "Scheduled" ? "#3b82f6"
+                            : post.status === "Published" ? "#22c55e"
+                            : "var(--muted-foreground)",
+                        }}>
                           {post.status}
                         </span>
                       </div>
@@ -275,11 +287,9 @@ export default async function InstagramPage() {
               ].map((action, i) => {
                 const Icon = action.icon;
                 return (
-                  <button
-                    key={i}
+                  <button key={i}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left"
-                    style={{ background: "var(--secondary)", color: "var(--foreground)" }}
-                  >
+                    style={{ background: "var(--secondary)", color: "var(--foreground)" }}>
                     <Icon size={16} style={{ color: action.color }} />
                     {action.label}
                   </button>
