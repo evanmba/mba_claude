@@ -19,33 +19,7 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
-
-const BASE = "https://graph.facebook.com/v19.0";
-const TOKEN = process.env.NEXT_PUBLIC_INSTAGRAM_ACCESS_TOKEN;
-
-interface InstagramProfile {
-  id: string;
-  name: string;
-  username: string;
-  biography: string;
-  followers_count: number;
-  follows_count: number;
-  media_count: number;
-  profile_picture_url: string;
-  website: string;
-}
-
-interface InstagramMedia {
-  id: string;
-  caption?: string;
-  media_type: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM";
-  media_url?: string;
-  thumbnail_url?: string;
-  timestamp: string;
-  like_count: number;
-  comments_count: number;
-  permalink: string;
-}
+import type { InstagramProfile, InstagramMedia } from "@/lib/social/instagram";
 
 function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -70,59 +44,41 @@ const placeholderPosts = [
 ];
 
 export default function InstagramPage() {
+  const [connected, setConnected] = useState(false);
   const [profile, setProfile] = useState<InstagramProfile | null>(null);
   const [media, setMedia] = useState<InstagramMedia[]>([]);
-  const [loading, setLoading] = useState(!!TOKEN);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!TOKEN) return;
-
     async function load() {
       setLoading(true);
       setError(null);
       try {
-        // 1. Resolve IG user ID
-        const meRes = await fetch(`${BASE}/me?fields=id&access_token=${TOKEN}`);
-        const meData = await meRes.json();
-        if (!meRes.ok) {
-          setError(meData?.error?.message ?? "Failed to authenticate with Instagram.");
-          setLoading(false);
-          return;
-        }
-        const igId: string = meData.id;
-
-        // 2. Fetch profile + media in parallel
-        const [profileRes, mediaRes] = await Promise.all([
-          fetch(`${BASE}/${igId}?fields=id,name,username,biography,followers_count,follows_count,media_count,profile_picture_url,website&access_token=${TOKEN}`),
-          fetch(`${BASE}/${igId}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,like_count,comments_count,permalink&limit=6&access_token=${TOKEN}`),
-        ]);
-
-        const profileData = await profileRes.json();
-        const mediaData = await mediaRes.json();
-
-        if (profileRes.ok) setProfile(profileData);
-        if (mediaRes.ok) setMedia(mediaData.data ?? []);
+        const res = await fetch("/api/social/instagram");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error ?? "API request failed");
+        setConnected(data.connected);
+        if (data.profile) setProfile(data.profile);
+        if (data.media) setMedia(data.media);
       } catch (e) {
         setError(String(e));
       } finally {
         setLoading(false);
       }
     }
-
     load();
   }, []);
 
-  const connected = !!TOKEN && !error;
-  const followers = profile ? formatCount(profile.followers_count) : "87.4K";
+  const followers = profile ? formatCount(profile.followers_count) : "—";
   const avgLikes =
     media.length > 0
       ? formatCount(Math.round(media.reduce((s, m) => s + m.like_count, 0) / media.length))
-      : "1.3K";
+      : "—";
   const avgComments =
     media.length > 0
       ? formatCount(Math.round(media.reduce((s, m) => s + m.comments_count, 0) / media.length))
-      : "48";
+      : "—";
 
   return (
     <DashboardLayout>
@@ -145,7 +101,7 @@ export default function InstagramPage() {
       )}
 
       {/* Not connected */}
-      {!TOKEN && (
+      {!loading && !connected && !error && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl border mb-6 text-sm"
           style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.3)", color: "#f59e0b" }}>
           <AlertCircle size={16} />
