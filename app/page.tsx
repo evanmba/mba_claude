@@ -4,8 +4,6 @@ import { PlaceholderCard } from "@/components/shared/PlaceholderCard";
 import {
   Instagram,
   Youtube,
-  Facebook,
-  Music2,
   BarChart3,
   CalendarDays,
   Users,
@@ -18,8 +16,6 @@ import {
 import Link from "next/link";
 import { isInstagramConnected } from "@/lib/social/instagram";
 import { isYouTubeConnected } from "@/lib/social/youtube";
-import { isFacebookConnected } from "@/lib/social/facebook";
-import { isTikTokConnected } from "@/lib/social/tiktok";
 
 const sections = [
   {
@@ -37,22 +33,6 @@ const sections = [
     description: "Channel stats, recent videos, views, and subscriber growth.",
     bg: "rgba(239, 68, 68, 0.15)",
     color: "#ef4444",
-  },
-  {
-    label: "Facebook",
-    href: "/facebook",
-    icon: Facebook,
-    description: "Page likes, post reach, engagement, and follower insights.",
-    bg: "rgba(59, 130, 246, 0.15)",
-    color: "#3b82f6",
-  },
-  {
-    label: "TikTok",
-    href: "/tiktok",
-    icon: Music2,
-    description: "Video performance, follower counts, and engagement data.",
-    bg: "rgba(148, 163, 184, 0.15)",
-    color: "#94a3b8",
   },
   {
     label: "Analytics",
@@ -92,8 +72,6 @@ export default function DashboardPage() {
   const platforms = [
     { label: "Instagram", icon: Instagram, color: "#d946ef", bg: "rgba(217,70,239,0.15)", connected: isInstagramConnected() },
     { label: "YouTube", icon: Youtube, color: "#ef4444", bg: "rgba(239,68,68,0.15)", connected: isYouTubeConnected() },
-    { label: "Facebook", icon: Facebook, color: "#3b82f6", bg: "rgba(59,130,246,0.15)", connected: isFacebookConnected() },
-    { label: "TikTok", icon: Music2, color: "#94a3b8", bg: "rgba(148,163,184,0.15)", connected: isTikTokConnected() },
   ];
   const connectedCount = platforms.filter((p) => p.connected).length;
 

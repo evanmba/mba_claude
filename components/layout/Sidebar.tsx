@@ -5,8 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   Instagram,
   Youtube,
-  Facebook,
-  Music2,
   BarChart3,
   CalendarDays,
   Users,
@@ -20,8 +18,6 @@ const socialItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Instagram", href: "/instagram", icon: Instagram, color: "#d946ef" },
   { label: "YouTube", href: "/youtube", icon: Youtube, color: "#ef4444" },
-  { label: "Facebook", href: "/facebook", icon: Facebook, color: "#3b82f6" },
-  { label: "TikTok", href: "/tiktok", icon: Music2, color: "#94a3b8" },
 ];
 
 const toolsItems = [
