@@ -1,9 +1,30 @@
 const BASE = "https://graph.facebook.com/v19.0";
 const TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN;
-const IG_ID = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
+
+// Cache the resolved IG user ID for the process lifetime
+let cachedIgId: string | null | undefined = undefined;
 
 export function isInstagramConnected() {
-  return !!(TOKEN && IG_ID);
+  return !!TOKEN;
+}
+
+async function getIgUserId(): Promise<string | null> {
+  if (cachedIgId !== undefined) return cachedIgId;
+  // Prefer explicit env var, fall back to /me lookup
+  if (process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID) {
+    cachedIgId = process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID;
+    return cachedIgId;
+  }
+  try {
+    const res = await fetch(`${BASE}/me?fields=id&access_token=${TOKEN}`);
+    if (!res.ok) { cachedIgId = null; return null; }
+    const data = await res.json();
+    cachedIgId = data.id ?? null;
+    return cachedIgId as string | null;
+  } catch {
+    cachedIgId = null;
+    return null;
+  }
 }
 
 export interface InstagramProfile {
@@ -38,9 +59,11 @@ export interface InstagramInsightMetric {
 
 export async function getInstagramProfile(): Promise<InstagramProfile | null> {
   if (!isInstagramConnected()) return null;
+  const igId = await getIgUserId();
+  if (!igId) return null;
   try {
     const res = await fetch(
-      `${BASE}/${IG_ID}?fields=id,name,username,biography,followers_count,follows_count,media_count,profile_picture_url,website&access_token=${TOKEN}`,
+      `${BASE}/${igId}?fields=id,name,username,biography,followers_count,follows_count,media_count,profile_picture_url,website&access_token=${TOKEN}`,
       { next: { revalidate: 300 } }
     );
     if (!res.ok) return null;
@@ -52,9 +75,11 @@ export async function getInstagramProfile(): Promise<InstagramProfile | null> {
 
 export async function getInstagramMedia(limit = 12): Promise<InstagramMedia[]> {
   if (!isInstagramConnected()) return [];
+  const igId = await getIgUserId();
+  if (!igId) return [];
   try {
     const res = await fetch(
-      `${BASE}/${IG_ID}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,like_count,comments_count,permalink&limit=${limit}&access_token=${TOKEN}`,
+      `${BASE}/${igId}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,like_count,comments_count,permalink&limit=${limit}&access_token=${TOKEN}`,
       { next: { revalidate: 300 } }
     );
     if (!res.ok) return [];
@@ -67,9 +92,11 @@ export async function getInstagramMedia(limit = 12): Promise<InstagramMedia[]> {
 
 export async function getInstagramInsights(): Promise<InstagramInsightMetric[]> {
   if (!isInstagramConnected()) return [];
+  const igId = await getIgUserId();
+  if (!igId) return [];
   try {
     const res = await fetch(
-      `${BASE}/${IG_ID}/insights?metric=reach,impressions,follower_count&period=day&since=${Math.floor(Date.now() / 1000) - 7 * 86400}&until=${Math.floor(Date.now() / 1000)}&access_token=${TOKEN}`,
+      `${BASE}/${igId}/insights?metric=reach,impressions,follower_count&period=day&since=${Math.floor(Date.now() / 1000) - 7 * 86400}&until=${Math.floor(Date.now() / 1000)}&access_token=${TOKEN}`,
       { next: { revalidate: 3600 } }
     );
     if (!res.ok) return [];
