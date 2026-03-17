@@ -1,13 +1,9 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { isInstagramConnected } from "@/lib/social/instagram";
 import { isYouTubeConnected } from "@/lib/social/youtube";
-import { isFacebookConnected } from "@/lib/social/facebook";
-import { isTikTokConnected } from "@/lib/social/tiktok";
 import {
   Instagram,
   Youtube,
-  Facebook,
-  Music2,
   CheckCircle2,
   XCircle,
   ExternalLink,
@@ -56,57 +52,12 @@ const platforms = [
       "Copy the API key into .env.local",
     ],
   },
-  {
-    id: "facebook",
-    label: "Facebook",
-    handle: "mendoza.baseball.academy",
-    icon: Facebook,
-    color: "#3b82f6",
-    bg: "rgba(59, 130, 246, 0.15)",
-    envVars: [
-      { name: "FACEBOOK_PAGE_ID", desc: "Your Facebook Page numeric ID" },
-      { name: "FACEBOOK_ACCESS_TOKEN", desc: "Page Access Token with pages_read_engagement permission" },
-    ],
-    docsUrl: "https://developers.facebook.com/docs/graph-api/get-started",
-    steps: [
-      "Use the same Facebook Developer App as Instagram",
-      "In Graph API Explorer, select your Page (not User) to get a Page Access Token",
-      "Request pages_read_engagement and pages_show_list permissions",
-      "Find your Page ID in Facebook Page Settings → About → Page ID",
-      "Exchange for a long-lived Page Access Token",
-    ],
-  },
-  {
-    id: "tiktok",
-    label: "TikTok",
-    handle: "@mendoza.baseball.academy",
-    icon: Music2,
-    color: "#94a3b8",
-    bg: "rgba(148, 163, 184, 0.15)",
-    envVars: [
-      { name: "TIKTOK_CLIENT_KEY", desc: "Client Key from TikTok Developer app" },
-      { name: "TIKTOK_CLIENT_SECRET", desc: "Client Secret from TikTok Developer app" },
-      { name: "TIKTOK_ACCESS_TOKEN", desc: "OAuth access token after user authorization" },
-      { name: "TIKTOK_OPEN_ID", desc: "Your account's Open ID from the OAuth response" },
-    ],
-    docsUrl: "https://developers.tiktok.com/doc/overview",
-    steps: [
-      "Go to developers.tiktok.com and register a developer account",
-      "Create an app and apply for Login Kit + Content Posting API access",
-      "Complete business verification (required — can take 1–2 weeks for review)",
-      "Once approved, implement OAuth flow to get access_token and open_id",
-      "Copy credentials into .env.local",
-    ],
-    note: "TikTok API requires business verification and app review before access is granted.",
-  },
 ];
 
 export default function SettingsPage() {
   const connected = {
     instagram: isInstagramConnected(),
     youtube: isYouTubeConnected(),
-    facebook: isFacebookConnected(),
-    tiktok: isTikTokConnected(),
   };
 
   const connectedCount = Object.values(connected).filter(Boolean).length;
@@ -264,18 +215,6 @@ export default function SettingsPage() {
                       </li>
                     ))}
                   </ol>
-                  {"note" in platform && platform.note && (
-                    <p
-                      className="mt-3 text-xs px-3 py-2 rounded-lg border"
-                      style={{
-                        background: "rgba(245,158,11,0.06)",
-                        borderColor: "rgba(245,158,11,0.2)",
-                        color: "#f59e0b",
-                      }}
-                    >
-                      ⚠ {platform.note}
-                    </p>
-                  )}
                 </div>
               </div>
             </div>
