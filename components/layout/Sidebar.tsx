@@ -5,10 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Instagram,
   Youtube,
-  BarChart3,
-  CalendarDays,
   Users,
-  Newspaper,
   LayoutDashboard,
   Settings,
   Bell,
@@ -21,10 +18,7 @@ const socialItems = [
 ];
 
 const toolsItems = [
-  { label: "Analytics", href: "/analytics", icon: BarChart3 },
-  { label: "Content Calendar", href: "/calendar", icon: CalendarDays },
   { label: "Competitor Tracker", href: "/competitors", icon: Users },
-  { label: "News Consolidator", href: "/news", icon: Newspaper },
 ];
 
 const bottomNavItems = [
