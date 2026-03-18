@@ -1,5 +1,6 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { PlaceholderCard } from "@/components/shared/PlaceholderCard";
+import { ContentIdeasCard } from "@/components/shared/ContentIdeasCard";
 import { ExternalLink, Youtube, Instagram, TrendingUp } from "lucide-react";
 
 // ─── Data — add rows here to keep the tracker updated ────────────────────────
@@ -414,6 +415,9 @@ export default function CompetitorsPage() {
               })}
             </div>
           </PlaceholderCard>
+
+          {/* Content Ideas refresh card */}
+          <ContentIdeasCard />
 
         </div>
       </div>
