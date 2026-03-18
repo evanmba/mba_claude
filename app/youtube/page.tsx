@@ -165,10 +165,7 @@ export default async function YouTubePage() {
   const filled = monthly.filter((m) => m.impressions > 0);
   const latest = filled[filled.length - 1];
   const prev   = filled[filled.length - 2];
-  // Derive a short label like "3/1/26" → "March"
-  const monthLabel = latest?.month
-    ? new Date(latest.month).toLocaleString("en-US", { month: "long" })
-    : "";
+  const monthLabel = latest?.month ?? "";
 
   return (
     <DashboardLayout>

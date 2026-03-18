@@ -192,9 +192,9 @@ export interface YTData {
   videos: YTVideo[];
 }
 
-const YT_MONTHS = new Set([
-  "1/1/26","2/1/26","3/1/26","4/1/26","5/1/26","6/1/26",
-  "7/1/26","8/1/26","9/1/26","10/1/26","11/1/26","12/1/26","1/1/27",
+const YT_MONTH_NAMES = new Set([
+  "january","february","march","april","may","june",
+  "july","august","september","october","november","december",
 ]);
 
 export function parseYTData(rows: string[][]): YTData {
@@ -206,26 +206,31 @@ export function parseYTData(rows: string[][]): YTData {
   for (const row of rows) {
     const joined = row.join(",").toLowerCase();
     const col0 = (row[0] ?? "").trim();
+    const col0l = col0.toLowerCase();
 
-    if (joined.includes("ctr @ 24h") && joined.includes("watch time") && joined.includes("impressions") && !joined.includes("title")) {
+    // Monthly section header: contains "ctr @ 24h" but NOT "video title" / "publish date"
+    if (joined.includes("ctr @ 24h") && joined.includes("watch time") && !joined.includes("publish date") && !joined.includes("video title")) {
       mode = "monthly";
       continue;
     }
-    if (joined.includes("video title") || (joined.includes("ctr @ 24h") && joined.includes("title"))) {
+    // Video section header
+    if (joined.includes("video title") || joined.includes("publish date")) {
       mode = "videos";
       continue;
     }
 
     if (mode === "monthly") {
-      if (YT_MONTHS.has(col0)) {
+      // Data rows: col[0] = month name, col[1] = date (1/1/26), col[2] = CTR, col[3] = watch time, col[4] = impressions, col[5] = ratio
+      if (YT_MONTH_NAMES.has(col0l)) {
         monthly.push({
           month: col0,
-          ctr: row[1] ?? "",
-          watchTime: toNum(row[2]),
-          impressions: toNum(row[3]),
-          wtImpressions: row[4] ?? "",
+          ctr: row[2] ?? "",
+          watchTime: toNum(row[3]),
+          impressions: toNum(row[4]),
+          wtImpressions: row[5] ?? "",
         });
-      } else if (col0.toLowerCase().includes("avg") || col0.toLowerCase().includes("monthly avg")) {
+      // Average row: col[0] = "MONTHLY AVG", col[1] = CTR, col[2] = watch time, col[3] = impressions, col[4] = ratio
+      } else if (col0l.includes("monthly avg")) {
         averages = {
           month: "Monthly Avg",
           ctr: row[1] ?? "",
