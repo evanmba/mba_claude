@@ -1,260 +1,274 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { PlaceholderCard } from "@/components/shared/PlaceholderCard";
 import { StatCard } from "@/components/shared/StatCard";
-import {
-  Image as ImageIcon,
-  Video,
-  Heart,
-  MessageCircle,
-  Send,
-  Bookmark,
-  Users,
-  TrendingUp,
-  Plus,
-  Clock,
-  Link as LinkIcon,
-  AlertCircle,
-  Loader2,
-} from "lucide-react";
-import type { InstagramProfile, InstagramMedia } from "@/lib/social/instagram";
+import { PlaceholderCard } from "@/components/shared/PlaceholderCard";
+import { Eye, Heart, Share2, UserPlus, AlertCircle } from "lucide-react";
+import { fetchCSV, parseIGData, type IGMonthlyRow, type IGPost } from "@/lib/sheets";
 
-function formatCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
+const IG_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt9HlvUd1055qAlYc_x-oflTe2quXENd-q8W6oV2-AOs3uGPumpmPgQZHCnZQaYFKU9QzKubHt-68v/pub?output=csv";
+
+function pct(curr: number, prev: number): string {
+  if (!prev) return "";
+  const d = ((curr - prev) / prev) * 100;
+  return `${d >= 0 ? "+" : ""}${d.toFixed(0)}%`;
 }
 
-function formatRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+function trendDir(curr: number, prev: number | undefined): "up" | "down" | "neutral" {
+  if (!prev) return "neutral";
+  return curr >= prev ? "up" : "down";
 }
 
-const placeholderPosts = [
-  { type: "Reel", status: "Scheduled", time: "Tomorrow, 10:00 AM", likes: "—", comments: "—" },
-  { type: "Image", status: "Published", time: "Yesterday, 2:30 PM", likes: "1,284", comments: "47" },
-  { type: "Carousel", status: "Published", time: "3 days ago", likes: "943", comments: "31" },
-  { type: "Story", status: "Expired", time: "5 days ago", likes: "—", comments: "—" },
-];
+// ─── Monthly table ─────────────────────────────────────────────────────────────
 
-export default function InstagramPage() {
-  const [connected, setConnected] = useState(false);
-  const [profile, setProfile] = useState<InstagramProfile | null>(null);
-  const [media, setMedia] = useState<InstagramMedia[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+function MonthlyTable({ monthly, averages }: { monthly: IGMonthlyRow[]; averages: IGMonthlyRow | null }) {
+  const filled = monthly.filter((m) => m.reach > 0);
+  if (filled.length === 0) return null;
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch("/api/social/instagram");
-        const data = await res.json();
-        if (!res.ok) throw new Error(data?.error ?? "API request failed");
-        setConnected(data.connected);
-        if (data.profile) setProfile(data.profile);
-        if (data.media) setMedia(data.media);
-      } catch (e) {
-        setError(String(e));
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
+  const cols = [
+    "Month", "Avg Reach", "Watch Time", "Avg Likes", "Avg Shares",
+    "Avg Follows", "Reach:Like", "Reach:Shares", "Reach:Follows",
+  ];
 
-  const followers = profile ? formatCount(profile.followers_count) : "—";
-  const avgLikes =
-    media.length > 0
-      ? formatCount(Math.round(media.reduce((s, m) => s + m.like_count, 0) / media.length))
-      : "—";
-  const avgComments =
-    media.length > 0
-      ? formatCount(Math.round(media.reduce((s, m) => s + m.comments_count, 0) / media.length))
-      : "—";
+  const rows = averages ? [...filled, averages] : filled;
+
+  return (
+    <PlaceholderCard title="Monthly Performance" description="24-hour average metrics by month">
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full text-sm min-w-max">
+          <thead>
+            <tr style={{ borderBottom: "1px solid var(--border)" }}>
+              {cols.map((c) => (
+                <th
+                  key={c}
+                  className="text-left py-2 pr-5 text-xs font-semibold whitespace-nowrap"
+                  style={{ color: "var(--muted-foreground)" }}
+                >
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((m, i) => {
+              const isAvg = m.month === "Average";
+              return (
+                <tr
+                  key={i}
+                  style={{
+                    borderBottom: "1px solid var(--border)",
+                    background: isAvg ? "rgba(217,70,239,0.04)" : undefined,
+                  }}
+                >
+                  <td className="py-2.5 pr-5 whitespace-nowrap font-medium"
+                    style={{ color: isAvg ? "#d946ef" : "var(--foreground)" }}>
+                    {m.month}
+                  </td>
+                  <td className="py-2.5 pr-5 font-semibold" style={{ color: "#d946ef" }}>
+                    {m.reach ? m.reach.toLocaleString() : "—"}
+                  </td>
+                  <td className="py-2.5 pr-5" style={{ color: "var(--muted-foreground)" }}>
+                    {m.watchTime ? `${m.watchTime.toFixed(2)}s` : "—"}
+                  </td>
+                  <td className="py-2.5 pr-5" style={{ color: "var(--foreground)" }}>
+                    {m.likes ? m.likes.toFixed(2) : "—"}
+                  </td>
+                  <td className="py-2.5 pr-5" style={{ color: "var(--foreground)" }}>
+                    {m.shares ? m.shares.toFixed(2) : "—"}
+                  </td>
+                  <td className="py-2.5 pr-5" style={{ color: "var(--foreground)" }}>
+                    {m.follows ? m.follows.toFixed(2) : "—"}
+                  </td>
+                  <td className="py-2.5 pr-5" style={{ color: "var(--muted-foreground)" }}>
+                    {m.reachLike || "—"}
+                  </td>
+                  <td className="py-2.5 pr-5" style={{ color: "var(--muted-foreground)" }}>
+                    {m.reachShares || "—"}
+                  </td>
+                  <td className="py-2.5 pr-5" style={{ color: "var(--muted-foreground)" }}>
+                    {m.reachFollowers || "—"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </PlaceholderCard>
+  );
+}
+
+// ─── Who badge colour ──────────────────────────────────────────────────────────
+
+function whoBadge(who: string): { bg: string; color: string } {
+  switch (who.toLowerCase()) {
+    case "evan":  return { bg: "rgba(59,130,246,0.15)",  color: "#3b82f6" };
+    case "nate":  return { bg: "rgba(217,70,239,0.15)",  color: "#d946ef" };
+    case "yasir": return { bg: "rgba(245,158,11,0.15)",  color: "#f59e0b" };
+    default:      return { bg: "rgba(100,116,139,0.15)", color: "var(--muted-foreground)" };
+  }
+}
+
+// ─── Post log table ────────────────────────────────────────────────────────────
+
+function PostLog({ posts }: { posts: IGPost[] }) {
+  if (posts.length === 0) return null;
+
+  const headers = ["Date", "Title", "Reach", "Likes", "Shares", "Follows", "Reach:Like", "Who", "Type", "CTA"];
+
+  return (
+    <PlaceholderCard
+      title={`Post Log — ${posts.length} posts`}
+      description="Individual post performance at 24 hours"
+    >
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full text-xs min-w-max">
+          <thead>
+            <tr style={{ borderBottom: "1px solid var(--border)" }}>
+              {headers.map((h) => (
+                <th
+                  key={h}
+                  className="text-left py-2 pr-4 font-semibold whitespace-nowrap"
+                  style={{ color: "var(--muted-foreground)" }}
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {posts.map((p, i) => {
+              const { bg, color } = whoBadge(p.who);
+              return (
+                <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <td className="py-2 pr-4 whitespace-nowrap" style={{ color: "var(--muted-foreground)" }}>
+                    {p.date}
+                  </td>
+                  <td className="py-2 pr-4" style={{ color: "var(--foreground)", maxWidth: "240px" }}>
+                    <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      {p.title}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-4 font-semibold" style={{ color: "#d946ef" }}>
+                    {p.reach ? p.reach.toLocaleString() : "—"}
+                  </td>
+                  <td className="py-2 pr-4" style={{ color: "var(--foreground)" }}>{p.likes || "—"}</td>
+                  <td className="py-2 pr-4" style={{ color: "var(--foreground)" }}>{p.shares || "—"}</td>
+                  <td className="py-2 pr-4" style={{ color: "var(--foreground)" }}>{p.follows || "—"}</td>
+                  <td className="py-2 pr-4" style={{ color: "var(--muted-foreground)" }}>{p.reachLike || "—"}</td>
+                  <td className="py-2 pr-4">
+                    <span className="px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color }}>
+                      {p.who || "—"}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-4 whitespace-nowrap" style={{ color: "var(--muted-foreground)" }}>
+                    {p.type || "—"}
+                  </td>
+                  <td className="py-2 pr-4">
+                    <span
+                      className="px-2 py-0.5 rounded-full"
+                      style={{
+                        background: p.cta === "Yes" ? "rgba(34,197,94,0.15)" : "rgba(100,116,139,0.12)",
+                        color: p.cta === "Yes" ? "#22c55e" : "var(--muted-foreground)",
+                      }}
+                    >
+                      {p.cta || "—"}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </PlaceholderCard>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default async function InstagramPage() {
+  let monthly: IGMonthlyRow[] = [];
+  let averages: IGMonthlyRow | null = null;
+  let posts: IGPost[] = [];
+  let fetchError = false;
+
+  try {
+    const rows = await fetchCSV(IG_CSV_URL);
+    const data = parseIGData(rows);
+    monthly = data.monthly;
+    averages = data.averages;
+    posts = data.posts;
+  } catch {
+    fetchError = true;
+  }
+
+  const filled = monthly.filter((m) => m.reach > 0);
+  const latest = filled[filled.length - 1];
+  const prev   = filled[filled.length - 2];
+  const display = averages ?? latest;
 
   return (
     <DashboardLayout>
-      {/* Loading */}
-      {loading && (
-        <div className="flex items-center gap-2 px-4 py-3 rounded-xl border mb-6 text-sm"
-          style={{ background: "rgba(59,130,246,0.08)", borderColor: "rgba(59,130,246,0.3)", color: "#3b82f6" }}>
-          <Loader2 size={16} className="animate-spin" />
-          <span>Loading Instagram data…</span>
-        </div>
-      )}
-
-      {/* Error */}
-      {!loading && error && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border mb-6 text-sm"
-          style={{ background: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.3)", color: "#ef4444" }}>
+      {fetchError && (
+        <div
+          className="flex items-center gap-3 px-4 py-3 rounded-xl border mb-6 text-sm"
+          style={{ background: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.3)", color: "#ef4444" }}
+        >
           <AlertCircle size={16} />
-          <span>{error} — showing placeholder data.</span>
+          <span>Could not load sheet data. Check that the CSV URL is still published.</span>
         </div>
       )}
 
-      {/* Not connected */}
-      {!loading && !connected && !error && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl border mb-6 text-sm"
-          style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.3)", color: "#f59e0b" }}>
-          <AlertCircle size={16} />
-          <span>Instagram is not connected — showing placeholder data.</span>
-        </div>
-      )}
-
-      {/* Profile banner */}
-      {!loading && profile && (
-        <div className="flex items-center gap-4 px-5 py-4 rounded-xl border mb-6"
-          style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-          {profile.profile_picture_url && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={profile.profile_picture_url} alt={profile.username}
-              className="w-12 h-12 rounded-full object-cover" />
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-              @{profile.username}
-            </p>
-            <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
-              {profile.biography}
-            </p>
-          </div>
-          {profile.website && (
-            <a href={profile.website} target="_blank" rel="noopener noreferrer"
-              className="flex items-center gap-1 text-xs" style={{ color: "var(--primary)" }}>
-              <LinkIcon size={12} /> {profile.website.replace(/^https?:\/\//, "")}
-            </a>
-          )}
-        </div>
-      )}
-
-      {/* Stats */}
+      {/* Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <StatCard title="Followers" value={followers} change="+2.1K" trend="up" icon={Users} />
-        <StatCard title="Avg. Likes" value={avgLikes} change="+8.4%" trend="up" icon={Heart} />
-        <StatCard title="Avg. Comments" value={avgComments} change="+3.2%" trend="up" icon={MessageCircle} />
-        <StatCard title="Reach (7d)" value={connected ? "—" : "214K"} change={connected ? "" : "-1.2%"} trend={connected ? "neutral" : "down"} icon={TrendingUp} />
+        <StatCard
+          title="Avg Reach (24h)"
+          value={display ? display.reach.toLocaleString() : "—"}
+          change={latest && prev ? pct(latest.reach, prev.reach) : ""}
+          trend={latest && prev ? trendDir(latest.reach, prev.reach) : "neutral"}
+          icon={Eye}
+        />
+        <StatCard
+          title="Avg Likes (24h)"
+          value={display ? display.likes.toFixed(1) : "—"}
+          change={latest && prev ? pct(latest.likes, prev.likes) : ""}
+          trend={latest && prev ? trendDir(latest.likes, prev.likes) : "neutral"}
+          icon={Heart}
+        />
+        <StatCard
+          title="Avg Shares (24h)"
+          value={display ? display.shares.toFixed(1) : "—"}
+          change={latest && prev ? pct(latest.shares, prev.shares) : ""}
+          trend={latest && prev ? trendDir(latest.shares, prev.shares) : "neutral"}
+          icon={Share2}
+        />
+        <StatCard
+          title="Avg Follows (24h)"
+          value={display ? display.follows.toFixed(2) : "—"}
+          change={latest && prev ? pct(latest.follows, prev.follows) : ""}
+          trend={latest && prev ? trendDir(latest.follows, prev.follows) : "neutral"}
+          icon={UserPlus}
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Post Queue / Recent Media */}
-        <div className="lg:col-span-2">
-          <PlaceholderCard
-            title={!loading && media.length > 0 ? "Recent Posts" : "Post Queue"}
-            description={
-              !loading && media.length > 0
-                ? `Latest published content from @${profile?.username ?? "your account"}`
-                : "Upcoming and recent posts across Instagram."
-            }
-          >
-            <div className="mt-4 space-y-0">
-              {!loading && media.length > 0
-                ? media.map((post) => (
-                    <div key={post.id} className="flex items-center justify-between py-3 border-t"
-                      style={{ borderColor: "var(--border)" }}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden"
-                          style={{ background: "rgba(217, 70, 239, 0.15)", color: "#d946ef" }}>
-                          {post.thumbnail_url || post.media_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={post.thumbnail_url ?? post.media_url} alt=""
-                              className="w-full h-full object-cover rounded-lg" />
-                          ) : post.media_type === "VIDEO" ? (
-                            <Video size={16} />
-                          ) : (
-                            <ImageIcon size={16} />
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                            {post.media_type === "CAROUSEL_ALBUM" ? "Carousel"
-                              : post.media_type === "VIDEO" ? "Reel / Video"
-                              : "Image"}
-                          </p>
-                          <p className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
-                            <Clock size={11} /> {formatRelativeTime(post.timestamp)}
-                            {post.caption && ` · ${post.caption.slice(0, 40)}…`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs" style={{ color: "var(--muted-foreground)" }}>
-                        <span className="flex items-center gap-1"><Heart size={12} /> {formatCount(post.like_count)}</span>
-                        <span className="flex items-center gap-1"><MessageCircle size={12} /> {formatCount(post.comments_count)}</span>
-                        <a href={post.permalink} target="_blank" rel="noopener noreferrer"
-                          className="px-2 py-0.5 rounded-full text-xs"
-                          style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e" }}>
-                          View
-                        </a>
-                      </div>
-                    </div>
-                  ))
-                : placeholderPosts.map((post, i) => (
-                    <div key={i} className="flex items-center justify-between py-3 border-t"
-                      style={{ borderColor: "var(--border)" }}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg flex items-center justify-center"
-                          style={{ background: "rgba(217, 70, 239, 0.15)", color: "#d946ef" }}>
-                          {post.type === "Reel" || post.type === "Story" ? <Video size={16} /> : <ImageIcon size={16} />}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{post.type}</p>
-                          <p className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
-                            <Clock size={11} /> {post.time}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs" style={{ color: "var(--muted-foreground)" }}>
-                        {post.likes !== "—" && <span className="flex items-center gap-1"><Heart size={12} /> {post.likes}</span>}
-                        {post.comments !== "—" && <span className="flex items-center gap-1"><MessageCircle size={12} /> {post.comments}</span>}
-                        <span className="px-2 py-0.5 rounded-full text-xs" style={{
-                          background: post.status === "Scheduled" ? "rgba(59,130,246,0.15)"
-                            : post.status === "Published" ? "rgba(34,197,94,0.15)"
-                            : "rgba(100,116,139,0.15)",
-                          color: post.status === "Scheduled" ? "#3b82f6"
-                            : post.status === "Published" ? "#22c55e"
-                            : "var(--muted-foreground)",
-                        }}>
-                          {post.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-            </div>
-          </PlaceholderCard>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="space-y-4">
-          <PlaceholderCard title="Quick Actions">
-            <div className="mt-4 space-y-2">
-              {[
-                { label: "Create New Post", icon: Plus, color: "#3b82f6" },
-                { label: "Schedule Content", icon: Clock, color: "#22c55e" },
-                { label: "View Insights", icon: TrendingUp, color: "#d946ef" },
-                { label: "Manage Stories", icon: Bookmark, color: "#f59e0b" },
-                { label: "Direct Messages", icon: Send, color: "#ef4444" },
-              ].map((action, i) => {
-                const Icon = action.icon;
-                return (
-                  <button key={i}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left"
-                    style={{ background: "var(--secondary)", color: "var(--foreground)" }}>
-                    <Icon size={16} style={{ color: action.color }} />
-                    {action.label}
-                  </button>
-                );
-              })}
-            </div>
-          </PlaceholderCard>
-        </div>
+      {/* Monthly breakdown */}
+      <div className="mb-6">
+        <MonthlyTable monthly={monthly} averages={averages} />
       </div>
+
+      {/* Post log */}
+      <PostLog posts={posts} />
+
+      {/* Empty state */}
+      {!fetchError && filled.length === 0 && posts.length === 0 && (
+        <div
+          className="flex items-center gap-3 px-4 py-3 rounded-xl border text-sm"
+          style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.3)", color: "#f59e0b" }}
+        >
+          <AlertCircle size={16} />
+          <span>Sheet loaded but no data rows detected. Make sure the published tab contains IG tracker data.</span>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

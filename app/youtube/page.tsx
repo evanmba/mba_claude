@@ -1,68 +1,201 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { PlaceholderCard } from "@/components/shared/PlaceholderCard";
 import { StatCard } from "@/components/shared/StatCard";
-import {
-  Youtube,
-  Eye,
-  ThumbsUp,
-  MessageSquare,
-  Users,
-  AlertCircle,
-  Play,
-  Clock,
-  ExternalLink,
-} from "lucide-react";
-import {
-  getYouTubeChannel,
-  getYouTubeVideos,
-  isYouTubeConnected,
-  formatDuration,
-  formatCount,
-} from "@/lib/social/youtube";
-import Link from "next/link";
+import { PlaceholderCard } from "@/components/shared/PlaceholderCard";
+import { Youtube, Eye, MousePointerClick, Clock, AlertCircle } from "lucide-react";
+import { fetchCSV, parseYTData, type YTMonthlyRow, type YTVideo } from "@/lib/sheets";
 
-function formatRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const days = Math.floor(diff / 86400000);
-  if (days === 0) return "Today";
-  if (days === 1) return "Yesterday";
-  if (days < 30) return `${days}d ago`;
-  const months = Math.floor(days / 30);
-  if (months < 12) return `${months}mo ago`;
-  return `${Math.floor(months / 12)}y ago`;
+// TODO: replace with your published YouTube tracker CSV URL
+// File → Share → Publish to web → select the correct sheet tab → CSV → copy URL
+const YT_CSV_URL = process.env.YT_SHEET_CSV_URL ?? "";
+
+function pct(curr: number, prev: number): string {
+  if (!prev) return "";
+  const d = ((curr - prev) / prev) * 100;
+  return `${d >= 0 ? "+" : ""}${d.toFixed(0)}%`;
 }
 
-const CHANNEL_URL = "https://www.youtube.com/channel/UCjfSfoqQxbCLU6P6BKr8CdA";
+function trendDir(curr: number, prev: number | undefined): "up" | "down" | "neutral" {
+  if (!prev) return "neutral";
+  return curr >= prev ? "up" : "down";
+}
+
+// ─── Monthly table ─────────────────────────────────────────────────────────────
+
+function MonthlyTable({ monthly, averages }: { monthly: YTMonthlyRow[]; averages: YTMonthlyRow | null }) {
+  const filled = monthly.filter((m) => m.impressions > 0);
+  if (filled.length === 0) return null;
+
+  const cols = ["Month", "CTR @ 24h", "Watch Time (min)", "Impressions", "Watch:Impressions"];
+  const rows = averages ? [...filled, averages] : filled;
+
+  return (
+    <PlaceholderCard title="Monthly Performance" description="YouTube 24-hour averages by month">
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full text-sm min-w-max">
+          <thead>
+            <tr style={{ borderBottom: "1px solid var(--border)" }}>
+              {cols.map((c) => (
+                <th
+                  key={c}
+                  className="text-left py-2 pr-6 text-xs font-semibold whitespace-nowrap"
+                  style={{ color: "var(--muted-foreground)" }}
+                >
+                  {c}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((m, i) => {
+              const isAvg = m.month === "Monthly Avg";
+              return (
+                <tr
+                  key={i}
+                  style={{
+                    borderBottom: "1px solid var(--border)",
+                    background: isAvg ? "rgba(239,68,68,0.04)" : undefined,
+                  }}
+                >
+                  <td className="py-2.5 pr-6 whitespace-nowrap font-medium"
+                    style={{ color: isAvg ? "#ef4444" : "var(--foreground)" }}>
+                    {m.month}
+                  </td>
+                  <td className="py-2.5 pr-6 font-semibold" style={{ color: "#ef4444" }}>
+                    {m.ctr || "—"}
+                  </td>
+                  <td className="py-2.5 pr-6" style={{ color: "var(--foreground)" }}>
+                    {m.watchTime ? m.watchTime.toFixed(1) : "—"}
+                  </td>
+                  <td className="py-2.5 pr-6" style={{ color: "var(--foreground)" }}>
+                    {m.impressions ? m.impressions.toLocaleString() : "—"}
+                  </td>
+                  <td className="py-2.5 pr-6" style={{ color: "var(--muted-foreground)" }}>
+                    {m.wtImpressions || "—"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </PlaceholderCard>
+  );
+}
+
+// ─── Video log table ───────────────────────────────────────────────────────────
+
+function VideoLog({ videos }: { videos: YTVideo[] }) {
+  if (videos.length === 0) return null;
+
+  const headers = ["Date", "Title", "CTR", "Watch Time (min)", "Impressions", "Watch:Impr."];
+
+  return (
+    <PlaceholderCard
+      title={`Video Log — ${videos.length} videos`}
+      description="Individual video performance at 24 hours"
+    >
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full text-xs min-w-max">
+          <thead>
+            <tr style={{ borderBottom: "1px solid var(--border)" }}>
+              {headers.map((h) => (
+                <th
+                  key={h}
+                  className="text-left py-2 pr-4 font-semibold whitespace-nowrap"
+                  style={{ color: "var(--muted-foreground)" }}
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {videos.map((v, i) => {
+              const ctrNum = parseFloat(v.ctr) || 0;
+              const ctrColor = ctrNum >= 4 ? "#22c55e" : ctrNum >= 2 ? "#f59e0b" : "var(--muted-foreground)";
+              return (
+                <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <td className="py-2 pr-4 whitespace-nowrap" style={{ color: "var(--muted-foreground)" }}>
+                    {v.publishDate}
+                  </td>
+                  <td className="py-2 pr-4" style={{ color: "var(--foreground)", maxWidth: "280px" }}>
+                    <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                      {v.title}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-4 font-semibold" style={{ color: ctrColor }}>
+                    {v.ctr || "—"}
+                  </td>
+                  <td className="py-2 pr-4" style={{ color: "var(--foreground)" }}>
+                    {v.watchTime || "—"}
+                  </td>
+                  <td className="py-2 pr-4" style={{ color: "var(--foreground)" }}>
+                    {v.impressions ? v.impressions.toLocaleString() : "—"}
+                  </td>
+                  <td className="py-2 pr-4" style={{ color: "var(--muted-foreground)" }}>
+                    {v.wtImpressions || "—"}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </PlaceholderCard>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function YouTubePage() {
-  const connected = isYouTubeConnected();
-  const [channel, videos] = connected
-    ? await Promise.all([getYouTubeChannel(), getYouTubeVideos(8)])
-    : [null, []];
+  let monthly: YTMonthlyRow[] = [];
+  let averages: YTMonthlyRow | null = null;
+  let videos: YTVideo[] = [];
+  let fetchError = false;
+  const noUrl = !YT_CSV_URL;
 
-  const subscribers = channel ? formatCount(channel.subscriberCount) : "—";
-  const totalViews = channel ? formatCount(channel.viewCount) : "—";
-  const videoCount = channel ? String(channel.videoCount) : "—";
+  if (!noUrl) {
+    try {
+      const rows = await fetchCSV(YT_CSV_URL);
+      const data = parseYTData(rows);
+      monthly = data.monthly;
+      averages = data.averages;
+      videos = data.videos;
+    } catch {
+      fetchError = true;
+    }
+  }
+
+  const filled = monthly.filter((m) => m.impressions > 0);
+  const latest = filled[filled.length - 1];
+  const prev   = filled[filled.length - 2];
+  const display = averages ?? latest;
 
   return (
     <DashboardLayout>
-      {/* Not-connected banner */}
-      {!connected && (
+      {noUrl && (
         <div
           className="flex items-center gap-3 px-4 py-3 rounded-xl border mb-6 text-sm"
-          style={{
-            background: "rgba(239, 68, 68, 0.08)",
-            borderColor: "rgba(239, 68, 68, 0.3)",
-            color: "#ef4444",
-          }}
+          style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.3)", color: "#f59e0b" }}
         >
           <AlertCircle size={16} />
           <span>
-            YouTube API key not configured — showing channel info only.{" "}
-            <Link href="/settings" className="underline underline-offset-2 font-medium">
-              Add your API key →
-            </Link>
+            YouTube sheet not connected. Publish the YouTube tracker CSV and add the URL as{" "}
+            <code className="px-1 py-0.5 rounded text-xs" style={{ background: "rgba(0,0,0,0.3)" }}>
+              YT_SHEET_CSV_URL
+            </code>{" "}
+            in <code className="px-1 py-0.5 rounded text-xs" style={{ background: "rgba(0,0,0,0.3)" }}>.env.local</code>.
           </span>
+        </div>
+      )}
+
+      {fetchError && (
+        <div
+          className="flex items-center gap-3 px-4 py-3 rounded-xl border mb-6 text-sm"
+          style={{ background: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.3)", color: "#ef4444" }}
+        >
+          <AlertCircle size={16} />
+          <span>Could not load YouTube sheet data. Check that the CSV URL is still published.</span>
         </div>
       )}
 
@@ -73,174 +206,68 @@ export default async function YouTubePage() {
       >
         <div
           className="w-12 h-12 rounded-full flex items-center justify-center"
-          style={{ background: "rgba(239, 68, 68, 0.15)", color: "#ef4444" }}
+          style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}
         >
-          {channel?.thumbnailUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={channel.thumbnailUrl} alt={channel.title} className="w-12 h-12 rounded-full object-cover" />
-          ) : (
-            <Youtube size={22} />
-          )}
+          <Youtube size={22} />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-            {channel?.title ?? "Mendoza Baseball Academy"}
+            Mendoza Baseball Academy
           </p>
-          <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
-            {channel?.customUrl ?? "@mendoza.baseball.academy"}
-            {channel?.description && ` · ${channel.description.slice(0, 60)}…`}
+          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+            @mendoza.baseball.academy
           </p>
         </div>
         <a
-          href={CHANNEL_URL}
+          href="https://www.youtube.com/channel/UCjfSfoqQxbCLU6P6BKr8CdA"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg"
           style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}
         >
-          <ExternalLink size={12} /> View Channel
+          <Youtube size={12} /> View Channel
         </a>
       </div>
 
-      {/* Stats */}
+      {/* Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <StatCard title="Subscribers" value={subscribers} change="" trend="neutral" icon={Users} />
-        <StatCard title="Total Views" value={totalViews} change="" trend="neutral" icon={Eye} />
-        <StatCard title="Videos" value={videoCount} change="" trend="neutral" icon={Play} />
-        <StatCard title="Avg. Likes" value="—" change="" trend="neutral" icon={ThumbsUp} />
+        <StatCard
+          title="Avg CTR (24h)"
+          value={display ? display.ctr : "—"}
+          change={latest && prev ? pct(parseFloat(latest.ctr), parseFloat(prev.ctr)) : ""}
+          trend={latest && prev ? trendDir(parseFloat(latest.ctr), parseFloat(prev.ctr)) : "neutral"}
+          icon={MousePointerClick}
+        />
+        <StatCard
+          title="Avg Watch Time (min)"
+          value={display ? display.watchTime.toFixed(1) : "—"}
+          change={latest && prev ? pct(latest.watchTime, prev.watchTime) : ""}
+          trend={latest && prev ? trendDir(latest.watchTime, prev.watchTime) : "neutral"}
+          icon={Clock}
+        />
+        <StatCard
+          title="Avg Impressions (24h)"
+          value={display ? display.impressions.toLocaleString() : "—"}
+          change={latest && prev ? pct(latest.impressions, prev.impressions) : ""}
+          trend={latest && prev ? trendDir(latest.impressions, prev.impressions) : "neutral"}
+          icon={Eye}
+        />
+        <StatCard
+          title="Watch:Impressions"
+          value={display ? display.wtImpressions : "—"}
+          change=""
+          trend="neutral"
+          icon={Youtube}
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Videos */}
-        <div className="lg:col-span-2">
-          <PlaceholderCard
-            title="Recent Videos"
-            description={
-              connected && videos.length > 0
-                ? "Latest uploads from the channel"
-                : "Connect YouTube API to see recent videos"
-            }
-            icon={Youtube}
-          >
-            {connected && videos.length > 0 ? (
-              <div className="mt-4 space-y-0">
-                {videos.map((video) => (
-                  <div
-                    key={video.id}
-                    className="flex items-center gap-3 py-3 border-t"
-                    style={{ borderColor: "var(--border)" }}
-                  >
-                    {/* Thumbnail */}
-                    <div
-                      className="relative w-20 h-12 rounded-lg overflow-hidden flex-shrink-0"
-                      style={{ background: "var(--secondary)" }}
-                    >
-                      {video.thumbnailUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={video.thumbnailUrl} alt={video.title} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Play size={16} style={{ color: "var(--muted-foreground)" }} />
-                        </div>
-                      )}
-                      <span
-                        className="absolute bottom-0.5 right-0.5 text-white text-xs px-1 rounded"
-                        style={{ background: "rgba(0,0,0,0.7)", fontSize: "10px" }}
-                      >
-                        {formatDuration(video.duration)}
-                      </span>
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
-                        {video.title}
-                      </p>
-                      <p className="text-xs flex items-center gap-1 mt-0.5" style={{ color: "var(--muted-foreground)" }}>
-                        <Clock size={11} /> {formatRelativeTime(video.publishedAt)}
-                      </p>
-                    </div>
-
-                    {/* Stats */}
-                    <div className="flex items-center gap-3 text-xs flex-shrink-0" style={{ color: "var(--muted-foreground)" }}>
-                      <span className="flex items-center gap-1">
-                        <Eye size={12} /> {formatCount(video.viewCount)}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <ThumbsUp size={12} /> {formatCount(video.likeCount)}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <MessageSquare size={12} /> {formatCount(video.commentCount)}
-                      </span>
-                      <a
-                        href={`https://www.youtube.com/watch?v=${video.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2 py-0.5 rounded-full"
-                        style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}
-                      >
-                        Watch
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="mt-6 flex flex-col items-center justify-center py-10 text-center">
-                <Youtube size={32} style={{ color: "var(--muted-foreground)" }} className="mb-3 opacity-40" />
-                <p className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>
-                  No videos loaded
-                </p>
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                  Add your YouTube API key in Settings to load videos automatically.
-                </p>
-                <Link
-                  href="/settings"
-                  className="mt-4 text-xs px-4 py-2 rounded-lg font-medium"
-                  style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}
-                >
-                  Go to Settings
-                </Link>
-              </div>
-            )}
-          </PlaceholderCard>
-        </div>
-
-        {/* Channel Quick Stats */}
-        <div className="space-y-4">
-          <PlaceholderCard title="Channel Info" icon={Youtube}>
-            <div className="mt-4 space-y-3">
-              {[
-                { label: "Subscribers", value: subscribers, color: "#ef4444" },
-                { label: "Total Views", value: totalViews, color: "#3b82f6" },
-                { label: "Total Videos", value: videoCount, color: "#22c55e" },
-              ].map((stat, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between py-2 border-t"
-                  style={{ borderColor: "var(--border)" }}
-                >
-                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                    {stat.label}
-                  </span>
-                  <span className="text-sm font-semibold" style={{ color: stat.color }}>
-                    {stat.value}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <a
-              href={CHANNEL_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-4 w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium"
-              style={{ background: "rgba(239,68,68,0.15)", color: "#ef4444" }}
-            >
-              <ExternalLink size={14} /> Open YouTube Channel
-            </a>
-          </PlaceholderCard>
-        </div>
+      {/* Monthly breakdown */}
+      <div className="mb-6">
+        <MonthlyTable monthly={monthly} averages={averages} />
       </div>
+
+      {/* Video log */}
+      <VideoLog videos={videos} />
     </DashboardLayout>
   );
 }

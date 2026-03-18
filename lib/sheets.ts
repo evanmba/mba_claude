@@ -1,0 +1,256 @@
+/** Fetch a Google Sheets "publish to web" CSV URL and return rows as a 2-D array. */
+export async function fetchCSV(url: string): Promise<string[][]> {
+  const res = await fetch(url, { next: { revalidate: 300 } });
+  if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status}`);
+  const text = await res.text();
+  return parseCSV(text);
+}
+
+function parseCSV(text: string): string[][] {
+  return text.split("\n").map((line) => parseCSVLine(line.replace(/\r$/, "")));
+}
+
+function parseCSVLine(line: string): string[] {
+  const cells: string[] = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '"') {
+      if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+      else inQ = !inQ;
+    } else if (line[i] === "," && !inQ) {
+      cells.push(cur); cur = "";
+    } else {
+      cur += line[i];
+    }
+  }
+  cells.push(cur);
+  return cells;
+}
+
+/** Parse a cell value to a number, stripping $, %, commas. */
+export function toNum(val: string): number {
+  return parseFloat((val ?? "").replace(/[$%,]/g, "")) || 0;
+}
+
+/** Strip __ markdown-style bold markers from a title string. */
+export function cleanTitle(val: string): string {
+  return val.replace(/__/g, "").trim();
+}
+
+// ─── IG Data Types ────────────────────────────────────────────────────────────
+
+export interface IGMonthlyRow {
+  month: string;
+  reach: number;
+  watchTime: number;
+  likes: number;
+  shares: number;
+  follows: number;
+  reachLike: string;
+  reachShares: string;
+  reachFollowers: string;
+  evan: string;
+  nate: string;
+  yasir: string;
+}
+
+export interface IGPost {
+  date: string;
+  title: string;
+  reach: number;
+  watchTime: number;
+  likes: number;
+  shares: number;
+  follows: number;
+  reachLike: string;
+  reachShares: string;
+  reachFollowers: string;
+  who: string;
+  style: string;
+  type: string;
+  intentional: string;
+  cta: string;
+  notes: string;
+}
+
+export interface IGData {
+  monthly: IGMonthlyRow[];
+  averages: IGMonthlyRow | null;
+  posts: IGPost[];
+}
+
+const MONTHS = new Set([
+  "january","february","march","april","may","june",
+  "july","august","september","october","november","december",
+]);
+
+export function parseIGData(rows: string[][]): IGData {
+  const monthly: IGMonthlyRow[] = [];
+  const posts: IGPost[] = [];
+  let averages: IGMonthlyRow | null = null;
+  let mode: "none" | "monthly" | "posts" = "none";
+
+  for (const row of rows) {
+    const joined = row.join(",").toLowerCase();
+    const col0 = (row[0] ?? "").trim();
+
+    // Detect section headers
+    if (joined.includes("avg reach") || joined.includes("avg reach")) {
+      mode = "monthly";
+      continue;
+    }
+    if (joined.includes("reach 24h") && joined.includes("likes 24h")) {
+      mode = "posts";
+      continue;
+    }
+
+    if (mode === "monthly") {
+      if (MONTHS.has(col0.toLowerCase()) && row.length > 1) {
+        monthly.push({
+          month: col0,
+          reach: toNum(row[1]),
+          watchTime: toNum(row[2]),
+          likes: toNum(row[3]),
+          shares: toNum(row[4]),
+          follows: toNum(row[5]),
+          reachLike: row[6] ?? "",
+          reachShares: row[7] ?? "",
+          reachFollowers: row[8] ?? "",
+          evan: row[9] ?? "",
+          nate: row[10] ?? "",
+          yasir: row[11] ?? "",
+        });
+      } else if (col0.toLowerCase().startsWith("average")) {
+        averages = {
+          month: "Average",
+          reach: toNum(row[1]),
+          watchTime: toNum(row[2]),
+          likes: toNum(row[3]),
+          shares: toNum(row[4]),
+          follows: toNum(row[5]),
+          reachLike: row[6] ?? "",
+          reachShares: row[7] ?? "",
+          reachFollowers: row[8] ?? "",
+          evan: "",
+          nate: "",
+          yasir: "",
+        };
+      }
+    }
+
+    if (mode === "posts") {
+      // Date column looks like "3/1/26" or "3/1/2026"
+      if (/^\d+\/\d+\/\d+/.test(col0) && row.length > 3) {
+        posts.push({
+          date: col0,
+          title: cleanTitle(row[1] ?? ""),
+          reach: toNum(row[2]),
+          watchTime: toNum(row[3]),
+          likes: toNum(row[4]),
+          shares: toNum(row[5]),
+          follows: toNum(row[6]),
+          reachLike: row[7] ?? "",
+          reachShares: row[8] ?? "",
+          reachFollowers: row[9] ?? "",
+          who: row[10] ?? "",
+          style: row[11] ?? "",
+          type: row[12] ?? "",
+          intentional: row[13] ?? "",
+          cta: row[14] ?? "",
+          notes: row[15] ?? "",
+        });
+      }
+    }
+  }
+
+  return { monthly, averages, posts };
+}
+
+// ─── YouTube Data Types ───────────────────────────────────────────────────────
+
+export interface YTMonthlyRow {
+  month: string;
+  ctr: string;
+  watchTime: number;
+  impressions: number;
+  wtImpressions: string;
+}
+
+export interface YTVideo {
+  title: string;
+  publishDate: string;
+  ctr: string;
+  watchTime: number;
+  impressions: number;
+  wtImpressions: string;
+}
+
+export interface YTData {
+  monthly: YTMonthlyRow[];
+  averages: YTMonthlyRow | null;
+  videos: YTVideo[];
+}
+
+const YT_MONTHS = new Set([
+  "1/1/26","2/1/26","3/1/26","4/1/26","5/1/26","6/1/26",
+  "7/1/26","8/1/26","9/1/26","10/1/26","11/1/26","12/1/26","1/1/27",
+]);
+
+export function parseYTData(rows: string[][]): YTData {
+  const monthly: YTMonthlyRow[] = [];
+  const videos: YTVideo[] = [];
+  let averages: YTMonthlyRow | null = null;
+  let mode: "none" | "monthly" | "videos" = "none";
+
+  for (const row of rows) {
+    const joined = row.join(",").toLowerCase();
+    const col0 = (row[0] ?? "").trim();
+
+    if (joined.includes("ctr @ 24h") && joined.includes("watch time") && joined.includes("impressions") && !joined.includes("title")) {
+      mode = "monthly";
+      continue;
+    }
+    if (joined.includes("video title") || (joined.includes("ctr @ 24h") && joined.includes("title"))) {
+      mode = "videos";
+      continue;
+    }
+
+    if (mode === "monthly") {
+      if (YT_MONTHS.has(col0)) {
+        monthly.push({
+          month: col0,
+          ctr: row[1] ?? "",
+          watchTime: toNum(row[2]),
+          impressions: toNum(row[3]),
+          wtImpressions: row[4] ?? "",
+        });
+      } else if (col0.toLowerCase().includes("avg") || col0.toLowerCase().includes("monthly avg")) {
+        averages = {
+          month: "Monthly Avg",
+          ctr: row[1] ?? "",
+          watchTime: toNum(row[2]),
+          impressions: toNum(row[3]),
+          wtImpressions: row[4] ?? "",
+        };
+      }
+    }
+
+    if (mode === "videos") {
+      // data rows have a date in col[1] (like "3/14/2026") and a title in col[0]
+      const dateCell = row[1] ?? "";
+      if (/\d+\/\d+\/\d+/.test(dateCell) && row.length > 3) {
+        videos.push({
+          title: cleanTitle(row[0] ?? ""),
+          publishDate: dateCell,
+          ctr: row[2] ?? "",
+          watchTime: toNum(row[3]),
+          impressions: toNum(row[4]),
+          wtImpressions: row[5] ?? "",
+        });
+      }
+    }
+  }
+
+  return { monthly, averages, videos };
+}
