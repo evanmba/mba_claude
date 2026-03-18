@@ -231,12 +231,13 @@ export function parseYTData(rows: string[][]): YTData {
         });
       // Average row: col[0] = "MONTHLY AVG", col[1] = CTR, col[2] = watch time, col[3] = impressions, col[4] = ratio
       } else if (col0l.includes("monthly avg")) {
+        // Same column layout as data rows: col[1] = blank/date, metrics at col[2]+
         averages = {
           month: "Monthly Avg",
-          ctr: row[1] ?? "",
-          watchTime: toNum(row[2]),
-          impressions: toNum(row[3]),
-          wtImpressions: row[4] ?? "",
+          ctr: row[2] ?? "",
+          watchTime: toNum(row[3]),
+          impressions: toNum(row[4]),
+          wtImpressions: row[5] ?? "",
         };
       }
     }
