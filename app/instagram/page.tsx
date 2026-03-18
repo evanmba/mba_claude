@@ -205,7 +205,8 @@ export default async function InstagramPage() {
   const filled = monthly.filter((m) => m.reach > 0);
   const latest = filled[filled.length - 1];
   const prev   = filled[filled.length - 2];
-  const display = averages ?? latest;
+  // Stat cards show the latest month's value with MoM % change
+  const mon = latest?.month ?? "";
 
   return (
     <DashboardLayout>
@@ -219,32 +220,32 @@ export default async function InstagramPage() {
         </div>
       )}
 
-      {/* Stat Cards */}
+      {/* Stat Cards — latest month value, MoM comparison */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard
-          title="Avg Reach (24h)"
-          value={display ? display.reach.toLocaleString() : "—"}
+          title={`Avg Reach${mon ? ` · ${mon}` : ""}`}
+          value={latest ? latest.reach.toLocaleString() : "—"}
           change={latest && prev ? pct(latest.reach, prev.reach) : ""}
           trend={latest && prev ? trendDir(latest.reach, prev.reach) : "neutral"}
           icon={Eye}
         />
         <StatCard
-          title="Avg Likes (24h)"
-          value={display ? display.likes.toFixed(1) : "—"}
+          title={`Avg Likes${mon ? ` · ${mon}` : ""}`}
+          value={latest ? latest.likes.toFixed(1) : "—"}
           change={latest && prev ? pct(latest.likes, prev.likes) : ""}
           trend={latest && prev ? trendDir(latest.likes, prev.likes) : "neutral"}
           icon={Heart}
         />
         <StatCard
-          title="Avg Shares (24h)"
-          value={display ? display.shares.toFixed(1) : "—"}
+          title={`Avg Shares${mon ? ` · ${mon}` : ""}`}
+          value={latest ? latest.shares.toFixed(1) : "—"}
           change={latest && prev ? pct(latest.shares, prev.shares) : ""}
           trend={latest && prev ? trendDir(latest.shares, prev.shares) : "neutral"}
           icon={Share2}
         />
         <StatCard
-          title="Avg Follows (24h)"
-          value={display ? display.follows.toFixed(2) : "—"}
+          title={`Avg Follows${mon ? ` · ${mon}` : ""}`}
+          value={latest ? latest.follows.toFixed(2) : "—"}
           change={latest && prev ? pct(latest.follows, prev.follows) : ""}
           trend={latest && prev ? trendDir(latest.follows, prev.follows) : "neutral"}
           icon={UserPlus}

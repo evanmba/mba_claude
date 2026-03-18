@@ -4,9 +4,8 @@ import { PlaceholderCard } from "@/components/shared/PlaceholderCard";
 import { Youtube, Eye, MousePointerClick, Clock, AlertCircle } from "lucide-react";
 import { fetchCSV, parseYTData, type YTMonthlyRow, type YTVideo } from "@/lib/sheets";
 
-// TODO: replace with your published YouTube tracker CSV URL
-// File → Share → Publish to web → select the correct sheet tab → CSV → copy URL
-const YT_CSV_URL = process.env.YT_SHEET_CSV_URL ?? "";
+const YT_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSS66XUTykWwbUBp6i7hZlbt6uFlleXnCXHhrlAVBM82kf0iTV4N_AjwRsx_NIJBmmU-AYmnssuZvKX/pub?output=csv";
 
 function pct(curr: number, prev: number): string {
   if (!prev) return "";
@@ -152,43 +151,27 @@ export default async function YouTubePage() {
   let averages: YTMonthlyRow | null = null;
   let videos: YTVideo[] = [];
   let fetchError = false;
-  const noUrl = !YT_CSV_URL;
 
-  if (!noUrl) {
-    try {
-      const rows = await fetchCSV(YT_CSV_URL);
-      const data = parseYTData(rows);
-      monthly = data.monthly;
-      averages = data.averages;
-      videos = data.videos;
-    } catch {
-      fetchError = true;
-    }
+  try {
+    const rows = await fetchCSV(YT_CSV_URL);
+    const data = parseYTData(rows);
+    monthly = data.monthly;
+    averages = data.averages;
+    videos = data.videos;
+  } catch {
+    fetchError = true;
   }
 
   const filled = monthly.filter((m) => m.impressions > 0);
   const latest = filled[filled.length - 1];
   const prev   = filled[filled.length - 2];
-  const display = averages ?? latest;
+  // Derive a short label like "3/1/26" → "March"
+  const monthLabel = latest?.month
+    ? new Date(latest.month).toLocaleString("en-US", { month: "long" })
+    : "";
 
   return (
     <DashboardLayout>
-      {noUrl && (
-        <div
-          className="flex items-center gap-3 px-4 py-3 rounded-xl border mb-6 text-sm"
-          style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.3)", color: "#f59e0b" }}
-        >
-          <AlertCircle size={16} />
-          <span>
-            YouTube sheet not connected. Publish the YouTube tracker CSV and add the URL as{" "}
-            <code className="px-1 py-0.5 rounded text-xs" style={{ background: "rgba(0,0,0,0.3)" }}>
-              YT_SHEET_CSV_URL
-            </code>{" "}
-            in <code className="px-1 py-0.5 rounded text-xs" style={{ background: "rgba(0,0,0,0.3)" }}>.env.local</code>.
-          </span>
-        </div>
-      )}
-
       {fetchError && (
         <div
           className="flex items-center gap-3 px-4 py-3 rounded-xl border mb-6 text-sm"
@@ -229,34 +212,34 @@ export default async function YouTubePage() {
         </a>
       </div>
 
-      {/* Stat Cards */}
+      {/* Stat Cards — latest month value, MoM comparison */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard
-          title="Avg CTR (24h)"
-          value={display ? display.ctr : "—"}
+          title={`Avg CTR${monthLabel ? ` · ${monthLabel}` : ""}`}
+          value={latest ? latest.ctr : "—"}
           change={latest && prev ? pct(parseFloat(latest.ctr), parseFloat(prev.ctr)) : ""}
           trend={latest && prev ? trendDir(parseFloat(latest.ctr), parseFloat(prev.ctr)) : "neutral"}
           icon={MousePointerClick}
         />
         <StatCard
-          title="Avg Watch Time (min)"
-          value={display ? display.watchTime.toFixed(1) : "—"}
+          title={`Watch Time (min)${monthLabel ? ` · ${monthLabel}` : ""}`}
+          value={latest ? latest.watchTime.toFixed(1) : "—"}
           change={latest && prev ? pct(latest.watchTime, prev.watchTime) : ""}
           trend={latest && prev ? trendDir(latest.watchTime, prev.watchTime) : "neutral"}
           icon={Clock}
         />
         <StatCard
-          title="Avg Impressions (24h)"
-          value={display ? display.impressions.toLocaleString() : "—"}
+          title={`Impressions${monthLabel ? ` · ${monthLabel}` : ""}`}
+          value={latest ? latest.impressions.toLocaleString() : "—"}
           change={latest && prev ? pct(latest.impressions, prev.impressions) : ""}
           trend={latest && prev ? trendDir(latest.impressions, prev.impressions) : "neutral"}
           icon={Eye}
         />
         <StatCard
-          title="Watch:Impressions"
-          value={display ? display.wtImpressions : "—"}
-          change=""
-          trend="neutral"
+          title={`Watch:Impressions${monthLabel ? ` · ${monthLabel}` : ""}`}
+          value={latest ? latest.wtImpressions : "—"}
+          change={latest && prev ? pct(parseFloat(latest.wtImpressions), parseFloat(prev.wtImpressions)) : ""}
+          trend={latest && prev ? trendDir(parseFloat(latest.wtImpressions), parseFloat(prev.wtImpressions)) : "neutral"}
           icon={Youtube}
         />
       </div>
