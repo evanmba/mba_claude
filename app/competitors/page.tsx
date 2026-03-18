@@ -30,6 +30,21 @@ interface ViralEntry {
 // Add competitor accounts here
 const COMPETITORS: Competitor[] = [
   {
+    name: "Ian Jenkins Hitting",
+    handle: "@ianjenkinshitting",
+    platform: "Both",
+    niche: "Hitting instruction / development",
+    ytUrl: "https://www.youtube.com/@ianjenkinshitting",
+    igUrl: "https://www.instagram.com/ianjenkinshitting",
+  },
+  {
+    name: "AthletesU",
+    handle: "@athletesu_",
+    platform: "IG",
+    niche: "Athlete development / recruiting",
+    igUrl: "https://www.instagram.com/athletesu_",
+  },
+  {
     name: "Driveline Baseball",
     handle: "@drivelinebaseball",
     platform: "Both",
