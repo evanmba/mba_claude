@@ -287,8 +287,21 @@ export interface PlatformMonthRow {
   generatedValue: number;
 }
 
+export interface PlatformGoals {
+  ig: number;
+  email: number;
+  ytLong: number;
+  ytShorts: number;
+  ytPosts: number;
+  fbPosts: number;
+  tiktok: number;
+  x: number;
+  podcasts: number;
+}
+
 export interface PlatformData {
   rows: PlatformMonthRow[];
+  goals: PlatformGoals | null;
 }
 
 const MONTH_NAMES = new Set([
@@ -311,7 +324,7 @@ export function parsePlatformData(rows: string[][]): PlatformData {
       break;
     }
   }
-  if (headerIdx === -1) return { rows: [] };
+  if (headerIdx === -1) return { rows: [], goals: null };
 
   // Merge header row 1 and row 2: for each column, prefer row 2's value if non-empty
   const h1 = rows[headerIdx]     ?? [];
@@ -356,10 +369,30 @@ export function parsePlatformData(rows: string[][]): PlatformData {
 
   // Data rows start after both header rows
   const result: PlatformMonthRow[] = [];
+  let goals: PlatformGoals | null = null;
+
   for (let i = headerIdx + 2; i < rows.length; i++) {
     const row = rows[i];
     const month = (row[C.month] ?? "").trim();
-    if (!MONTH_NAMES.has(month.toLowerCase())) continue;
+    const monthLower = month.toLowerCase();
+
+    // Parse GOALS row
+    if (monthLower === "goals") {
+      goals = {
+        ig:       n(row, C.ig),
+        email:    n(row, C.email),
+        ytLong:   n(row, C.ytLong),
+        ytShorts: n(row, C.ytShorts),
+        ytPosts:  n(row, C.ytPosts),
+        fbPosts:  n(row, C.fbPosts),
+        tiktok:   n(row, C.tiktok),
+        x:        n(row, C.x),
+        podcasts: n(row, C.podcasts),
+      };
+      continue;
+    }
+
+    if (!MONTH_NAMES.has(monthLower)) continue;
     result.push({
       month,
       ig:             n(row, C.ig),
@@ -381,5 +414,5 @@ export function parsePlatformData(rows: string[][]): PlatformData {
       generatedValue: n(row, C.genValue),
     });
   }
-  return { rows: result };
+  return { rows: result, goals };
 }

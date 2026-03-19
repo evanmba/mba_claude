@@ -6,7 +6,7 @@ const PLATFORM_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_WHM2ipG0ih1oyHyCUiZckUgkeyUiEks9SfGVns5VyYKSmsl_3QnMpDnRgBwMzm8fQ9OXn8B1rMuL/pub?output=csv";
 
 export default async function DashboardPage() {
-  let data: PlatformData = { rows: [] };
+  let data: PlatformData = { rows: [], goals: null };
   let fetchError = false;
   const fetchedAt = new Date().toISOString();
 

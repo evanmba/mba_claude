@@ -2,20 +2,20 @@
 
 import { useState, useCallback } from "react";
 import { RefreshCw, CheckCircle2, AlertCircle, TrendingUp, TrendingDown } from "lucide-react";
-import type { PlatformData, PlatformMonthRow } from "@/lib/sheets";
+import type { PlatformData, PlatformGoals, PlatformMonthRow } from "@/lib/sheets";
 
 // ─── Platform config ──────────────────────────────────────────────────────────
 
 const PLATFORMS = [
-  { key: "ig",       label: "Instagram",  color: "#d946ef", bg: "rgba(217,70,239,0.15)" },
-  { key: "ytLong",   label: "YT Long",    color: "#ef4444", bg: "rgba(239,68,68,0.15)" },
-  { key: "ytShorts", label: "YT Shorts",  color: "#f97316", bg: "rgba(249,115,22,0.15)" },
-  { key: "ytPosts",  label: "YT Posts",   color: "#fb923c", bg: "rgba(251,146,60,0.12)" },
-  { key: "fbPosts",  label: "Facebook",   color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
-  { key: "tiktok",   label: "TikTok",     color: "#14b8a6", bg: "rgba(20,184,166,0.15)" },
-  { key: "x",        label: "X",          color: "#94a3b8", bg: "rgba(148,163,184,0.15)" },
-  { key: "podcasts", label: "Podcasts",   color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
-  { key: "email",    label: "Email",      color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
+  { key: "ig",       goalKey: "ig",       label: "Instagram",  color: "#d946ef", bg: "rgba(217,70,239,0.15)" },
+  { key: "ytLong",   goalKey: "ytLong",   label: "YT Long",    color: "#ef4444", bg: "rgba(239,68,68,0.15)" },
+  { key: "ytShorts", goalKey: "ytShorts", label: "YT Shorts",  color: "#f97316", bg: "rgba(249,115,22,0.15)" },
+  { key: "ytPosts",  goalKey: "ytPosts",  label: "YT Posts",   color: "#fb923c", bg: "rgba(251,146,60,0.12)" },
+  { key: "fbPosts",  goalKey: "fbPosts",  label: "Facebook",   color: "#3b82f6", bg: "rgba(59,130,246,0.15)" },
+  { key: "tiktok",   goalKey: "tiktok",   label: "TikTok",     color: "#14b8a6", bg: "rgba(20,184,166,0.15)" },
+  { key: "x",        goalKey: "x",        label: "X",          color: "#94a3b8", bg: "rgba(148,163,184,0.15)" },
+  { key: "podcasts", goalKey: "podcasts", label: "Podcasts",   color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
+  { key: "email",    goalKey: "email",    label: "Email",      color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
 ] as const;
 
 const LEAD_PLATFORMS = [
@@ -25,6 +25,12 @@ const LEAD_PLATFORMS = [
   { key: "ttLeads",    label: "TikTok",    color: "#14b8a6", bg: "rgba(20,184,166,0.15)" },
   { key: "emailLeads", label: "Email",     color: "#22c55e", bg: "rgba(34,197,94,0.15)" },
 ] as const;
+
+// Fallback monthly goals (used if sheet doesn't expose a GOALS row yet)
+const FALLBACK_GOALS: PlatformGoals = {
+  ig: 120, email: 25, ytLong: 13, ytShorts: 70,
+  ytPosts: 20, fbPosts: 50, tiktok: 30, x: 30, podcasts: 13,
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -49,10 +55,58 @@ function fmtValue(n: number) {
 
 // ─── Bar row ─────────────────────────────────────────────────────────────────
 
+/** Goal-aware bar: fills to current/goal, shows % inside + "current / goal" label */
+function GoalBarRow({
+  label, value, goal, color,
+}: { label: string; value: number; goal: number; color: string }) {
+  const fillPct = goal > 0 ? Math.min((value / goal) * 100, 100) : 0;
+  const done    = fillPct >= 100;
+  const barColor = done ? "#22c55e" : color;
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-xs w-20 flex-shrink-0 text-right" style={{ color: "var(--muted-foreground)" }}>
+        {label}
+      </span>
+      <div className="flex-1 relative h-5 rounded-md overflow-hidden" style={{ background: "var(--secondary)" }}>
+        {/* Filled portion */}
+        <div
+          className="absolute inset-y-0 left-0 rounded-md transition-all duration-500"
+          style={{ width: `${fillPct}%`, background: barColor, opacity: 0.85 }}
+        />
+        {/* % label — inside if bar is wide enough, otherwise outside */}
+        {fillPct > 18 ? (
+          <span
+            className="absolute inset-y-0 left-0 flex items-center pl-2 text-xs font-bold tabular-nums pointer-events-none"
+            style={{ color: "#fff" }}
+          >
+            {Math.round(fillPct)}%
+          </span>
+        ) : (
+          <span
+            className="absolute inset-y-0 flex items-center text-xs font-bold tabular-nums pointer-events-none"
+            style={{ left: `${fillPct + 1}%`, color: "var(--muted-foreground)" }}
+          >
+            {Math.round(fillPct)}%
+          </span>
+        )}
+      </div>
+      {/* current / goal */}
+      <span className="text-xs tabular-nums flex-shrink-0 text-right" style={{ minWidth: "4rem" }}>
+        <span className="font-semibold" style={{ color: value > 0 ? barColor : "var(--muted-foreground)" }}>
+          {value}
+        </span>
+        <span style={{ color: "var(--muted-foreground)" }}> / {goal}</span>
+      </span>
+    </div>
+  );
+}
+
+/** Relative bar: fills relative to max (used for leads where no goal exists) */
 function BarRow({
-  label, value, max, color, bg,
-}: { label: string; value: number; max: number; color: string; bg: string }) {
-  const pct = max > 0 ? (value / max) * 100 : 0;
+  label, value, max, color,
+}: { label: string; value: number; max: number; color: string; bg?: string }) {
+  const fillPct = max > 0 ? (value / max) * 100 : 0;
   return (
     <div className="flex items-center gap-3">
       <span className="text-xs w-20 flex-shrink-0 text-right" style={{ color: "var(--muted-foreground)" }}>
@@ -61,7 +115,7 @@ function BarRow({
       <div className="flex-1 rounded-full h-2 overflow-hidden" style={{ background: "var(--secondary)" }}>
         <div
           className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, background: color }}
+          style={{ width: `${fillPct}%`, background: color }}
         />
       </div>
       <span
@@ -367,31 +421,53 @@ export function PlatformDashboard({ initialData, initialError, serverFetchedAt }
 
         {/* Effort / pieces published */}
         <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-          <p className="text-sm font-semibold mb-0.5" style={{ color: "var(--foreground)" }}>
-            Content Effort
-          </p>
+          <div className="flex items-start justify-between mb-0.5">
+            <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+              Content Effort
+            </p>
+            {isLatest && (
+              <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "var(--secondary)", color: "var(--muted-foreground)" }}>
+                vs monthly goal
+              </span>
+            )}
+          </div>
           <p className="text-xs mb-5" style={{ color: "var(--muted-foreground)" }}>
             Pieces published per channel
           </p>
           <div className="space-y-3">
-            {PLATFORMS.map((p) => (
-              <BarRow
-                key={p.key}
-                label={p.label}
-                value={pieceVal(p.key)}
-                max={maxP}
-                color={p.color}
-                bg={p.bg}
-              />
-            ))}
+            {PLATFORMS.map((p) => {
+              const goals = data.goals ?? FALLBACK_GOALS;
+              const goal  = goals[p.goalKey as keyof PlatformGoals];
+              const val   = pieceVal(p.key);
+              return isLatest ? (
+                <GoalBarRow key={p.key} label={p.label} value={val} goal={goal} color={p.color} />
+              ) : (
+                <BarRow key={p.key} label={p.label} value={val} max={maxP} color={p.color} />
+              );
+            })}
           </div>
-          {/* Total */}
-          <div className="mt-4 pt-3 flex justify-between items-center" style={{ borderTop: "1px solid var(--border)" }}>
-            <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>Total pieces</span>
-            <span className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
-              {isLatest ? (latest?.totalPieces ?? 0) : ytdPieces}
-            </span>
-          </div>
+          {/* Total row */}
+          {(() => {
+            const goals    = data.goals ?? FALLBACK_GOALS;
+            const goalTotal = isLatest
+              ? Object.values(goals).reduce((s, v) => s + v, 0)
+              : null;
+            const actual = isLatest ? (latest?.totalPieces ?? 0) : ytdPieces;
+            const totalPct = goalTotal ? Math.round((actual / goalTotal) * 100) : null;
+            return (
+              <div className="mt-4 pt-3 flex justify-between items-center" style={{ borderTop: "1px solid var(--border)" }}>
+                <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                  Total pieces{goalTotal ? ` (${totalPct}% of ${goalTotal})` : ""}
+                </span>
+                <span className="text-sm font-bold" style={{ color: "var(--foreground)" }}>
+                  {actual}
+                  {goalTotal && (
+                    <span className="text-xs font-normal ml-1" style={{ color: "var(--muted-foreground)" }}>/ {goalTotal}</span>
+                  )}
+                </span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Lead sources */}
