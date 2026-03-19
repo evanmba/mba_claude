@@ -261,6 +261,99 @@ export function parseYTData(rows: string[][]): YTData {
   return { monthly, averages, videos };
 }
 
+// ─── Email Data Types ─────────────────────────────────────────────────────────
+
+export interface EmailMonthlyRow {
+  month: string;
+  delivered: number;
+  opens: number;
+  openPct: number;   // e.g. 85.7
+  clicks: number;
+  ctrPct: number;    // e.g. 0.95
+}
+
+export interface EmailCampaign {
+  subject: string;
+  date: string;
+  delivered: number;
+  opens: number;
+  openPct: number;
+  clicks: number;
+  ctrPct: number;
+}
+
+export interface EmailData {
+  monthly: EmailMonthlyRow[];
+  campaigns: EmailCampaign[];
+  yearlyAvg: EmailMonthlyRow | null;
+}
+
+const EMAIL_MONTHS = new Set([
+  "january","february","march","april","may","june",
+  "july","august","september","october","november","december",
+]);
+
+export function parseEmailData(rows: string[][]): EmailData {
+  // Find header row: must contain "delivered" and "opens"
+  let headerIdx = -1;
+  for (let i = 0; i < rows.length; i++) {
+    const j = rows[i].join(",").toLowerCase();
+    if (j.includes("delivered") && j.includes("opens")) { headerIdx = i; break; }
+  }
+  if (headerIdx === -1) return { monthly: [], campaigns: [], yearlyAvg: null };
+
+  const h = rows[headerIdx].map((c) => c.toLowerCase().trim());
+  const ci = (...names: string[]) => {
+    for (const name of names) {
+      const idx = h.findIndex((c) => c.includes(name));
+      if (idx >= 0) return idx;
+    }
+    return -1;
+  };
+
+  const C = {
+    delivered: ci("delivered"),
+    opens:     ci("opens"),
+    openPct:   ci("open %", "open rate", "open%"),
+    clicks:    ci("# of click", "clicks"),
+    ctrPct:    ci("ctr"),
+  };
+
+  const monthly: EmailMonthlyRow[] = [];
+  const campaigns: EmailCampaign[] = [];
+  let yearlyAvg: EmailMonthlyRow | null = null;
+
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const row = rows[i];
+    const col0 = (row[0] ?? "").trim();
+    const col0l = col0.toLowerCase();
+    if (!col0) continue;
+
+    const n = (idx: number) => idx >= 0 ? toNum(row[idx] ?? "") : 0;
+
+    if (EMAIL_MONTHS.has(col0l)) {
+      monthly.push({
+        month: col0, delivered: n(C.delivered), opens: n(C.opens),
+        openPct: n(C.openPct), clicks: n(C.clicks), ctrPct: n(C.ctrPct),
+      });
+    } else if (col0l.includes("yearly") || col0l.includes("annual") || col0l.includes("total avg")) {
+      yearlyAvg = {
+        month: col0, delivered: n(C.delivered), opens: n(C.opens),
+        openPct: n(C.openPct), clicks: n(C.clicks), ctrPct: n(C.ctrPct),
+      };
+    } else if (n(C.delivered) > 0) {
+      // Individual campaign row
+      campaigns.push({
+        subject: col0, date: "",
+        delivered: n(C.delivered), opens: n(C.opens),
+        openPct: n(C.openPct), clicks: n(C.clicks), ctrPct: n(C.ctrPct),
+      });
+    }
+  }
+
+  return { monthly, campaigns, yearlyAvg };
+}
+
 // ─── Platform Distribution Data ───────────────────────────────────────────────
 
 export interface PlatformMonthRow {

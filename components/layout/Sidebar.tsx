@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Instagram,
   Youtube,
+  Mail,
   Users,
   LayoutDashboard,
   Settings,
@@ -12,9 +13,10 @@ import {
 } from "lucide-react";
 
 const socialItems = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Instagram", href: "/instagram", icon: Instagram, color: "#d946ef" },
-  { label: "YouTube", href: "/youtube", icon: Youtube, color: "#ef4444" },
+  { label: "Dashboard",  href: "/",          icon: LayoutDashboard },
+  { label: "Instagram",  href: "/instagram", icon: Instagram, color: "#d946ef" },
+  { label: "YouTube",    href: "/youtube",   icon: Youtube,   color: "#ef4444" },
+  { label: "Email",      href: "/email",     icon: Mail,      color: "#22c55e" },
 ];
 
 const toolsItems = [

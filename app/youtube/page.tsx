@@ -1,6 +1,7 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { StatCard } from "@/components/shared/StatCard";
 import { PlaceholderCard } from "@/components/shared/PlaceholderCard";
+import { SortableVideoLog } from "@/components/youtube/SortableVideoLog";
 import { Youtube, Eye, MousePointerClick, Clock, AlertCircle } from "lucide-react";
 import { fetchCSV, parseYTData, type YTMonthlyRow, type YTVideo } from "@/lib/sheets";
 
@@ -70,69 +71,6 @@ function MonthlyTable({ monthly, averages }: { monthly: YTMonthlyRow[]; averages
                   </td>
                   <td className="py-2.5 pr-6" style={{ color: "var(--muted-foreground)" }}>
                     {m.wtImpressions || "—"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </PlaceholderCard>
-  );
-}
-
-// ─── Video log table ───────────────────────────────────────────────────────────
-
-function VideoLog({ videos }: { videos: YTVideo[] }) {
-  if (videos.length === 0) return null;
-
-  const headers = ["Date", "Title", "CTR", "Watch Time (min)", "Impressions", "Watch:Impr."];
-
-  return (
-    <PlaceholderCard
-      title={`Video Log — ${videos.length} videos`}
-      description="Individual video performance at 24 hours"
-    >
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full text-xs min-w-max">
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--border)" }}>
-              {headers.map((h) => (
-                <th
-                  key={h}
-                  className="text-left py-2 pr-4 font-semibold whitespace-nowrap"
-                  style={{ color: "var(--muted-foreground)" }}
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {videos.map((v, i) => {
-              const ctrNum = parseFloat(v.ctr) || 0;
-              const ctrColor = ctrNum >= 4 ? "#22c55e" : ctrNum >= 2 ? "#f59e0b" : "var(--muted-foreground)";
-              return (
-                <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
-                  <td className="py-2 pr-4 whitespace-nowrap" style={{ color: "var(--muted-foreground)" }}>
-                    {v.publishDate}
-                  </td>
-                  <td className="py-2 pr-4" style={{ color: "var(--foreground)", maxWidth: "280px" }}>
-                    <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                      {v.title}
-                    </span>
-                  </td>
-                  <td className="py-2 pr-4 font-semibold" style={{ color: ctrColor }}>
-                    {v.ctr || "—"}
-                  </td>
-                  <td className="py-2 pr-4" style={{ color: "var(--foreground)" }}>
-                    {v.watchTime || "—"}
-                  </td>
-                  <td className="py-2 pr-4" style={{ color: "var(--foreground)" }}>
-                    {v.impressions ? v.impressions.toLocaleString() : "—"}
-                  </td>
-                  <td className="py-2 pr-4" style={{ color: "var(--muted-foreground)" }}>
-                    {v.wtImpressions || "—"}
                   </td>
                 </tr>
               );
@@ -247,7 +185,7 @@ export default async function YouTubePage() {
       </div>
 
       {/* Video log */}
-      <VideoLog videos={videos} />
+      <SortableVideoLog videos={videos} />
     </DashboardLayout>
   );
 }
