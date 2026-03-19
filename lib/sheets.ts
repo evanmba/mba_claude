@@ -1,12 +1,12 @@
 /** Fetch a Google Sheets "publish to web" CSV URL and return rows as a 2-D array. */
-export async function fetchCSV(url: string): Promise<string[][]> {
-  const res = await fetch(url, { next: { revalidate: 300 } });
+export async function fetchCSV(url: string, opts?: RequestInit): Promise<string[][]> {
+  const res = await fetch(url, opts ?? { next: { revalidate: 300 } });
   if (!res.ok) throw new Error(`Sheet fetch failed: ${res.status}`);
   const text = await res.text();
   return parseCSV(text);
 }
 
-function parseCSV(text: string): string[][] {
+export function parseCSV(text: string): string[][] {
   return text.split("\n").map((line) => parseCSVLine(line.replace(/\r$/, "")));
 }
 
