@@ -297,21 +297,32 @@ const MONTH_NAMES = new Set([
 ]);
 
 export function parsePlatformData(rows: string[][]): PlatformData {
-  // Find header row — must contain "month" and at least one of "ig"/"total pieces"
-  let headerIdx = -1;
-  const colMap: Record<string, number> = {};
+  // The sheet uses TWO header rows:
+  //   Row 1: Month, (empty ×12), X, Podcasts, TOTAL PIECES, TOTAL LEADS, CPL, TOTAL GENERATED VALUE
+  //   Row 2: (empty), IG, IG LEADS, YT Long, YT Shorts, YT Posts, YT LEADS,
+  //          FB Posts, FB LEADS, TikTok, TT LEADS, Email, Email LEADS, (empty ×6)
+  // We find row 1 by "month" + "total pieces", then merge both rows into one colMap.
 
+  let headerIdx = -1;
   for (let i = 0; i < rows.length; i++) {
     const joined = rows[i].join(",").toLowerCase();
-    if (joined.includes("month") && (joined.includes("ig") || joined.includes("total pieces"))) {
+    if (joined.includes("month") && joined.includes("total pieces")) {
       headerIdx = i;
-      rows[i].forEach((cell, j) => { colMap[cell.trim().toLowerCase()] = j; });
       break;
     }
   }
   if (headerIdx === -1) return { rows: [] };
 
-  // Resolve a column index by trying multiple possible header strings
+  // Merge header row 1 and row 2: for each column, prefer row 2's value if non-empty
+  const h1 = rows[headerIdx]     ?? [];
+  const h2 = rows[headerIdx + 1] ?? [];
+  const colMap: Record<string, number> = {};
+  const width = Math.max(h1.length, h2.length);
+  for (let j = 0; j < width; j++) {
+    const label = (h2[j]?.trim() || h1[j]?.trim() || "").toLowerCase();
+    if (label) colMap[label] = j;
+  }
+
   const col = (...names: string[]): number => {
     for (const n of names) {
       const idx = colMap[n.toLowerCase()];
@@ -343,29 +354,30 @@ export function parsePlatformData(rows: string[][]): PlatformData {
 
   const n = (row: string[], idx: number) => idx >= 0 ? toNum(row[idx] ?? "") : 0;
 
+  // Data rows start after both header rows
   const result: PlatformMonthRow[] = [];
-  for (let i = headerIdx + 1; i < rows.length; i++) {
+  for (let i = headerIdx + 2; i < rows.length; i++) {
     const row = rows[i];
     const month = (row[C.month] ?? "").trim();
     if (!MONTH_NAMES.has(month.toLowerCase())) continue;
     result.push({
       month,
-      ig:           n(row, C.ig),
-      ytLong:       n(row, C.ytLong),
-      ytShorts:     n(row, C.ytShorts),
-      ytPosts:      n(row, C.ytPosts),
-      fbPosts:      n(row, C.fbPosts),
-      tiktok:       n(row, C.tiktok),
-      x:            n(row, C.x),
-      podcasts:     n(row, C.podcasts),
-      email:        n(row, C.email),
-      igLeads:      n(row, C.igLeads),
-      ytLeads:      n(row, C.ytLeads),
-      fbLeads:      n(row, C.fbLeads),
-      ttLeads:      n(row, C.ttLeads),
-      emailLeads:   n(row, C.emailLeads),
-      totalPieces:  n(row, C.totalPieces),
-      totalLeads:   n(row, C.totalLeads),
+      ig:             n(row, C.ig),
+      ytLong:         n(row, C.ytLong),
+      ytShorts:       n(row, C.ytShorts),
+      ytPosts:        n(row, C.ytPosts),
+      fbPosts:        n(row, C.fbPosts),
+      tiktok:         n(row, C.tiktok),
+      x:              n(row, C.x),
+      podcasts:       n(row, C.podcasts),
+      email:          n(row, C.email),
+      igLeads:        n(row, C.igLeads),
+      ytLeads:        n(row, C.ytLeads),
+      fbLeads:        n(row, C.fbLeads),
+      ttLeads:        n(row, C.ttLeads),
+      emailLeads:     n(row, C.emailLeads),
+      totalPieces:    n(row, C.totalPieces),
+      totalLeads:     n(row, C.totalLeads),
       generatedValue: n(row, C.genValue),
     });
   }
