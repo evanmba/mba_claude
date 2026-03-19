@@ -77,8 +77,14 @@ function BarRow({
 // ─── Stat card ────────────────────────────────────────────────────────────────
 
 function KPI({
-  label, value, change,
-}: { label: string; value: string; change: { val: string; up: boolean } | null }) {
+  label, value, change, projected, progressPct,
+}: {
+  label: string;
+  value: string;
+  change: { val: string; up: boolean } | null;
+  projected?: { value: string; dayPct: number };
+  progressPct?: number;
+}) {
   return (
     <div
       className="rounded-xl border p-4"
@@ -86,8 +92,49 @@ function KPI({
     >
       <p className="text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>{label}</p>
       <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>{value}</p>
-      {change && (
+
+      {/* Projected end-of-month */}
+      {projected && (
+        <div className="mt-2">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              on pace for
+            </span>
+            <span className="text-xs font-semibold" style={{ color: "#f59e0b" }}>
+              {projected.value} projected
+            </span>
+          </div>
+          {/* Dual progress bar: month elapsed (muted) + content pace (amber) */}
+          <div className="relative h-1.5 rounded-full overflow-hidden" style={{ background: "var(--secondary)" }}>
+            {/* Month elapsed */}
+            <div
+              className="absolute inset-y-0 left-0 rounded-full opacity-30"
+              style={{ width: `${projected.dayPct}%`, background: "#f59e0b" }}
+            />
+            {/* Actual pace vs projected */}
+            <div
+              className="absolute inset-y-0 left-0 rounded-full"
+              style={{ width: `${Math.min((progressPct ?? 0), 100)}%`, background: "#f59e0b" }}
+            />
+          </div>
+          <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
+            day {Math.round(projected.dayPct / 100 * new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate())} of {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()}
+          </p>
+        </div>
+      )}
+
+      {change && !projected && (
         <div className="flex items-center gap-1 mt-1">
+          {change.up
+            ? <TrendingUp size={11} style={{ color: "#22c55e" }} />
+            : <TrendingDown size={11} style={{ color: "#ef4444" }} />}
+          <span className="text-xs font-medium" style={{ color: change.up ? "#22c55e" : "#ef4444" }}>
+            {change.val} vs last month
+          </span>
+        </div>
+      )}
+      {change && projected && (
+        <div className="flex items-center gap-1 mt-2">
           {change.up
             ? <TrendingUp size={11} style={{ color: "#22c55e" }} />
             : <TrendingDown size={11} style={{ color: "#ef4444" }} />}
@@ -215,6 +262,21 @@ export function PlatformDashboard({ initialData, initialError, serverFetchedAt }
     active.reduce((s, r) => s + (r[p.key as keyof PlatformMonthRow] as number), 0)
   ), 1);
 
+  // End-of-month projection for Total Pieces (only when latest month = current month)
+  const projection = (() => {
+    if (!latest) return null;
+    const now = new Date();
+    const currentMonthName = now.toLocaleString("en-US", { month: "long" });
+    if (latest.month.toLowerCase() !== currentMonthName.toLowerCase()) return null;
+    const today = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const projected = Math.round((latest.totalPieces / today) * daysInMonth);
+    const dayPct = Math.round((today / daysInMonth) * 100);
+    // progressPct = how far through projected total we are (actual / projected * 100)
+    const progressPct = projected > 0 ? Math.round((latest.totalPieces / projected) * 100) : 0;
+    return { value: String(projected), dayPct, progressPct };
+  })();
+
   const [view, setView] = useState<"latest" | "ytd">("latest");
   const isLatest = view === "latest";
 
@@ -263,6 +325,8 @@ export function PlatformDashboard({ initialData, initialError, serverFetchedAt }
           label={`Total Pieces${latest ? ` · ${latest.month}` : " · YTD"}`}
           value={latest ? String(latest.totalPieces) : String(ytdPieces)}
           change={latest && prev ? pct(latest.totalPieces, prev.totalPieces) : null}
+          projected={projection ?? undefined}
+          progressPct={projection?.progressPct}
         />
         <KPI
           label={`Total Leads${latest ? ` · ${latest.month}` : " · YTD"}`}
