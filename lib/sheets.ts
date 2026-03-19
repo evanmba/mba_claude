@@ -260,3 +260,114 @@ export function parseYTData(rows: string[][]): YTData {
 
   return { monthly, averages, videos };
 }
+
+// ─── Platform Distribution Data ───────────────────────────────────────────────
+
+export interface PlatformMonthRow {
+  month: string;
+  // pieces published per channel
+  ig: number;
+  ytLong: number;
+  ytShorts: number;
+  ytPosts: number;
+  fbPosts: number;
+  tiktok: number;
+  x: number;
+  podcasts: number;
+  email: number;
+  // leads per channel
+  igLeads: number;
+  ytLeads: number;
+  fbLeads: number;
+  ttLeads: number;
+  emailLeads: number;
+  // totals
+  totalPieces: number;
+  totalLeads: number;
+  generatedValue: number;
+}
+
+export interface PlatformData {
+  rows: PlatformMonthRow[];
+}
+
+const MONTH_NAMES = new Set([
+  "january","february","march","april","may","june",
+  "july","august","september","october","november","december",
+]);
+
+export function parsePlatformData(rows: string[][]): PlatformData {
+  // Find header row — must contain "month" and at least one of "ig"/"total pieces"
+  let headerIdx = -1;
+  const colMap: Record<string, number> = {};
+
+  for (let i = 0; i < rows.length; i++) {
+    const joined = rows[i].join(",").toLowerCase();
+    if (joined.includes("month") && (joined.includes("ig") || joined.includes("total pieces"))) {
+      headerIdx = i;
+      rows[i].forEach((cell, j) => { colMap[cell.trim().toLowerCase()] = j; });
+      break;
+    }
+  }
+  if (headerIdx === -1) return { rows: [] };
+
+  // Resolve a column index by trying multiple possible header strings
+  const col = (...names: string[]): number => {
+    for (const n of names) {
+      const idx = colMap[n.toLowerCase()];
+      if (idx !== undefined) return idx;
+    }
+    return -1;
+  };
+
+  const C = {
+    month:       col("month"),
+    ig:          col("ig"),
+    igLeads:     col("ig leads"),
+    ytLong:      col("yt long"),
+    ytShorts:    col("yt shorts"),
+    ytPosts:     col("yt posts"),
+    ytLeads:     col("yt leads"),
+    fbPosts:     col("fb posts"),
+    fbLeads:     col("fb leads"),
+    tiktok:      col("tiktok"),
+    ttLeads:     col("tt leads"),
+    email:       col("email"),
+    emailLeads:  col("email leads"),
+    x:           col("x"),
+    podcasts:    col("podcasts"),
+    totalPieces: col("total pieces"),
+    totalLeads:  col("total leads"),
+    genValue:    col("total generated value ($8 cpl)", "total generated value"),
+  };
+
+  const n = (row: string[], idx: number) => idx >= 0 ? toNum(row[idx] ?? "") : 0;
+
+  const result: PlatformMonthRow[] = [];
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const row = rows[i];
+    const month = (row[C.month] ?? "").trim();
+    if (!MONTH_NAMES.has(month.toLowerCase())) continue;
+    result.push({
+      month,
+      ig:           n(row, C.ig),
+      ytLong:       n(row, C.ytLong),
+      ytShorts:     n(row, C.ytShorts),
+      ytPosts:      n(row, C.ytPosts),
+      fbPosts:      n(row, C.fbPosts),
+      tiktok:       n(row, C.tiktok),
+      x:            n(row, C.x),
+      podcasts:     n(row, C.podcasts),
+      email:        n(row, C.email),
+      igLeads:      n(row, C.igLeads),
+      ytLeads:      n(row, C.ytLeads),
+      fbLeads:      n(row, C.fbLeads),
+      ttLeads:      n(row, C.ttLeads),
+      emailLeads:   n(row, C.emailLeads),
+      totalPieces:  n(row, C.totalPieces),
+      totalLeads:   n(row, C.totalLeads),
+      generatedValue: n(row, C.genValue),
+    });
+  }
+  return { rows: result };
+}
