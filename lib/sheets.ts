@@ -58,6 +58,8 @@ export interface IGMonthlyRow {
 export interface IGPost {
   date: string;
   title: string;
+  url: string;
+  thumbnail: string;
   reach: number;
   watchTime: number;
   likes: number;
@@ -148,6 +150,8 @@ export function parseIGData(rows: string[][]): IGData {
         posts.push({
           date: col0,
           title: cleanTitle(row[1] ?? ""),
+          url: row[16] ?? "",
+          thumbnail: row[17] ?? "",
           reach: toNum(row[2]),
           watchTime: toNum(row[3]),
           likes: toNum(row[4]),
@@ -216,6 +220,8 @@ export function parsePostLogCSV(rows: string[][]): IGPost[] {
     intentional:    fi(["intentional"]),
     cta:            fi(["cta"]),
     notes:          fi(["notes"]),
+    url:            hdrs.findIndex((h) => h.includes("url") || h.includes("link") || h.includes("post url") || h.includes("post link")),
+    thumbnail:      hdrs.findIndex((h) => h.includes("thumbnail") || h.includes("thumb") || h.includes("image")),
   };
 
   const get = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "") : "");
@@ -227,6 +233,8 @@ export function parsePostLogCSV(rows: string[][]): IGPost[] {
     return [{
       date:           col0,
       title:          cleanTitle(get(row, cols.title)),
+      url:            get(row, cols.url),
+      thumbnail:      get(row, cols.thumbnail),
       reach:          toNum(get(row, cols.reach)),
       watchTime:      toNum(get(row, cols.watchTime)),
       likes:          toNum(get(row, cols.likes)),
