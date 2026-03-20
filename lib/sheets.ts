@@ -114,6 +114,7 @@ export interface IGPost {
   intentional: string;
   cta: string;
   notes: string;
+  videoUrl: string;
 }
 
 export interface IGData {
@@ -205,6 +206,7 @@ export function parseIGData(rows: string[][]): IGData {
           intentional: row[13] ?? "",
           cta: row[14] ?? "",
           notes: row[15] ?? "",
+          videoUrl: row[17] ?? "",
         });
       }
     }
@@ -260,6 +262,7 @@ export function parsePostLogCSV(rows: string[][]): IGPost[] {
     cta:            fi(["cta"]),
     notes:          fi(["notes"]),
     url:            hdrs.findIndex((h) => h.includes("url") || h.includes("link") || h.includes("post url") || h.includes("post link")),
+    videoUrl:       hdrs.findIndex((h) => h.includes("video") && (h.includes("url") || h.includes("link") || h.includes("watch"))),
   };
 
   const get = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "") : "");
@@ -286,6 +289,7 @@ export function parsePostLogCSV(rows: string[][]): IGPost[] {
       intentional:    get(row, cols.intentional),
       cta:            get(row, cols.cta),
       notes:          get(row, cols.notes),
+      videoUrl:       get(row, cols.videoUrl),
     }];
   });
 }
