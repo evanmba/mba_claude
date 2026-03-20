@@ -18,18 +18,29 @@ function isWinning(p: IGPost): boolean {
   );
 }
 
-// ─── Color scale (red → yellow → green) ──────────────────────────────────────
+// ─── Color scale: red → orange → yellow → grey → dark green → light green → neon green
+const HEAT_STOPS: [number, number, number][] = [
+  [255,  30,   0],   // red
+  [255, 140,   0],   // orange
+  [255, 220,   0],   // yellow
+  [120, 120, 120],   // grey
+  [ 22, 101,  52],   // dark green
+  [ 74, 222, 128],   // light green
+  [ 57, 255,  20],   // neon green
+];
+
 function heatColor(val: number, min: number, max: number): string {
-  if (max <= min || isNaN(val)) return "var(--foreground)";
+  if (max <= min || isNaN(val)) return "var(--muted-foreground)";
   const t = Math.max(0, Math.min(1, (val - min) / (max - min)));
-  let r: number, g: number, b: number;
-  if (t < 0.5) {
-    const u = t * 2;
-    r = 255; g = Math.round(200 * u); b = 0;
-  } else {
-    const u = (t - 0.5) * 2;
-    r = Math.round(255 * (1 - u)); g = Math.round(200 + 55 * u); b = Math.round(80 * u);
-  }
+  const scaled = t * (HEAT_STOPS.length - 1);
+  const lo = Math.floor(scaled);
+  const hi = Math.min(lo + 1, HEAT_STOPS.length - 1);
+  const u = scaled - lo;
+  const [r1, g1, b1] = HEAT_STOPS[lo];
+  const [r2, g2, b2] = HEAT_STOPS[hi];
+  const r = Math.round(r1 + (r2 - r1) * u);
+  const g = Math.round(g1 + (g2 - g1) * u);
+  const b = Math.round(b1 + (b2 - b1) * u);
   return `rgb(${r}, ${g}, ${b})`;
 }
 
