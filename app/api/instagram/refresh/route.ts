@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchCSV, parseIGData, parsePostLogCSV } from "@/lib/sheets";
+import { fetchCSV, parseIGData, parsePostLogCSV, extractPostsFromSheet } from "@/lib/sheets";
 
 const IG_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt9HlvUd1055qAlYc_x-oflTe2quXENd-q8W6oV2-AOs3uGPumpmPgQZHCnZQaYFKU9QzKubHt-68v/pub?output=csv";
@@ -9,23 +9,25 @@ const IG_DATA_CSV_URL =
 
 export async function GET() {
   try {
-    const rows = await fetchCSV(IG_CSV_URL, { cache: "no-store" });
-    const data = parseIGData(rows);
+    const mainRows = await fetchCSV(IG_CSV_URL, { cache: "no-store" });
+    const data = parseIGData(mainRows);
 
-    // DATA tab fetched independently so a failure here doesn't break the refresh
     try {
       const dataRows = await fetchCSV(IG_DATA_CSV_URL, { cache: "no-store" });
       const posts = parsePostLogCSV(dataRows);
-      if (posts.length > 0) data.posts = posts;
+      if (posts.length > 0) {
+        data.posts = posts;
+      } else {
+        const fallback = extractPostsFromSheet(mainRows);
+        if (fallback.length > 0) data.posts = fallback;
+      }
     } catch {
-      // fall back to empty posts
+      const fallback = extractPostsFromSheet(mainRows);
+      if (fallback.length > 0) data.posts = fallback;
     }
 
     return NextResponse.json({ ok: true, data, fetchedAt: new Date().toISOString() });
   } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: String(err) },
-      { status: 500 },
-    );
+    return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
 }

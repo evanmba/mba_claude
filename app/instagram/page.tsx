@@ -1,6 +1,6 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { InstagramDashboard } from "@/components/instagram/InstagramDashboard";
-import { fetchCSV, parseIGData, parsePostLogCSV, type IGData } from "@/lib/sheets";
+import { fetchCSV, parseIGData, parsePostLogCSV, extractPostsFromSheet, type IGData } from "@/lib/sheets";
 
 const IG_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt9HlvUd1055qAlYc_x-oflTe2quXENd-q8W6oV2-AOs3uGPumpmPgQZHCnZQaYFKU9QzKubHt-68v/pub?output=csv";
@@ -13,20 +13,31 @@ export default async function InstagramPage() {
   let fetchError = false;
   const fetchedAt = new Date().toISOString();
 
+  let mainRows: string[][] = [];
+
   try {
-    const rows = await fetchCSV(IG_CSV_URL);
-    data = parseIGData(rows);
+    mainRows = await fetchCSV(IG_CSV_URL);
+    data = parseIGData(mainRows);
   } catch {
     fetchError = true;
   }
 
-  // DATA tab fetched independently — failure here doesn't break the main page
+  // Try dedicated DATA tab first; fall back to scanning the main sheet for a post section
   try {
     const dataRows = await fetchCSV(IG_DATA_CSV_URL);
     const posts = parsePostLogCSV(dataRows);
-    if (posts.length > 0) data = { ...data, posts };
+    if (posts.length > 0) {
+      data = { ...data, posts };
+    } else if (mainRows.length > 0) {
+      const fallbackPosts = extractPostsFromSheet(mainRows);
+      if (fallbackPosts.length > 0) data = { ...data, posts: fallbackPosts };
+    }
   } catch {
-    // silently fall back to empty posts
+    // DATA tab unreachable — try to extract posts from the main sheet rows
+    if (mainRows.length > 0) {
+      const fallbackPosts = extractPostsFromSheet(mainRows);
+      if (fallbackPosts.length > 0) data = { ...data, posts: fallbackPosts };
+    }
   }
 
   return (

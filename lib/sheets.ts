@@ -171,6 +171,21 @@ export function parseIGData(rows: string[][]): IGData {
 }
 
 /**
+ * Find the post-log header row anywhere in a sheet and parse posts from it.
+ * Works for both standalone DATA tabs and mixed sheets where the post section
+ * starts below the monthly summary.
+ */
+export function extractPostsFromSheet(rows: string[][]): IGPost[] {
+  const headerIdx = rows.findIndex((row) => {
+    const j = row.join(",").toLowerCase();
+    return (j.includes("reach 24h") || j.includes("reach(24h)") || j.includes("reach (24h)")) &&
+           (j.includes("likes 24h") || j.includes("likes(24h)") || j.includes("likes (24h)"));
+  });
+  if (headerIdx === -1) return [];
+  return parsePostLogCSV(rows.slice(headerIdx));
+}
+
+/**
  * Parse a standalone post-log CSV where row 0 is the header row.
  * Used for the separate DATA tab (individual post records).
  * Column names are matched by keyword so column order doesn't matter.
