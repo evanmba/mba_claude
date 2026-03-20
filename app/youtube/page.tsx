@@ -3,7 +3,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { PlaceholderCard } from "@/components/shared/PlaceholderCard";
 import { SortableVideoLog } from "@/components/youtube/SortableVideoLog";
 import { Youtube, Eye, MousePointerClick, Clock, AlertCircle } from "lucide-react";
-import { fetchCSV, fetchSheetLinks, parseYTData, parseVideoLogCSV, type YTMonthlyRow, type YTVideo } from "@/lib/sheets";
+import { fetchCSV, fetchSheetLinks, cleanTitle, parseYTData, parseVideoLogCSV, type YTMonthlyRow, type YTVideo } from "@/lib/sheets";
 
 const YT_BASE =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSS66XUTykWwbUBp6i7hZlbt6uFlleXnCXHhrlAVBM82kf0iTV4N_AjwRsx_NIJBmmU-AYmnssuZvKX/pub";
@@ -161,7 +161,11 @@ export default async function YouTubePage() {
     // Enrich with hyperlinks extracted from the HTML-published sheet
     videos = parsed.map((v) => ({
       ...v,
-      url: v.url || linkMap.get(v.title) || linkMap.get(v.title.trim()) || "",
+      url: v.url
+        || linkMap.get(v.title)
+        || linkMap.get(v.title.trim())
+        || linkMap.get(cleanTitle(v.title))
+        || "",
     }));
   } catch {
     fetchError = true;

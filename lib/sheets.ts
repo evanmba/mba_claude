@@ -514,7 +514,7 @@ export function parseVideoLogCSV(rows: string[][]): YTVideo[] {
     .slice(1)
     .filter((row) => row.some((c) => c.trim()))
     .map((row) => ({
-      title:         get(row, idx.title),
+      title:         cleanTitle(get(row, idx.title)),
       publishDate:   get(row, idx.publishDate),
       url:           get(row, idx.url),
       ctr:           get(row, idx.ctr),
