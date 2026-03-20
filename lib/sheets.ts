@@ -736,7 +736,7 @@ export function parseEmailLogCSV(rows: string[][]): EmailLog[] {
 
   return rows.slice(1).flatMap((row): EmailLog[] => {
     const col0 = (row[0] ?? "").trim();
-    if (!/^\d{1,4}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(col0)) return [];
+    if (!/^\d{1,4}[\/\-]\d{1,2}/.test(col0)) return [];
     const subject = cleanTitle(get(row, cols.subject));
     if (!subject) return [];
     return [{
@@ -804,7 +804,7 @@ export async function fetchEmailLogViaAPI(
   return rowData.slice(1).flatMap((row): EmailLog[] => {
     const cells = row.values ?? [];
     const col0 = (cells[0]?.formattedValue ?? "").trim();
-    if (!/^\d{1,4}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(col0)) return [];
+    if (!/^\d{1,4}[\/\-]\d{1,2}/.test(col0)) return [];
     const subject = cleanTitle(val(cells, cols.subject));
     if (!subject) return [];
     return [{

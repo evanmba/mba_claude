@@ -13,7 +13,7 @@ const EMAIL_SPREADSHEET_ID   = process.env.GOOGLE_EMAIL_SPREADSHEET_ID ?? "";
 const EMAIL_DATA_SHEET       = process.env.GOOGLE_EMAIL_DATA_SHEET ?? "DATA";
 // Published CSV for the DATA tab — env var takes priority, falls back to base URL + hardcoded gid
 const EMAIL_DATA_CSV_URL     = process.env.GOOGLE_EMAIL_DATA_CSV_URL
-  || `${EMAIL_PUB_BASE}?gid=1377726109&output=csv`;
+  || `${EMAIL_PUB_BASE}?gid=1404359097&output=csv`;
 
 export default async function EmailPage() {
   let data: EmailData = { monthly: [], campaigns: [], yearlyAvg: null };
