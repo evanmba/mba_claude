@@ -25,12 +25,13 @@ function isWinner(v: YTVideo): boolean {
   );
 }
 function isOutlier(v: YTVideo): boolean {
-  return (
-    parsePct(v.ctr)            > OUT.ctr         &&
-    v.watchTime                > OUT.watchTime    &&
-    v.impressions              > OUT.impressions  &&
-    parseRatio(v.wtImpressions) > OUT.wtImpr
-  );
+  const checks = [
+    parsePct(v.ctr)             > OUT.ctr,
+    v.watchTime                 > OUT.watchTime,
+    v.impressions               > OUT.impressions,
+    parseRatio(v.wtImpressions) > OUT.wtImpr,
+  ];
+  return checks.filter(Boolean).length >= 3;
 }
 
 // ─── Heat scale: red → orange → yellow → grey → dark green → light green → neon green
@@ -196,7 +197,7 @@ export function SortableVideoLog({ videos }: { videos: YTVideo[] }) {
 
       <p className="text-sm mb-4" style={{ color: "var(--muted-foreground)" }}>
         {filter === "winners"  ? `Any one of: CTR >${WIN.ctr}% · Watch Time >${WIN.watchTime}s · Impressions >${WIN.impressions.toLocaleString()} · Watch:Impr >${WIN.wtImpr * 100}%`
-       : filter === "outliers" ? `All of: CTR >${OUT.ctr}% · Watch Time >${OUT.watchTime}s · Impressions >${OUT.impressions.toLocaleString()} · Watch:Impr >${OUT.wtImpr * 100}%`
+       : filter === "outliers" ? `3 of 4: CTR >${OUT.ctr}% · Watch Time >${OUT.watchTime}s · Impressions >${OUT.impressions.toLocaleString()} · Watch:Impr >${OUT.wtImpr * 100}%`
        : "Individual video performance at 24 hours · click headers to sort"}
       </p>
 
