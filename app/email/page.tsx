@@ -10,6 +10,8 @@ const EMAIL_CSV_URL =
 const SHEETS_API_KEY         = process.env.GOOGLE_SHEETS_API_KEY ?? "";
 const EMAIL_SPREADSHEET_ID   = process.env.GOOGLE_EMAIL_SPREADSHEET_ID ?? "";
 const EMAIL_DATA_SHEET       = process.env.GOOGLE_EMAIL_DATA_SHEET ?? "DATA";
+// Published "Publish to web" CSV URL for the DATA tab (File → Share → Publish to web → DATA sheet → CSV)
+const EMAIL_DATA_CSV_URL     = process.env.GOOGLE_EMAIL_DATA_CSV_URL ?? "";
 
 export default async function EmailPage() {
   let data: EmailData = { monthly: [], campaigns: [], yearlyAvg: null };
@@ -35,6 +37,18 @@ export default async function EmailPage() {
     }
   }
 
+  // Published CSV URL (File → Share → Publish to web → DATA sheet → CSV)
+  if (emails.length === 0 && EMAIL_DATA_CSV_URL) {
+    try {
+      const dataRows = await fetchCSV(EMAIL_DATA_CSV_URL, { cache: "no-store" });
+      const parsed = parseEmailLogCSV(dataRows);
+      if (parsed.length > 0) emails = parsed;
+    } catch {
+      // fall through
+    }
+  }
+
+  // Last resort: export URL with hardcoded gid (only works if sheet is shared publicly)
   if (emails.length === 0 && EMAIL_SPREADSHEET_ID) {
     try {
       const csvUrl = `https://docs.google.com/spreadsheets/d/${EMAIL_SPREADSHEET_ID}/export?format=csv&gid=1377726109`;

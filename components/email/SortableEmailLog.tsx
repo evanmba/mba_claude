@@ -106,12 +106,22 @@ export function SortableEmailLog({ emails }: { emails: EmailLog[] }) {
         <h3 className="text-base font-semibold mb-1" style={{ color: "var(--foreground)" }}>
           Email Log
         </h3>
-        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-          No email data found. Make sure the DATA tab is accessible and{" "}
-          <code className="text-xs px-1 py-0.5 rounded" style={{ background: "var(--secondary)", color: "var(--foreground)" }}>
-            GOOGLE_EMAIL_SPREADSHEET_ID
-          </code>{" "}
-          is set correctly in .env.local.
+        <p className="text-sm mb-3" style={{ color: "var(--muted-foreground)" }}>
+          No email data found. The spreadsheet is not publicly accessible — you need to publish the DATA tab.
+        </p>
+        <ol className="text-xs space-y-1 list-decimal list-inside" style={{ color: "var(--muted-foreground)" }}>
+          <li>Open your email spreadsheet in Google Sheets</li>
+          <li>Go to <strong style={{ color: "var(--foreground)" }}>File → Share → Publish to web</strong></li>
+          <li>Select the <strong style={{ color: "var(--foreground)" }}>DATA</strong> sheet and <strong style={{ color: "var(--foreground)" }}>CSV</strong> format, then click Publish</li>
+          <li>Copy the URL and add it to <code className="px-1 py-0.5 rounded" style={{ background: "var(--secondary)", color: "var(--foreground)" }}>.env.local</code> as <code className="px-1 py-0.5 rounded" style={{ background: "var(--secondary)", color: "var(--foreground)" }}>GOOGLE_EMAIL_DATA_CSV_URL</code></li>
+          <li>Restart the dev server</li>
+        </ol>
+        <p className="text-xs mt-3" style={{ color: "var(--muted-foreground)" }}>
+          Debug info:{" "}
+          <a href="/api/email/debug" target="_blank" rel="noopener noreferrer"
+            style={{ color: "var(--primary)", textDecoration: "underline" }}>
+            /api/email/debug
+          </a>
         </p>
       </div>
     );
