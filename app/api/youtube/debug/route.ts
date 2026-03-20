@@ -9,7 +9,7 @@ export async function GET() {
     return NextResponse.json({ error: "Missing env vars", SHEETS_API_KEY: !!SHEETS_API_KEY, YT_SPREADSHEET_ID: !!YT_SPREADSHEET_ID });
   }
 
-  const range = encodeURIComponent(YT_DATA_SHEET);
+  const range = encodeURIComponent(`'${YT_DATA_SHEET}'`);
   const url =
     `https://sheets.googleapis.com/v4/spreadsheets/${YT_SPREADSHEET_ID}` +
     `?includeGridData=true&ranges=${range}&key=${SHEETS_API_KEY}`;

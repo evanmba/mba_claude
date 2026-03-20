@@ -104,7 +104,7 @@ export async function fetchPostsViaAPI(
   sheetName: string,
   apiKey: string,
 ): Promise<IGPost[]> {
-  const range = encodeURIComponent(sheetName);
+  const range = encodeURIComponent(`'${sheetName}'`);
   const url =
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}` +
     `?includeGridData=true&ranges=${range}&key=${apiKey}`;
@@ -190,7 +190,7 @@ export async function fetchVideosViaAPI(
   sheetName: string,
   apiKey: string,
 ): Promise<YTVideo[]> {
-  const range = encodeURIComponent(sheetName);
+  const range = encodeURIComponent(`'${sheetName}'`);
   const url =
     `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}` +
     `?includeGridData=true&ranges=${range}&key=${apiKey}`;
