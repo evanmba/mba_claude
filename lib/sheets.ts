@@ -144,7 +144,7 @@ export function parseIGData(rows: string[][]): IGData {
 
     if (mode === "posts") {
       // Date column looks like "3/1/26" or "3/1/2026"
-      if (/^\d+\/\d+\/\d+/.test(col0) && row.length > 3) {
+      if (/^\d{1,4}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(col0) && row.length > 3) {
         posts.push({
           date: col0,
           title: cleanTitle(row[1] ?? ""),
@@ -207,7 +207,8 @@ export function parsePostLogCSV(rows: string[][]): IGPost[] {
 
   return rows.slice(1).flatMap((row) => {
     const col0 = (row[0] ?? "").trim();
-    if (!/^\d+\/\d+\/\d+/.test(col0)) return [];
+    // Accept slash-separated (3/1/26, 3/1/2026) or dash-separated (2026-03-01) dates
+    if (!/^\d{1,4}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(col0)) return [];
     return [{
       date:           col0,
       title:          cleanTitle(get(row, cols.title)),
