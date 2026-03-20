@@ -79,6 +79,108 @@ export async function fetchSheetLinks(htmlUrl: string): Promise<Map<string, stri
   }
 }
 
+// ─── Google Sheets API (grid data + hyperlinks) ───────────────────────────────
+
+interface GridCell {
+  formattedValue?: string;
+  hyperlink?: string;
+}
+
+interface GridData {
+  sheets: Array<{
+    data: Array<{
+      rowData: Array<{ values?: GridCell[] }>;
+    }>;
+  }>;
+}
+
+/**
+ * Fetch a sheet's grid data via the Sheets API v4.
+ * Returns cell values AND embedded hyperlinks (which CSV exports strip).
+ * Requires GOOGLE_SHEETS_API_KEY and the spreadsheet to be accessible.
+ */
+export async function fetchPostsViaAPI(
+  spreadsheetId: string,
+  sheetName: string,
+  apiKey: string,
+): Promise<IGPost[]> {
+  const range = encodeURIComponent(sheetName);
+  const url =
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}` +
+    `?includeGridData=true&ranges=${range}&key=${apiKey}`;
+
+  const res = await fetch(url, { next: { revalidate: 300 } });
+  if (!res.ok) throw new Error(`Sheets API error: ${res.status}`);
+  const json: GridData = await res.json();
+
+  const rowData = json.sheets?.[0]?.data?.[0]?.rowData ?? [];
+  if (rowData.length < 2) return [];
+
+  // Build header map from first row
+  const headerCells = rowData[0]?.values ?? [];
+  const hdrs = headerCells.map((c) => (c.formattedValue ?? "").toLowerCase().trim());
+
+  function fi(kw: string[]): number {
+    return hdrs.findIndex((h) => kw.every((k) => h.includes(k)));
+  }
+
+  const cols = {
+    title:          fi(["title"]),
+    reach:          fi(["reach", "24"]),
+    watchTime:      fi(["watch"]),
+    likes:          fi(["likes", "24"]),
+    shares:         fi(["shares", "24"]),
+    follows:        fi(["follows", "24"]),
+    reachLike:      fi(["reach", "like"]),
+    reachShares:    hdrs.findIndex((h) => h.includes("reach") && h.includes("share") && !h.includes("24")),
+    reachFollowers: fi(["reach", "follow"]),
+    who:            fi(["who"]),
+    style:          fi(["style"]),
+    type:           fi(["type"]),
+    intentional:    fi(["intentional"]),
+    cta:            fi(["cta"]),
+    notes:          fi(["notes"]),
+    url:            hdrs.findIndex((h) => h.includes("url") || h.includes("link")),
+  };
+
+  const val = (cells: GridCell[], i: number) =>
+    i >= 0 ? (cells[i]?.formattedValue ?? "") : "";
+  const link = (cells: GridCell[], i: number) =>
+    i >= 0 ? (cells[i]?.hyperlink ?? "") : "";
+
+  return rowData.slice(1).flatMap((row) => {
+    const cells = row.values ?? [];
+    const col0 = (cells[0]?.formattedValue ?? "").trim();
+    if (!/^\d{1,4}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(col0)) return [];
+
+    // The hyperlink on the title cell IS the video URL
+    const videoUrl = link(cells, cols.title);
+    // Post URL: dedicated url column, or fall back to title hyperlink
+    const postUrl = val(cells, cols.url) || videoUrl;
+
+    return [{
+      date:           col0,
+      title:          cleanTitle(val(cells, cols.title)),
+      url:            postUrl,
+      videoUrl,
+      reach:          toNum(val(cells, cols.reach)),
+      watchTime:      toNum(val(cells, cols.watchTime)),
+      likes:          toNum(val(cells, cols.likes)),
+      shares:         toNum(val(cells, cols.shares)),
+      follows:        toNum(val(cells, cols.follows)),
+      reachLike:      val(cells, cols.reachLike),
+      reachShares:    val(cells, cols.reachShares),
+      reachFollowers: val(cells, cols.reachFollowers),
+      who:            val(cells, cols.who),
+      style:          val(cells, cols.style),
+      type:           val(cells, cols.type),
+      intentional:    val(cells, cols.intentional),
+      cta:            val(cells, cols.cta),
+      notes:          val(cells, cols.notes),
+    }];
+  });
+}
+
 // ─── IG Data Types ────────────────────────────────────────────────────────────
 
 export interface IGMonthlyRow {
