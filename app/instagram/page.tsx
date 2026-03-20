@@ -14,15 +14,19 @@ export default async function InstagramPage() {
   const fetchedAt = new Date().toISOString();
 
   try {
-    const [rows, dataRows] = await Promise.all([
-      fetchCSV(IG_CSV_URL),
-      fetchCSV(IG_DATA_CSV_URL),
-    ]);
+    const rows = await fetchCSV(IG_CSV_URL);
     data = parseIGData(rows);
+  } catch {
+    fetchError = true;
+  }
+
+  // DATA tab fetched independently — failure here doesn't break the main page
+  try {
+    const dataRows = await fetchCSV(IG_DATA_CSV_URL);
     const posts = parsePostLogCSV(dataRows);
     if (posts.length > 0) data = { ...data, posts };
   } catch {
-    fetchError = true;
+    // silently fall back to empty posts
   }
 
   return (
