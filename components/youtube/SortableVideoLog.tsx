@@ -141,6 +141,10 @@ export function SortableVideoLog({ videos }: { videos: YTVideo[] }) {
                 : enriched;
 
   const sorted = [...visible].sort((a, b) => {
+    if (sortCol === "publishDate") {
+      const ad = Date.parse(a.publishDate), bd = Date.parse(b.publishDate);
+      return sortDir === "asc" ? ad - bd : bd - ad;
+    }
     const av = a[sortCol], bv = b[sortCol];
     if (typeof av === "number" && typeof bv === "number")
       return sortDir === "asc" ? av - bv : bv - av;

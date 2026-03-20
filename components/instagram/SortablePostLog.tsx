@@ -122,6 +122,10 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
                 : posts;
 
   const sorted = [...visible].sort((a, b) => {
+    if (sortCol === "date") {
+      const ad = Date.parse(a.date), bd = Date.parse(b.date);
+      return sortDir === "asc" ? ad - bd : bd - ad;
+    }
     let av: string | number = a[sortCol as keyof IGPost] as string | number;
     let bv: string | number = b[sortCol as keyof IGPost] as string | number;
     // For ratio string columns, sort numerically
