@@ -17,12 +17,13 @@ function parseRatio(s: string): number {
 }
 
 function isWinner(v: YTVideo): boolean {
-  return (
-    parsePct(v.ctr)            > WIN.ctr         ||
-    v.watchTime                > WIN.watchTime    ||
-    v.impressions              > WIN.impressions  ||
-    parseRatio(v.wtImpressions) > WIN.wtImpr
-  );
+  const checks = [
+    parsePct(v.ctr)             > WIN.ctr,
+    v.watchTime                 > WIN.watchTime,
+    v.impressions               > WIN.impressions,
+    parseRatio(v.wtImpressions) > WIN.wtImpr,
+  ];
+  return checks.filter(Boolean).length >= 2;
 }
 function isOutlier(v: YTVideo): boolean {
   const checks = [
@@ -196,7 +197,7 @@ export function SortableVideoLog({ videos }: { videos: YTVideo[] }) {
       </div>
 
       <p className="text-sm mb-4" style={{ color: "var(--muted-foreground)" }}>
-        {filter === "winners"  ? `Any one of: CTR >${WIN.ctr}% · Watch >${WIN.watchTime}min · Impressions >${WIN.impressions.toLocaleString()} · Watch:Impr >${WIN.wtImpr * 100}%`
+        {filter === "winners"  ? `2 of 4: CTR >${WIN.ctr}% · Watch >${WIN.watchTime}min · Impressions >${WIN.impressions.toLocaleString()} · Watch:Impr >${WIN.wtImpr * 100}%`
        : filter === "outliers" ? `3 of 4: CTR >${OUT.ctr}% · Watch >${OUT.watchTime}min · Impressions >${OUT.impressions.toLocaleString()} · Watch:Impr >${OUT.wtImpr * 100}%`
        : "Individual video performance at 24 hours · click headers to sort"}
       </p>

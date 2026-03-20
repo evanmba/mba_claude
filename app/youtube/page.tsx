@@ -14,7 +14,7 @@ const YT_DATA_CSV_URL = `${YT_BASE}?gid=${YT_DATA_GID}&single=true&output=csv`;
 
 const SHEETS_API_KEY    = process.env.GOOGLE_SHEETS_API_KEY ?? "";
 const YT_SPREADSHEET_ID = process.env.GOOGLE_YT_SPREADSHEET_ID ?? "";
-const YT_DATA_SHEET     = process.env.GOOGLE_YT_DATA_SHEET ?? "YT DATA";
+const YT_DATA_SHEET     = process.env.GOOGLE_YT_DATA_SHEET ?? "DATA";
 
 function pct(curr: number, prev: number): string {
   if (!prev) return "";
