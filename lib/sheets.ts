@@ -38,6 +38,47 @@ export function cleanTitle(val: string): string {
   return val.replace(/__/g, "").trim();
 }
 
+/** Decode common HTML entities. */
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ");
+}
+
+/**
+ * Fetch the HTML-published version of a Google Sheet and return a Map of
+ * { linkText -> href } for every hyperlinked cell in the sheet.
+ * This is needed because CSV exports strip embedded hyperlinks.
+ */
+export async function fetchSheetLinks(htmlUrl: string): Promise<Map<string, string>> {
+  try {
+    const res = await fetch(htmlUrl, { cache: "no-store" });
+    if (!res.ok) return new Map();
+    const html = await res.text();
+    const map = new Map<string, string>();
+    const re = /<a\s+[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) !== null) {
+      let href = decodeEntities(m[1]);
+      const text = decodeEntities(m[2].replace(/<[^>]+>/g, "")).trim();
+      // Unwrap Google redirect: https://www.google.com/url?q=ACTUAL_URL&...
+      const gMatch = href.match(/[?&]q=([^&]+)/);
+      if (gMatch) href = decodeURIComponent(gMatch[1]);
+      if (text && href && !href.startsWith("#")) {
+        map.set(text, href);
+        map.set(cleanTitle(text), href); // also store cleaned variant
+      }
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
+
 // ─── IG Data Types ────────────────────────────────────────────────────────────
 
 export interface IGMonthlyRow {
