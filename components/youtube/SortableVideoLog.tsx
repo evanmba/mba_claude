@@ -4,10 +4,10 @@ import { useState } from "react";
 import type { YTVideo } from "@/lib/sheets";
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
-// Winners: ANY one of the higher bar
-const WIN = { ctr: 5, wtImpr: 0.5 };
-// Outliers: ALL of the base bar
-const OUT = { ctr: 4, wtImpr: 0.4 };
+// Winners: ANY one of these
+const WIN = { ctr: 3.5, watchTime: 90, impressions: 1000, wtImpr: 0.2 };
+// Outliers: ALL of these
+const OUT = { ctr: 3.5, watchTime: 90, impressions: 1000, wtImpr: 0.2 };
 
 function parsePct(s: string): number {
   return parseFloat((s ?? "").replace(/%/g, "")) || 0;
@@ -17,10 +17,20 @@ function parseRatio(s: string): number {
 }
 
 function isWinner(v: YTVideo): boolean {
-  return parsePct(v.ctr) > WIN.ctr || parseRatio(v.wtImpressions) > WIN.wtImpr;
+  return (
+    parsePct(v.ctr)            > WIN.ctr         ||
+    v.watchTime                > WIN.watchTime    ||
+    v.impressions              > WIN.impressions  ||
+    parseRatio(v.wtImpressions) > WIN.wtImpr
+  );
 }
 function isOutlier(v: YTVideo): boolean {
-  return parsePct(v.ctr) > OUT.ctr && parseRatio(v.wtImpressions) > OUT.wtImpr;
+  return (
+    parsePct(v.ctr)            > OUT.ctr         &&
+    v.watchTime                > OUT.watchTime    &&
+    v.impressions              > OUT.impressions  &&
+    parseRatio(v.wtImpressions) > OUT.wtImpr
+  );
 }
 
 // ─── Heat scale: red → orange → yellow → grey → dark green → light green → neon green
@@ -185,8 +195,8 @@ export function SortableVideoLog({ videos }: { videos: YTVideo[] }) {
       </div>
 
       <p className="text-sm mb-4" style={{ color: "var(--muted-foreground)" }}>
-        {filter === "winners"  ? `Any one of: CTR >${WIN.ctr}% · Watch:Impr >${WIN.wtImpr}`
-       : filter === "outliers" ? `All of: CTR >${OUT.ctr}% · Watch:Impr >${OUT.wtImpr}`
+        {filter === "winners"  ? `Any one of: CTR >${WIN.ctr}% · Watch Time >${WIN.watchTime}s · Impressions >${WIN.impressions.toLocaleString()} · Watch:Impr >${WIN.wtImpr * 100}%`
+       : filter === "outliers" ? `All of: CTR >${OUT.ctr}% · Watch Time >${OUT.watchTime}s · Impressions >${OUT.impressions.toLocaleString()} · Watch:Impr >${OUT.wtImpr * 100}%`
        : "Individual video performance at 24 hours · click headers to sort"}
       </p>
 
