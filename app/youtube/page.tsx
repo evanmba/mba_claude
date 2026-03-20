@@ -9,9 +9,7 @@ const YT_BASE =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSS66XUTykWwbUBp6i7hZlbt6uFlleXnCXHhrlAVBM82kf0iTV4N_AjwRsx_NIJBmmU-AYmnssuZvKX/pub";
 
 const YT_CSV_URL      = `${YT_BASE}?output=csv`;
-// TODO: replace YT_DATA_GID with the actual gid of your "YT DATA" tab
-// (open the tab in Google Sheets → the URL will show #gid=XXXXXX)
-const YT_DATA_GID     = "0"; // placeholder — update this
+const YT_DATA_GID     = process.env.YT_DATA_GID ?? "0";
 const YT_DATA_CSV_URL = `${YT_BASE}?gid=${YT_DATA_GID}&single=true&output=csv`;
 const YT_DATA_HTML_URL = `${YT_BASE}?gid=${YT_DATA_GID}&single=true&output=html`;
 
