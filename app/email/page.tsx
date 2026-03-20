@@ -4,14 +4,16 @@ import { SortableEmailLog } from "@/components/email/SortableEmailLog";
 import { fetchCSV, parseEmailData, parseEmailLogCSV, fetchEmailLogViaAPI, type EmailData, type EmailLog } from "@/lib/sheets";
 import { Mail } from "lucide-react";
 
-const EMAIL_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vQa0nFBHXMQn5zfiYq3ywzwWQ4VegoPw9tLQDS7BQfoXvLoeXHcDdSzKTD-XaDRsB7nNEuTfrF62c1x/pub?output=csv";
+const EMAIL_PUB_BASE =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vQa0nFBHXMQn5zfiYq3ywzwWQ4VegoPw9tLQDS7BQfoXvLoeXHcDdSzKTD-XaDRsB7nNEuTfrF62c1x/pub";
+const EMAIL_CSV_URL = `${EMAIL_PUB_BASE}?output=csv`;
 
 const SHEETS_API_KEY         = process.env.GOOGLE_SHEETS_API_KEY ?? "";
 const EMAIL_SPREADSHEET_ID   = process.env.GOOGLE_EMAIL_SPREADSHEET_ID ?? "";
 const EMAIL_DATA_SHEET       = process.env.GOOGLE_EMAIL_DATA_SHEET ?? "DATA";
-// Published "Publish to web" CSV URL for the DATA tab (File → Share → Publish to web → DATA sheet → CSV)
-const EMAIL_DATA_CSV_URL     = process.env.GOOGLE_EMAIL_DATA_CSV_URL ?? "";
+// Published CSV for the DATA tab — env var takes priority, falls back to base URL + hardcoded gid
+const EMAIL_DATA_CSV_URL     = process.env.GOOGLE_EMAIL_DATA_CSV_URL
+  || `${EMAIL_PUB_BASE}?gid=1377726109&output=csv`;
 
 export default async function EmailPage() {
   let data: EmailData = { monthly: [], campaigns: [], yearlyAvg: null };
@@ -37,22 +39,10 @@ export default async function EmailPage() {
     }
   }
 
-  // Published CSV URL (File → Share → Publish to web → DATA sheet → CSV)
-  if (emails.length === 0 && EMAIL_DATA_CSV_URL) {
+  // Published CSV fallback (always available — same spreadsheet, DATA tab gid)
+  if (emails.length === 0) {
     try {
       const dataRows = await fetchCSV(EMAIL_DATA_CSV_URL, { cache: "no-store" });
-      const parsed = parseEmailLogCSV(dataRows);
-      if (parsed.length > 0) emails = parsed;
-    } catch {
-      // fall through
-    }
-  }
-
-  // Last resort: export URL with hardcoded gid (only works if sheet is shared publicly)
-  if (emails.length === 0 && EMAIL_SPREADSHEET_ID) {
-    try {
-      const csvUrl = `https://docs.google.com/spreadsheets/d/${EMAIL_SPREADSHEET_ID}/export?format=csv&gid=1377726109`;
-      const dataRows = await fetchCSV(csvUrl, { cache: "no-store" });
       const parsed = parseEmailLogCSV(dataRows);
       if (parsed.length > 0) emails = parsed;
     } catch {
