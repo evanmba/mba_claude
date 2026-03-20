@@ -500,28 +500,41 @@ export function parseVideoLogCSV(rows: string[][]): YTVideo[] {
   if (rows.length < 2) return [];
   const hdrs = rows[0].map((h) => h.toLowerCase().trim());
   const fi = (keys: string[]) => hdrs.findIndex((h) => keys.some((k) => h.includes(k)));
+  // Exclude the title column index from URL matching to prevent false positives
+  const titleIdx = fi(["title", "video name", "video"]);
+  const urlIdx = (() => {
+    for (const key of ["video url", "video link", "youtube link", "yt link", "url", "link"]) {
+      const i = hdrs.findIndex((h) => h.includes(key));
+      if (i >= 0 && i !== titleIdx) return i;
+    }
+    return -1;
+  })();
   const idx = {
-    title:         fi(["title", "video name", "video"]),
+    title:         titleIdx,
     publishDate:   fi(["date", "publish"]),
-    url:           fi(["video url", "video link", "youtube", " url", "link url", "url", "link"]),
+    url:           urlIdx,
     ctr:           fi(["ctr"]),
     watchTime:     fi(["watch time", "watchtime", "avg watch"]),
     impressions:   fi(["impression"]),
     wtImpressions: fi(["watch:impr", "wt:impr", "ratio", "watch impr", "w:i"]),
   };
   const get = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "").trim() : "");
+  const isUrl = (s: string) => s.startsWith("http://") || s.startsWith("https://");
   return rows
     .slice(1)
     .filter((row) => row.some((c) => c.trim()))
-    .map((row) => ({
-      title:         cleanTitle(get(row, idx.title)),
-      publishDate:   get(row, idx.publishDate),
-      url:           get(row, idx.url),
-      ctr:           get(row, idx.ctr),
-      watchTime:     toNum(get(row, idx.watchTime)),
-      impressions:   toNum(get(row, idx.impressions)),
-      wtImpressions: get(row, idx.wtImpressions),
-    }))
+    .map((row) => {
+      const rawUrl = get(row, idx.url);
+      return {
+        title:         cleanTitle(get(row, idx.title)),
+        publishDate:   get(row, idx.publishDate),
+        url:           isUrl(rawUrl) ? rawUrl : "",
+        ctr:           get(row, idx.ctr),
+        watchTime:     toNum(get(row, idx.watchTime)),
+        impressions:   toNum(get(row, idx.impressions)),
+        wtImpressions: get(row, idx.wtImpressions),
+      };
+    })
     .filter((v) => v.title || v.publishDate);
 }
 

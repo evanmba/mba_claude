@@ -158,15 +158,17 @@ export default async function YouTubePage() {
     let parsed = parseVideoLogCSV(dataRows);
     if (parsed.length === 0) parsed = data.videos;
 
-    // Enrich with hyperlinks extracted from the HTML-published sheet
-    videos = parsed.map((v) => ({
-      ...v,
-      url: v.url
-        || linkMap.get(v.title)
-        || linkMap.get(v.title.trim())
-        || linkMap.get(cleanTitle(v.title))
-        || "",
-    }));
+    // Enrich with hyperlinks extracted from the HTML-published sheet.
+    // Only accept values that look like real URLs to prevent title text being used as href.
+    const isUrl = (s?: string) => !!s && (s.startsWith("http://") || s.startsWith("https://"));
+    videos = parsed.map((v) => {
+      const fromMap =
+        linkMap.get(v.title) ||
+        linkMap.get(v.title.trim()) ||
+        linkMap.get(cleanTitle(v.title));
+      const url = isUrl(v.url) ? v.url : isUrl(fromMap) ? fromMap! : "";
+      return { ...v, url };
+    });
   } catch {
     fetchError = true;
   }
