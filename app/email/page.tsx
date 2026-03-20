@@ -1,10 +1,15 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { EmailDashboard } from "@/components/email/EmailDashboard";
-import { fetchCSV, parseEmailData, type EmailData } from "@/lib/sheets";
+import { SortableEmailLog } from "@/components/email/SortableEmailLog";
+import { fetchCSV, parseEmailData, parseEmailLogCSV, fetchEmailLogViaAPI, type EmailData, type EmailLog } from "@/lib/sheets";
 import { Mail } from "lucide-react";
 
 const EMAIL_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vQa0nFBHXMQn5zfiYq3ywzwWQ4VegoPw9tLQDS7BQfoXvLoeXHcDdSzKTD-XaDRsB7nNEuTfrF62c1x/pub?output=csv";
+
+const SHEETS_API_KEY         = process.env.GOOGLE_SHEETS_API_KEY ?? "";
+const EMAIL_SPREADSHEET_ID   = process.env.GOOGLE_EMAIL_SPREADSHEET_ID ?? "";
+const EMAIL_DATA_SHEET       = process.env.GOOGLE_EMAIL_DATA_SHEET ?? "DATA";
 
 export default async function EmailPage() {
   let data: EmailData = { monthly: [], campaigns: [], yearlyAvg: null };
@@ -16,6 +21,29 @@ export default async function EmailPage() {
     data = parseEmailData(rows);
   } catch {
     fetchError = true;
+  }
+
+  // ── Email log: Sheets API (hyperlinks) → CSV fallback ─────────────────────
+  let emails: EmailLog[] = [];
+
+  if (SHEETS_API_KEY && EMAIL_SPREADSHEET_ID) {
+    try {
+      const apiEmails = await fetchEmailLogViaAPI(EMAIL_SPREADSHEET_ID, EMAIL_DATA_SHEET, SHEETS_API_KEY);
+      if (apiEmails.length > 0) emails = apiEmails;
+    } catch {
+      // fall through to CSV
+    }
+  }
+
+  if (emails.length === 0 && EMAIL_SPREADSHEET_ID) {
+    try {
+      const csvUrl = `https://docs.google.com/spreadsheets/d/${EMAIL_SPREADSHEET_ID}/export?format=csv&gid=1377726109`;
+      const dataRows = await fetchCSV(csvUrl, { cache: "no-store" });
+      const parsed = parseEmailLogCSV(dataRows);
+      if (parsed.length > 0) emails = parsed;
+    } catch {
+      // no log data available
+    }
   }
 
   return (
@@ -46,6 +74,11 @@ export default async function EmailPage() {
         initialError={fetchError}
         serverFetchedAt={fetchedAt}
       />
+
+      {/* Email log */}
+      <div className="mt-6">
+        <SortableEmailLog emails={emails} />
+      </div>
     </DashboardLayout>
   );
 }

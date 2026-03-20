@@ -687,6 +687,141 @@ export function parseEmailData(rows: string[][]): EmailData {
   return { monthly, campaigns, yearlyAvg };
 }
 
+// ─── Email Log Data Types ─────────────────────────────────────────────────────
+
+export interface EmailLog {
+  date: string;
+  subject: string;
+  url: string;
+  delivered: number;
+  opens: number;
+  openPct: number;
+  clicks: number;
+  ctrPct: number;
+  unsubscribes: number;
+  bounces: number;
+}
+
+/**
+ * Header-based parser for a dedicated Email DATA tab.
+ * Column order doesn't matter — matched by keyword.
+ */
+export function parseEmailLogCSV(rows: string[][]): EmailLog[] {
+  if (rows.length < 2) return [];
+  const hdrs = rows[0].map((h) => h.toLowerCase().trim());
+
+  // Find by first keyword that produces a hit
+  const fi = (...candidates: string[]): number => {
+    for (const kw of candidates) {
+      const i = hdrs.findIndex((h) => h.includes(kw));
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+
+  const cols = {
+    // date is always col 0
+    subject:      fi("subject", "campaign name", "email name", "title"),
+    delivered:    fi("delivered", "recipients", "sent"),
+    opens:        fi("unique open", "opens", "# open", "open count"),
+    openPct:      fi("open rate", "open %", "open%", "% open"),
+    clicks:       fi("unique click", "clicks", "# click", "click count"),
+    ctrPct:       fi("ctr", "click rate", "click %", "click-through"),
+    unsubscribes: fi("unsub", "opt-out", "opt out"),
+    bounces:      fi("bounce"),
+    url:          fi("url", "link"),
+  };
+
+  const get = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "").trim() : "");
+
+  return rows.slice(1).flatMap((row): EmailLog[] => {
+    const col0 = (row[0] ?? "").trim();
+    if (!/^\d{1,4}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(col0)) return [];
+    const subject = cleanTitle(get(row, cols.subject));
+    if (!subject) return [];
+    return [{
+      date:         col0,
+      subject,
+      url:          get(row, cols.url),
+      delivered:    toNum(get(row, cols.delivered)),
+      opens:        toNum(get(row, cols.opens)),
+      openPct:      toNum(get(row, cols.openPct)),
+      clicks:       toNum(get(row, cols.clicks)),
+      ctrPct:       toNum(get(row, cols.ctrPct)),
+      unsubscribes: toNum(get(row, cols.unsubscribes)),
+      bounces:      toNum(get(row, cols.bounces)),
+    }];
+  });
+}
+
+/**
+ * Fetch the Email DATA sheet via the Sheets API v4.
+ * Reads hyperlinks embedded in subject cells (CSV strips these).
+ */
+export async function fetchEmailLogViaAPI(
+  spreadsheetId: string,
+  sheetName: string,
+  apiKey: string,
+): Promise<EmailLog[]> {
+  const range = encodeURIComponent(`'${sheetName}'`);
+  const url =
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}` +
+    `?includeGridData=true&ranges=${range}&key=${apiKey}`;
+
+  const res = await fetch(url, { next: { revalidate: 300 } });
+  if (!res.ok) throw new Error(`Sheets API error: ${res.status}`);
+  const json: GridData = await res.json();
+
+  const rowData = json.sheets?.[0]?.data?.[0]?.rowData ?? [];
+  if (rowData.length < 2) return [];
+
+  const headerCells = rowData[0]?.values ?? [];
+  const hdrs = headerCells.map((c) => (c.formattedValue ?? "").toLowerCase().trim());
+
+  const fi = (...candidates: string[]): number => {
+    for (const kw of candidates) {
+      const i = hdrs.findIndex((h) => h.includes(kw));
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+
+  const cols = {
+    subject:      fi("subject", "campaign name", "email name", "title"),
+    delivered:    fi("delivered", "recipients", "sent"),
+    opens:        fi("unique open", "opens", "# open", "open count"),
+    openPct:      fi("open rate", "open %", "open%", "% open"),
+    clicks:       fi("unique click", "clicks", "# click", "click count"),
+    ctrPct:       fi("ctr", "click rate", "click %", "click-through"),
+    unsubscribes: fi("unsub", "opt-out", "opt out"),
+    bounces:      fi("bounce"),
+    url:          fi("url", "link"),
+  };
+
+  const val  = (cells: GridCell[], i: number) => i >= 0 ? (cells[i]?.formattedValue ?? "") : "";
+  const link = (cells: GridCell[], i: number) => i >= 0 ? (cells[i]?.hyperlink ?? "") : "";
+
+  return rowData.slice(1).flatMap((row): EmailLog[] => {
+    const cells = row.values ?? [];
+    const col0 = (cells[0]?.formattedValue ?? "").trim();
+    if (!/^\d{1,4}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(col0)) return [];
+    const subject = cleanTitle(val(cells, cols.subject));
+    if (!subject) return [];
+    return [{
+      date:         col0,
+      subject,
+      url:          link(cells, cols.subject) || val(cells, cols.url),
+      delivered:    toNum(val(cells, cols.delivered)),
+      opens:        toNum(val(cells, cols.opens)),
+      openPct:      toNum(val(cells, cols.openPct)),
+      clicks:       toNum(val(cells, cols.clicks)),
+      ctrPct:       toNum(val(cells, cols.ctrPct)),
+      unsubscribes: toNum(val(cells, cols.unsubscribes)),
+      bounces:      toNum(val(cells, cols.bounces)),
+    }];
+  });
+}
+
 // ─── Platform Distribution Data ───────────────────────────────────────────────
 
 export interface PlatformMonthRow {
