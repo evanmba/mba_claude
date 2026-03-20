@@ -10,10 +10,18 @@ function parsePct(s: string): number {
   return parseFloat((s ?? "").replace(/%/g, "")) || 0;
 }
 
-function isWinning(p: IGPost): boolean {
+// Winner = ANY one threshold met. Outlier = ALL three met.
+function isWinner(p: IGPost): boolean {
   return (
-    parsePct(p.reachLike) > WIN.reachLike &&
-    parsePct(p.reachShares) > WIN.reachShares &&
+    parsePct(p.reachLike)      > WIN.reachLike   ||
+    parsePct(p.reachShares)    > WIN.reachShares  ||
+    parsePct(p.reachFollowers) > WIN.reachFollowers
+  );
+}
+function isOutlier(p: IGPost): boolean {
+  return (
+    parsePct(p.reachLike)      > WIN.reachLike   &&
+    parsePct(p.reachShares)    > WIN.reachShares  &&
     parsePct(p.reachFollowers) > WIN.reachFollowers
   );
 }
@@ -98,15 +106,18 @@ function whoBadge(who: string): { bg: string; color: string } {
 export function SortablePostLog({ posts }: { posts: IGPost[] }) {
   const [sortCol, setSortCol] = useState<SortKey>("reach");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [winningOnly, setWinningOnly] = useState(false);
+  const [filter, setFilter] = useState<"all" | "winners" | "outliers">("all");
 
   const onSort = (col: SortKey) => {
     if (sortCol === col) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
     else { setSortCol(col); setSortDir("desc"); }
   };
 
-  const winCount = posts.filter(isWinning).length;
-  const visible = winningOnly ? posts.filter(isWinning) : posts;
+  const winnerCount  = posts.filter(isWinner).length;
+  const outlierCount = posts.filter(isOutlier).length;
+  const visible = filter === "winners" ? posts.filter(isWinner)
+                : filter === "outliers" ? posts.filter(isOutlier)
+                : posts;
 
   const sorted = [...visible].sort((a, b) => {
     let av: string | number = a[sortCol as keyof IGPost] as string | number;
@@ -172,38 +183,39 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
       {/* Header row */}
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-base font-semibold" style={{ color: "var(--foreground)" }}>
-          {winningOnly ? "Winning Posts" : "Post Log"}{" "}
+          Post Log{" "}
           <span className="text-sm font-normal ml-1" style={{ color: "var(--muted-foreground)" }}>
             — {sorted.length} {sorted.length === 1 ? "post" : "posts"}
           </span>
         </h3>
 
-        {/* Winning toggle */}
-        <div className="flex items-center gap-2">
-          {winCount > 0 && (
-            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-              {winCount} winning
-            </span>
-          )}
-          <button
-            onClick={() => setWinningOnly((v) => !v)}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-all"
-            style={{
-              background: winningOnly ? "rgba(34,197,94,0.15)" : "var(--secondary)",
-              color: winningOnly ? "#22c55e" : "var(--muted-foreground)",
-              border: `1px solid ${winningOnly ? "rgba(34,197,94,0.4)" : "var(--border)"}`,
-            }}
-          >
-            <span>{winningOnly ? "★" : "☆"}</span>
-            Winning only
-          </button>
+        {/* Filter tabs */}
+        <div className="flex items-center gap-1 p-1 rounded-lg" style={{ background: "var(--secondary)" }}>
+          {(["all", "winners", "outliers"] as const).map((tab) => {
+            const active = filter === tab;
+            const count  = tab === "winners" ? winnerCount : tab === "outliers" ? outlierCount : posts.length;
+            return (
+              <button
+                key={tab}
+                onClick={() => setFilter(tab)}
+                className="text-xs px-3 py-1 rounded-md transition-all capitalize"
+                style={{
+                  background: active ? "var(--card)" : "transparent",
+                  color: active ? "var(--foreground)" : "var(--muted-foreground)",
+                  fontWeight: active ? 600 : 400,
+                }}
+              >
+                {tab} <span style={{ opacity: 0.6 }}>{count}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       <p className="text-sm mb-4" style={{ color: "var(--muted-foreground)" }}>
-        {winningOnly
-          ? `Reach:Like >2% · Reach:Shares >0.15% · Reach:Followers >4%`
-          : "Individual post performance at 24 hours · click headers to sort"}
+        {filter === "winners"  ? "Any one of: Reach:Like >2% · Reach:Shares >0.15% · Reach:Followers >4%"
+       : filter === "outliers" ? "All three: Reach:Like >2% · Reach:Shares >0.15% · Reach:Followers >4%"
+       : "Individual post performance at 24 hours · click headers to sort"}
       </p>
 
       <div className="overflow-x-auto">
@@ -228,7 +240,7 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
           </thead>
           <tbody>
             {sorted.map((p, i) => {
-              const winning = isWinning(p);
+              const outlier = isOutlier(p);
               const { bg, color } = whoBadge(p.who);
               return (
                 <tr key={i} className="hoverable" style={{ borderBottom: "1px solid var(--border)" }}>
@@ -237,8 +249,8 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
                   </td>
                   <td className="py-2 pr-4" style={{ color: "var(--foreground)", maxWidth: 220 }}>
                     <div className="flex items-center gap-1.5">
-                      {winning && !winningOnly && (
-                        <span style={{ color: "#22c55e", fontSize: 10, flexShrink: 0 }}>★</span>
+                      {outlier && filter !== "outliers" && (
+                        <span style={{ color: "#39ff14", fontSize: 10, flexShrink: 0 }}>★</span>
                       )}
                       {p.url ? (
                         <a
