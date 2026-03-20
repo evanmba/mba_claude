@@ -3,14 +3,16 @@
 import { useState } from "react";
 import type { IGPost } from "@/lib/sheets";
 
-// ─── Winning thresholds ───────────────────────────────────────────────────────
-const WIN = { reachLike: 2, reachShares: 0.15, reachFollowers: 4 };
+// ─── Thresholds ───────────────────────────────────────────────────────────────
+// Winners: ANY one of the higher bar
+const WIN = { reachLike: 3,   reachShares: 0.3,  reachFollowers: 6 };
+// Outliers: ALL three of the base bar
+const OUT = { reachLike: 2,   reachShares: 0.15, reachFollowers: 4 };
 
 function parsePct(s: string): number {
   return parseFloat((s ?? "").replace(/%/g, "")) || 0;
 }
 
-// Winner = ANY one threshold met. Outlier = ALL three met.
 function isWinner(p: IGPost): boolean {
   return (
     parsePct(p.reachLike)      > WIN.reachLike   ||
@@ -20,9 +22,9 @@ function isWinner(p: IGPost): boolean {
 }
 function isOutlier(p: IGPost): boolean {
   return (
-    parsePct(p.reachLike)      > WIN.reachLike   &&
-    parsePct(p.reachShares)    > WIN.reachShares  &&
-    parsePct(p.reachFollowers) > WIN.reachFollowers
+    parsePct(p.reachLike)      > OUT.reachLike   &&
+    parsePct(p.reachShares)    > OUT.reachShares  &&
+    parsePct(p.reachFollowers) > OUT.reachFollowers
   );
 }
 
@@ -213,7 +215,7 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
       </div>
 
       <p className="text-sm mb-4" style={{ color: "var(--muted-foreground)" }}>
-        {filter === "winners"  ? "Any one of: Reach:Like >2% · Reach:Shares >0.15% · Reach:Followers >4%"
+        {filter === "winners"  ? "Any one of: Reach:Like >3% · Reach:Shares >0.3% · Reach:Followers >6%"
        : filter === "outliers" ? "All three: Reach:Like >2% · Reach:Shares >0.15% · Reach:Followers >4%"
        : "Individual post performance at 24 hours · click headers to sort"}
       </p>
