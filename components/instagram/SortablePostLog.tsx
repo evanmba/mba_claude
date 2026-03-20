@@ -18,9 +18,31 @@ function isWinning(p: IGPost): boolean {
   );
 }
 
+// ─── Color scale (red → yellow → green) ──────────────────────────────────────
+function heatBg(val: number, min: number, max: number): string {
+  if (max <= min || isNaN(val)) return "transparent";
+  const t = Math.max(0, Math.min(1, (val - min) / (max - min)));
+  let r: number, g: number, b: number;
+  if (t < 0.5) {
+    const u = t * 2;
+    r = 255; g = Math.round(255 * u); b = 0;
+  } else {
+    const u = (t - 0.5) * 2;
+    r = Math.round(255 * (1 - u)); g = 255; b = Math.round(80 * u);
+  }
+  return `rgba(${r}, ${g}, ${b}, 0.22)`;
+}
+
+interface ColStats { min: number; max: number }
+function stats(vals: number[]): ColStats {
+  const nums = vals.filter((v) => !isNaN(v) && v !== 0);
+  if (nums.length === 0) return { min: 0, max: 0 };
+  return { min: Math.min(...nums), max: Math.max(...nums) };
+}
+
 // ─── Sort types ───────────────────────────────────────────────────────────────
 type SortKey =
-  | "date" | "title" | "reach" | "likes" | "shares" | "follows"
+  | "date" | "title" | "reach" | "watchTime" | "likes" | "shares" | "follows"
   | "reachLike" | "reachShares" | "reachFollowers";
 type SortDir = "asc" | "desc";
 
@@ -84,6 +106,18 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
   });
 
   const thP = { activeCol: sortCol, dir: sortDir, onSort };
+
+  // ─── Color scale stats (computed from ALL posts, not just visible) ─────────
+  const heat = {
+    reach:          stats(posts.map((p) => p.reach)),
+    watchTime:      stats(posts.map((p) => p.watchTime)),
+    likes:          stats(posts.map((p) => p.likes)),
+    shares:         stats(posts.map((p) => p.shares)),
+    follows:        stats(posts.map((p) => p.follows)),
+    reachLike:      stats(posts.map((p) => parsePct(p.reachLike))),
+    reachShares:    stats(posts.map((p) => parsePct(p.reachShares))),
+    reachFollowers: stats(posts.map((p) => parsePct(p.reachFollowers))),
+  };
 
   // ─── Empty state ─────────────────────────────────────────────────────────
   if (posts.length === 0) {
@@ -161,6 +195,7 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
               <SortTh label="Date"          col="date"          {...thP} />
               <SortTh label="Title"         col="title"         {...thP} />
               <SortTh label="Reach"         col="reach"         {...thP} />
+              <SortTh label="Watch Time"    col="watchTime"     {...thP} />
               <SortTh label="Likes"         col="likes"         {...thP} />
               <SortTh label="Shares"        col="shares"        {...thP} />
               <SortTh label="Follows"       col="follows"       {...thP} />
@@ -178,9 +213,6 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
             {sorted.map((p, i) => {
               const winning = isWinning(p);
               const { bg, color } = whoBadge(p.who);
-              const likeColor   = parsePct(p.reachLike)      > WIN.reachLike      ? "#22c55e" : parsePct(p.reachLike)      > WIN.reachLike * 0.6  ? "#f59e0b" : "var(--muted-foreground)";
-              const shareColor  = parsePct(p.reachShares)    > WIN.reachShares    ? "#22c55e" : parsePct(p.reachShares)    > WIN.reachShares * 0.6 ? "#f59e0b" : "var(--muted-foreground)";
-              const followColor = parsePct(p.reachFollowers) > WIN.reachFollowers ? "#22c55e" : parsePct(p.reachFollowers) > WIN.reachFollowers * 0.6 ? "#f59e0b" : "var(--muted-foreground)";
               return (
                 <tr key={i} className="hoverable" style={{ borderBottom: "1px solid var(--border)" }}>
                   <td className="py-2 pr-4 whitespace-nowrap" style={{ color: "var(--muted-foreground)" }}>
@@ -212,19 +244,36 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
                       )}
                     </div>
                   </td>
-                  <td className="py-2 pr-4 font-semibold" style={{ color: "#d946ef" }}>
+                  <td className="py-2 pr-4 font-semibold rounded"
+                    style={{ background: heatBg(p.reach, heat.reach.min, heat.reach.max), color: "var(--foreground)" }}>
                     {p.reach ? p.reach.toLocaleString() : "—"}
                   </td>
-                  <td className="py-2 pr-4" style={{ color: "var(--foreground)" }}>{p.likes || "—"}</td>
-                  <td className="py-2 pr-4" style={{ color: "var(--foreground)" }}>{p.shares || "—"}</td>
-                  <td className="py-2 pr-4" style={{ color: "var(--foreground)" }}>{p.follows || "—"}</td>
-                  <td className="py-2 pr-4 font-semibold" style={{ color: likeColor }}>
+                  <td className="py-2 pr-4 rounded"
+                    style={{ background: heatBg(p.watchTime, heat.watchTime.min, heat.watchTime.max), color: "var(--foreground)" }}>
+                    {p.watchTime ? p.watchTime.toLocaleString() : "—"}
+                  </td>
+                  <td className="py-2 pr-4 rounded"
+                    style={{ background: heatBg(p.likes, heat.likes.min, heat.likes.max), color: "var(--foreground)" }}>
+                    {p.likes || "—"}
+                  </td>
+                  <td className="py-2 pr-4 rounded"
+                    style={{ background: heatBg(p.shares, heat.shares.min, heat.shares.max), color: "var(--foreground)" }}>
+                    {p.shares || "—"}
+                  </td>
+                  <td className="py-2 pr-4 rounded"
+                    style={{ background: heatBg(p.follows, heat.follows.min, heat.follows.max), color: "var(--foreground)" }}>
+                    {p.follows || "—"}
+                  </td>
+                  <td className="py-2 pr-4 font-semibold rounded"
+                    style={{ background: heatBg(parsePct(p.reachLike), heat.reachLike.min, heat.reachLike.max), color: "var(--foreground)" }}>
                     {p.reachLike || "—"}
                   </td>
-                  <td className="py-2 pr-4 font-semibold" style={{ color: shareColor }}>
+                  <td className="py-2 pr-4 font-semibold rounded"
+                    style={{ background: heatBg(parsePct(p.reachShares), heat.reachShares.min, heat.reachShares.max), color: "var(--foreground)" }}>
                     {p.reachShares || "—"}
                   </td>
-                  <td className="py-2 pr-4 font-semibold" style={{ color: followColor }}>
+                  <td className="py-2 pr-4 font-semibold rounded"
+                    style={{ background: heatBg(parsePct(p.reachFollowers), heat.reachFollowers.min, heat.reachFollowers.max), color: "var(--foreground)" }}>
                     {p.reachFollowers || "—"}
                   </td>
                   <td className="py-2 pr-4">
