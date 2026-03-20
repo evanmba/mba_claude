@@ -29,6 +29,40 @@ function timeAgo(iso: string): string {
   return `${Math.floor(mins / 60)}h ago`;
 }
 
+// ─── Shared heat scale (mirrors SortablePostLog) ─────────────────────────────
+const MONTHLY_HEAT_STOPS: [number, number, number][] = [
+  [255,  30,   0],
+  [255, 140,   0],
+  [255, 220,   0],
+  [120, 120, 120],
+  [ 22, 101,  52],
+  [ 74, 222, 128],
+  [ 57, 255,  20],
+];
+function mHeatColor(val: number, min: number, max: number): string {
+  if (max <= min || isNaN(val)) return "var(--muted-foreground)";
+  const t = Math.max(0, Math.min(1, (val - min) / (max - min)));
+  const scaled = t * (MONTHLY_HEAT_STOPS.length - 1);
+  const lo = Math.floor(scaled);
+  const hi = Math.min(lo + 1, MONTHLY_HEAT_STOPS.length - 1);
+  const u = scaled - lo;
+  const [r1, g1, b1] = MONTHLY_HEAT_STOPS[lo];
+  const [r2, g2, b2] = MONTHLY_HEAT_STOPS[hi];
+  return `rgb(${Math.round(r1+(r2-r1)*u)},${Math.round(g1+(g2-g1)*u)},${Math.round(b1+(b2-b1)*u)})`;
+}
+function mHeatWeight(val: number, min: number, max: number): number {
+  if (max <= min || isNaN(val)) return 400;
+  return Math.round(400 + Math.max(0, Math.min(1, (val - min) / (max - min))) * 500);
+}
+function mStats(vals: number[]) {
+  const nums = vals.filter((v) => !isNaN(v) && v > 0);
+  if (!nums.length) return { min: 0, max: 0 };
+  return { min: Math.min(...nums), max: Math.max(...nums) };
+}
+function parsePctM(s: string): number {
+  return parseFloat((s ?? "").replace(/%/g, "")) || 0;
+}
+
 // ─── Monthly table ────────────────────────────────────────────────────────────
 
 function MonthlyTable({ monthly, averages }: { monthly: IGMonthlyRow[]; averages: IGMonthlyRow | null }) {
@@ -41,6 +75,18 @@ function MonthlyTable({ monthly, averages }: { monthly: IGMonthlyRow[]; averages
   ];
 
   const rows = averages ? [...filled, averages] : filled;
+
+  // Compute heat stats from data rows only (exclude averages row)
+  const heat = {
+    reach:          mStats(filled.map((m) => m.reach)),
+    watchTime:      mStats(filled.map((m) => m.watchTime)),
+    likes:          mStats(filled.map((m) => m.likes)),
+    shares:         mStats(filled.map((m) => m.shares)),
+    follows:        mStats(filled.map((m) => m.follows)),
+    reachLike:      mStats(filled.map((m) => parsePctM(m.reachLike))),
+    reachShares:    mStats(filled.map((m) => parsePctM(m.reachShares))),
+    reachFollowers: mStats(filled.map((m) => parsePctM(m.reachFollowers))),
+  };
 
   return (
     <PlaceholderCard title="Monthly Performance" description="24-hour average metrics by month">
@@ -62,41 +108,50 @@ function MonthlyTable({ monthly, averages }: { monthly: IGMonthlyRow[]; averages
           <tbody>
             {rows.map((m, i) => {
               const isAvg = m.month === "Average";
+              const white = "#ffffff";
+              const rc  = isAvg ? white : mHeatColor(m.reach,          heat.reach.min,          heat.reach.max);
+              const wc  = isAvg ? white : mHeatColor(m.watchTime,       heat.watchTime.min,       heat.watchTime.max);
+              const lc  = isAvg ? white : mHeatColor(m.likes,           heat.likes.min,           heat.likes.max);
+              const sc  = isAvg ? white : mHeatColor(m.shares,          heat.shares.min,          heat.shares.max);
+              const fc  = isAvg ? white : mHeatColor(m.follows,         heat.follows.min,         heat.follows.max);
+              const rlc = isAvg ? white : mHeatColor(parsePctM(m.reachLike),      heat.reachLike.min,      heat.reachLike.max);
+              const rsc = isAvg ? white : mHeatColor(parsePctM(m.reachShares),    heat.reachShares.min,    heat.reachShares.max);
+              const rfc = isAvg ? white : mHeatColor(parsePctM(m.reachFollowers), heat.reachFollowers.min, heat.reachFollowers.max);
               return (
                 <tr
                   key={i}
                   className="hoverable"
                   style={{
                     borderBottom: "1px solid var(--border)",
-                    background: isAvg ? "rgba(217,70,239,0.04)" : undefined,
+                    background: isAvg ? "rgba(255,255,255,0.04)" : undefined,
                   }}
                 >
                   <td className="py-2.5 pr-5 whitespace-nowrap font-medium"
-                    style={{ color: isAvg ? "#d946ef" : "var(--foreground)" }}>
+                    style={{ color: isAvg ? white : "var(--foreground)" }}>
                     {m.month}
                   </td>
-                  <td className="py-2.5 pr-5 font-semibold" style={{ color: "#d946ef" }}>
+                  <td className="py-2.5 pr-5" style={{ color: rc, fontWeight: isAvg ? 700 : mHeatWeight(m.reach, heat.reach.min, heat.reach.max) }}>
                     {m.reach ? m.reach.toLocaleString() : "—"}
                   </td>
-                  <td className="py-2.5 pr-5" style={{ color: "var(--muted-foreground)" }}>
+                  <td className="py-2.5 pr-5" style={{ color: wc, fontWeight: isAvg ? 700 : mHeatWeight(m.watchTime, heat.watchTime.min, heat.watchTime.max) }}>
                     {m.watchTime ? `${m.watchTime.toFixed(2)}s` : "—"}
                   </td>
-                  <td className="py-2.5 pr-5" style={{ color: "var(--foreground)" }}>
+                  <td className="py-2.5 pr-5" style={{ color: lc, fontWeight: isAvg ? 700 : mHeatWeight(m.likes, heat.likes.min, heat.likes.max) }}>
                     {m.likes ? m.likes.toFixed(2) : "—"}
                   </td>
-                  <td className="py-2.5 pr-5" style={{ color: "var(--foreground)" }}>
+                  <td className="py-2.5 pr-5" style={{ color: sc, fontWeight: isAvg ? 700 : mHeatWeight(m.shares, heat.shares.min, heat.shares.max) }}>
                     {m.shares ? m.shares.toFixed(2) : "—"}
                   </td>
-                  <td className="py-2.5 pr-5" style={{ color: "var(--foreground)" }}>
+                  <td className="py-2.5 pr-5" style={{ color: fc, fontWeight: isAvg ? 700 : mHeatWeight(m.follows, heat.follows.min, heat.follows.max) }}>
                     {m.follows ? m.follows.toFixed(2) : "—"}
                   </td>
-                  <td className="py-2.5 pr-5" style={{ color: "var(--muted-foreground)" }}>
+                  <td className="py-2.5 pr-5" style={{ color: rlc, fontWeight: isAvg ? 700 : mHeatWeight(parsePctM(m.reachLike), heat.reachLike.min, heat.reachLike.max) }}>
                     {m.reachLike || "—"}
                   </td>
-                  <td className="py-2.5 pr-5" style={{ color: "var(--muted-foreground)" }}>
+                  <td className="py-2.5 pr-5" style={{ color: rsc, fontWeight: isAvg ? 700 : mHeatWeight(parsePctM(m.reachShares), heat.reachShares.min, heat.reachShares.max) }}>
                     {m.reachShares || "—"}
                   </td>
-                  <td className="py-2.5 pr-5" style={{ color: "var(--muted-foreground)" }}>
+                  <td className="py-2.5 pr-5" style={{ color: rfc, fontWeight: isAvg ? 700 : mHeatWeight(parsePctM(m.reachFollowers), heat.reachFollowers.min, heat.reachFollowers.max) }}>
                     {m.reachFollowers || "—"}
                   </td>
                 </tr>
