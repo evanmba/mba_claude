@@ -5,9 +5,8 @@ import { fetchCSV, parseIGData, parsePostLogCSV, type IGData } from "@/lib/sheet
 const IG_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt9HlvUd1055qAlYc_x-oflTe2quXENd-q8W6oV2-AOs3uGPumpmPgQZHCnZQaYFKU9QzKubHt-68v/pub?output=csv";
 
-// DATA tab (individual post records) — update gid when published separately
 const IG_DATA_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt9HlvUd1055qAlYc_x-oflTe2quXENd-q8W6oV2-AOs3uGPumpmPgQZHCnZQaYFKU9QzKubHt-68v/pub?output=csv";
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt9HlvUd1055qAlYc_x-oflTe2quXENd-q8W6oV2-AOs3uGPumpmPgQZHCnZQaYFKU9QzKubHt-68v/pub?gid=28382314&single=true&output=csv";
 
 export default async function InstagramPage() {
   let data: IGData = { monthly: [], averages: null, posts: [] };
