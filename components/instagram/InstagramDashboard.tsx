@@ -65,6 +65,7 @@ function MonthlyTable({ monthly, averages }: { monthly: IGMonthlyRow[]; averages
               return (
                 <tr
                   key={i}
+                  className="hoverable"
                   style={{
                     borderBottom: "1px solid var(--border)",
                     background: isAvg ? "rgba(217,70,239,0.04)" : undefined,

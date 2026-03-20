@@ -181,7 +181,7 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
               const shareColor  = parsePct(p.reachShares)    > WIN.reachShares    ? "#22c55e" : parsePct(p.reachShares)    > WIN.reachShares * 0.6 ? "#f59e0b" : "var(--muted-foreground)";
               const followColor = parsePct(p.reachFollowers) > WIN.reachFollowers ? "#22c55e" : parsePct(p.reachFollowers) > WIN.reachFollowers * 0.6 ? "#f59e0b" : "var(--muted-foreground)";
               return (
-                <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                <tr key={i} className="hoverable" style={{ borderBottom: "1px solid var(--border)" }}>
                   <td className="py-2 pr-4 whitespace-nowrap" style={{ color: "var(--muted-foreground)" }}>
                     {p.date}
                   </td>

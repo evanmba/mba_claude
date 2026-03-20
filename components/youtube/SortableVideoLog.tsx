@@ -74,7 +74,7 @@ export function SortableVideoLog({ videos }: { videos: YTVideo[] }) {
               const ctrColor = v.ctrNum >= 4 ? "#22c55e" : v.ctrNum >= 2 ? "#f59e0b" : "var(--muted-foreground)";
               const wiColor  = v.watchImprNum >= 0.5 ? "#22c55e" : v.watchImprNum >= 0.3 ? "#f59e0b" : "var(--muted-foreground)";
               return (
-                <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
+                <tr key={i} className="hoverable" style={{ borderBottom: "1px solid var(--border)" }}>
                   <td className="py-2 pr-4 whitespace-nowrap" style={{ color: "var(--muted-foreground)" }}>
                     {v.publishDate}
                   </td>

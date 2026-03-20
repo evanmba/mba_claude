@@ -63,3 +63,12 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
+
+/* Table row hover highlight */
+tr.hoverable {
+  cursor: default;
+  transition: background 0.1s ease;
+}
+tr.hoverable:hover {
+  background: rgba(255, 255, 255, 0.045) !important;
+}
