@@ -81,6 +81,7 @@ export function FunnelDashboard({ data, error }: Props) {
           monthly={data?.monthly ?? []}
           salesDashboard={data?.salesDashboard ?? null}
           monthLabel={data?.monthLabel ?? "—"}
+          ytd={data?.ytd ?? []}
         />
       )}
       {activeTab === "ytd" && <YTDView ytd={data?.ytd ?? []} />}

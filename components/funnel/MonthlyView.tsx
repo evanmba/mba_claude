@@ -1,6 +1,7 @@
 "use client";
 
-import { type MonthlyRow, type SalesDashboard } from "@/lib/funnel";
+import { type MonthlyRow, type SalesDashboard, type YTDRow } from "@/lib/funnel";
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 // ─── Format helpers ────────────────────────────────────────────────────────
 const $$ = (n: number) =>
@@ -34,34 +35,78 @@ function Sparkline({ values, color = "#3b82f6" }: { values: number[]; color?: st
   );
 }
 
+// ─── MoM delta helpers ─────────────────────────────────────────────────────
+function momDelta(current: number, previous: number): number | null {
+  if (!previous || !current) return null;
+  return ((current - previous) / previous) * 100;
+}
+
 // ─── Big KPI card ──────────────────────────────────────────────────────────
 function BigCard({
   label,
   value,
   sub,
   bg,
+  current,
+  previous,
+  prevLabel,
+  higherIsBetter = true,
 }: {
   label: string;
   value: string;
   sub?: string;
   bg: string;
+  current?: number;
+  previous?: number;
+  prevLabel?: string;
+  higherIsBetter?: boolean;
 }) {
+  const delta = current != null && previous != null ? momDelta(current, previous) : null;
+  const isGood = delta == null ? null : higherIsBetter ? delta >= 0 : delta <= 0;
+
   return (
     <div
       className="rounded-2xl p-6 flex flex-col justify-between"
-      style={{ background: bg, minHeight: 140 }}
+      style={{ background: bg, minHeight: 160 }}
     >
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.7)" }}>
-          {label}
-        </p>
-        <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
-          Month to date
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.7)" }}>
+            {label}
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.5)" }}>
+            Month to date
+          </p>
+        </div>
+        {delta != null && (
+          <div
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold"
+            style={{
+              background: isGood ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)",
+              color: isGood ? "#86efac" : "#fca5a5",
+            }}
+          >
+            {delta > 0.5 ? (
+              <TrendingUp size={11} />
+            ) : delta < -0.5 ? (
+              <TrendingDown size={11} />
+            ) : (
+              <Minus size={11} />
+            )}
+            {delta > 0 ? "+" : ""}{delta.toFixed(1)}%
+          </div>
+        )}
       </div>
       <div>
         <p className="text-4xl font-bold text-white">{value}</p>
-        {sub && <p className="text-xs mt-1" style={{ color: "rgba(255,255,255,0.6)" }}>{sub}</p>}
+        <div className="flex items-center justify-between mt-1">
+          {sub && <p className="text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>{sub}</p>}
+          {previous != null && prevLabel && (
+            <p className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+              vs {prevLabel}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -95,14 +140,21 @@ function SmallCard({
   );
 }
 
+// Month name mapping for YTD row lookup
+const MONTH_NAMES = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
+
 // ─── Main component ────────────────────────────────────────────────────────
 interface Props {
   monthly: MonthlyRow[];
   salesDashboard: SalesDashboard | null;
   monthLabel: string;
+  ytd: YTDRow[];
 }
 
-export function MonthlyView({ monthly, salesDashboard, monthLabel }: Props) {
+export function MonthlyView({ monthly, salesDashboard, monthLabel, ytd }: Props) {
   const rollup30 = monthly.find((r) => r.period === "30 Days");
   const kpi = rollup30 ?? monthly.find((r) => r.isRollup) ?? null;
 
@@ -111,11 +163,27 @@ export function MonthlyView({ monthly, salesDashboard, monthLabel }: Props) {
 
   const revenuePerCall = kpi && kpi.takenCalls > 0 ? kpi.revenue / kpi.takenCalls : 0;
 
+  // ── MoM: find previous month's YTD row ──────────────────────────────────
+  // monthLabel looks like "MAR 2026" — parse it to get current month index
+  const [abbr, yearStr] = monthLabel.split(" ");
+  const ABBRS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  const currentMonthIdx = ABBRS.indexOf(abbr?.toUpperCase() ?? "");
+  const prevMonthIdx = currentMonthIdx > 0 ? currentMonthIdx - 1 : -1;
+  const prevMonthName = prevMonthIdx >= 0 ? MONTH_NAMES[prevMonthIdx] : null;
+  const prevMonthAbbr = prevMonthIdx >= 0 ? ABBRS[prevMonthIdx] : null;
+
+  const prevYTD = prevMonthName
+    ? ytd.find((r) => r.month.toLowerCase() === prevMonthName.toLowerCase()) ?? null
+    : null;
+
+  const prevRevenuePerCall = prevYTD && prevYTD.takenCalls > 0
+    ? prevYTD.revenue / prevYTD.takenCalls
+    : 0;
+
   // Sparkline data from daily rows
   const dailySpend  = dailyRows.map((r) => r.amountSpent);
   const dailyLeads  = dailyRows.map((r) => r.leads);
   const dailyBooked = dailyRows.map((r) => r.bookedCalls);
-  const dailyTaken  = dailyRows.map((r) => r.takenCalls);
   const dailyClosed = dailyRows.map((r) => r.dealsClosed);
   const dailyCash   = dailyRows.map((r) => r.cash);
   const dailyRev    = dailyRows.map((r) => r.revenue);
@@ -131,24 +199,36 @@ export function MonthlyView({ monthly, salesDashboard, monthLabel }: Props) {
           value={kpi ? num(kpi.takenCalls) : "—"}
           sub={kpi ? `Show-up: ${pct(kpi.showUpRate)}` : undefined}
           bg="#1e3a5f"
+          current={kpi?.takenCalls}
+          previous={prevYTD?.takenCalls}
+          prevLabel={prevMonthAbbr ?? undefined}
         />
         <BigCard
           label="$ Per Call"
           value={kpi ? $$(revenuePerCall) : "—"}
           sub={kpi ? `Revenue: ${$$(kpi.revenue)}` : undefined}
           bg="#78350f"
+          current={revenuePerCall}
+          previous={prevRevenuePerCall}
+          prevLabel={prevMonthAbbr ?? undefined}
         />
         <BigCard
           label="Show Up Rate"
           value={kpi ? pct(kpi.showUpRate) : "—"}
           sub={kpi ? `${num(kpi.takenCalls)} of ${num(kpi.bookedCalls)} booked` : undefined}
           bg={kpi && kpi.showUpRate >= 50 ? "#14532d" : "#7f1d1d"}
+          current={kpi?.showUpRate}
+          previous={prevYTD?.showUpRate}
+          prevLabel={prevMonthAbbr ?? undefined}
         />
         <BigCard
           label="Cash Collected"
           value={kpi ? $$(kpi.cash) : "—"}
           sub={kpi ? `Revenue: ${$$(kpi.revenue)}` : undefined}
           bg="#14532d"
+          current={kpi?.cash}
+          previous={prevYTD?.cash}
+          prevLabel={prevMonthAbbr ?? undefined}
         />
       </div>
 
