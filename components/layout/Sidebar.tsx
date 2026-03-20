@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Settings,
   Bell,
+  TrendingUp,
 } from "lucide-react";
 
 const socialItems = [
@@ -20,6 +21,7 @@ const socialItems = [
 ];
 
 const toolsItems = [
+  { label: "Funnel Dashboard",   href: "/funnel",      icon: TrendingUp, color: "#22c55e" },
   { label: "Competitor Tracker", href: "/competitors", icon: Users },
 ];
 
