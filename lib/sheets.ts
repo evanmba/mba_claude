@@ -181,6 +181,62 @@ export async function fetchPostsViaAPI(
   });
 }
 
+/**
+ * Fetch the YT DATA sheet via the Sheets API v4.
+ * Reads the hyperlink embedded in each title cell — CSV exports strip these.
+ */
+export async function fetchVideosViaAPI(
+  spreadsheetId: string,
+  sheetName: string,
+  apiKey: string,
+): Promise<YTVideo[]> {
+  const range = encodeURIComponent(sheetName);
+  const url =
+    `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}` +
+    `?includeGridData=true&ranges=${range}&key=${apiKey}`;
+
+  const res = await fetch(url, { next: { revalidate: 300 } });
+  if (!res.ok) throw new Error(`Sheets API error: ${res.status}`);
+  const json: GridData = await res.json();
+
+  const rowData = json.sheets?.[0]?.data?.[0]?.rowData ?? [];
+  if (rowData.length < 2) return [];
+
+  const headerCells = rowData[0]?.values ?? [];
+  const hdrs = headerCells.map((c) => (c.formattedValue ?? "").toLowerCase().trim());
+
+  function fi(kw: string[]): number {
+    return hdrs.findIndex((h) => kw.some((k) => h.includes(k)));
+  }
+
+  const cols = {
+    title:         fi(["title", "video name"]),
+    publishDate:   fi(["date", "publish"]),
+    ctr:           fi(["ctr"]),
+    watchTime:     fi(["watch time", "watchtime", "avg watch"]),
+    impressions:   fi(["impression"]),
+    wtImpressions: fi(["watch:impr", "wt:impr", "ratio", "watch impr", "w:i"]),
+  };
+
+  const val  = (cells: GridCell[], i: number) => i >= 0 ? (cells[i]?.formattedValue ?? "") : "";
+  const link = (cells: GridCell[], i: number) => i >= 0 ? (cells[i]?.hyperlink ?? "") : "";
+
+  return rowData.slice(1).flatMap((row) => {
+    const cells = row.values ?? [];
+    const title = cleanTitle(val(cells, cols.title));
+    if (!title) return [];
+    return [{
+      title,
+      publishDate:   val(cells, cols.publishDate),
+      url:           link(cells, cols.title), // hyperlink embedded in title cell
+      ctr:           val(cells, cols.ctr),
+      watchTime:     toNum(val(cells, cols.watchTime)),
+      impressions:   toNum(val(cells, cols.impressions)),
+      wtImpressions: val(cells, cols.wtImpressions),
+    }];
+  });
+}
+
 // ─── IG Data Types ────────────────────────────────────────────────────────────
 
 export interface IGMonthlyRow {

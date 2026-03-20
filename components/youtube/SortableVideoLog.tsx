@@ -4,10 +4,10 @@ import { useState } from "react";
 import type { YTVideo } from "@/lib/sheets";
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
-// Winners: ANY one of these
-const WIN = { ctr: 7, watchTime: 180, impressions: 2000, wtImpr: 0.4 };
-// Outliers: 3 of 4 of these (base bar)
-const OUT = { ctr: 3.5, watchTime: 90, impressions: 1000, wtImpr: 0.2 };
+// Winners: ANY one of these (~20 results target)
+const WIN = { ctr: 3, watchTime: 60, impressions: 400, wtImpr: 0.12 };
+// Outliers: 3 of 4 of these (~5 results target)
+const OUT = { ctr: 4, watchTime: 90, impressions: 800, wtImpr: 0.18 };
 
 function parsePct(s: string): number {
   return parseFloat((s ?? "").replace(/%/g, "")) || 0;
@@ -196,8 +196,8 @@ export function SortableVideoLog({ videos }: { videos: YTVideo[] }) {
       </div>
 
       <p className="text-sm mb-4" style={{ color: "var(--muted-foreground)" }}>
-        {filter === "winners"  ? `Any one of: CTR >${WIN.ctr}% · Watch Time >${WIN.watchTime}s · Impressions >${WIN.impressions.toLocaleString()} · Watch:Impr >${WIN.wtImpr * 100}%`
-       : filter === "outliers" ? `3 of 4: CTR >${OUT.ctr}% · Watch Time >${OUT.watchTime}s · Impressions >${OUT.impressions.toLocaleString()} · Watch:Impr >${OUT.wtImpr * 100}%`
+        {filter === "winners"  ? `Any one of: CTR >${WIN.ctr}% · Watch >${WIN.watchTime}min · Impressions >${WIN.impressions.toLocaleString()} · Watch:Impr >${WIN.wtImpr * 100}%`
+       : filter === "outliers" ? `3 of 4: CTR >${OUT.ctr}% · Watch >${OUT.watchTime}min · Impressions >${OUT.impressions.toLocaleString()} · Watch:Impr >${OUT.wtImpr * 100}%`
        : "Individual video performance at 24 hours · click headers to sort"}
       </p>
 

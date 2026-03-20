@@ -3,7 +3,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { PlaceholderCard } from "@/components/shared/PlaceholderCard";
 import { SortableVideoLog } from "@/components/youtube/SortableVideoLog";
 import { Youtube, Eye, MousePointerClick, Clock, AlertCircle } from "lucide-react";
-import { fetchCSV, fetchSheetLinks, cleanTitle, parseYTData, parseVideoLogCSV, type YTMonthlyRow, type YTVideo } from "@/lib/sheets";
+import { fetchCSV, parseYTData, parseVideoLogCSV, fetchVideosViaAPI, type YTMonthlyRow, type YTVideo } from "@/lib/sheets";
 
 const YT_BASE =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSS66XUTykWwbUBp6i7hZlbt6uFlleXnCXHhrlAVBM82kf0iTV4N_AjwRsx_NIJBmmU-AYmnssuZvKX/pub";
@@ -11,7 +11,10 @@ const YT_BASE =
 const YT_CSV_URL      = `${YT_BASE}?output=csv`;
 const YT_DATA_GID     = process.env.YT_DATA_GID ?? "0";
 const YT_DATA_CSV_URL = `${YT_BASE}?gid=${YT_DATA_GID}&single=true&output=csv`;
-const YT_DATA_HTML_URL = `${YT_BASE}?gid=${YT_DATA_GID}&single=true&output=html`;
+
+const SHEETS_API_KEY    = process.env.GOOGLE_SHEETS_API_KEY ?? "";
+const YT_SPREADSHEET_ID = process.env.GOOGLE_YT_SPREADSHEET_ID ?? "";
+const YT_DATA_SHEET     = process.env.GOOGLE_YT_DATA_SHEET ?? "YT DATA";
 
 function pct(curr: number, prev: number): string {
   if (!prev) return "";
@@ -144,33 +147,47 @@ export default async function YouTubePage() {
   let videos: YTVideo[] = [];
   let fetchError = false;
 
+  // ── Monthly data ─────────────────────────────────────────────────────────
+  let mainRows: string[][] = [];
   try {
-    const [mainRows, dataRows, linkMap] = await Promise.all([
-      fetchCSV(YT_CSV_URL),
-      fetchCSV(YT_DATA_CSV_URL, { cache: "no-store" }).catch(() => [] as string[][]),
-      fetchSheetLinks(YT_DATA_HTML_URL),
-    ]);
-    const data = parseYTData(mainRows);
-    monthly  = data.monthly;
-    averages = data.averages;
-
-    // Prefer dedicated DATA tab; fall back to videos parsed from main sheet
-    let parsed = parseVideoLogCSV(dataRows);
-    if (parsed.length === 0) parsed = data.videos;
-
-    // Enrich with hyperlinks extracted from the HTML-published sheet.
-    // Only accept values that look like real URLs to prevent title text being used as href.
-    const isUrl = (s?: string) => !!s && (s.startsWith("http://") || s.startsWith("https://"));
-    videos = parsed.map((v) => {
-      const fromMap =
-        linkMap.get(v.title) ||
-        linkMap.get(v.title.trim()) ||
-        linkMap.get(cleanTitle(v.title));
-      const url = isUrl(v.url) ? v.url : isUrl(fromMap) ? fromMap! : "";
-      return { ...v, url };
-    });
+    mainRows = await fetchCSV(YT_CSV_URL);
+    const parsed = parseYTData(mainRows);
+    monthly  = parsed.monthly;
+    averages = parsed.averages;
   } catch {
     fetchError = true;
+  }
+
+  // ── Video log: Sheets API (hyperlinks) → CSV fallback → main sheet ────────
+  let videosLoaded = false;
+
+  if (SHEETS_API_KEY && YT_SPREADSHEET_ID) {
+    try {
+      const apiVideos = await fetchVideosViaAPI(YT_SPREADSHEET_ID, YT_DATA_SHEET, SHEETS_API_KEY);
+      if (apiVideos.length > 0) {
+        videos = apiVideos;
+        videosLoaded = true;
+      }
+    } catch {
+      // fall through to CSV
+    }
+  }
+
+  if (!videosLoaded) {
+    try {
+      const dataRows = await fetchCSV(YT_DATA_CSV_URL, { cache: "no-store" });
+      const parsed = parseVideoLogCSV(dataRows);
+      if (parsed.length > 0) {
+        videos = parsed;
+        videosLoaded = true;
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  if (!videosLoaded && mainRows.length > 0) {
+    videos = parseYTData(mainRows).videos;
   }
 
   const filled = monthly.filter((m) => m.impressions > 0);
