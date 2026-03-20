@@ -6,50 +6,48 @@ const EMAIL_DATA_SHEET     = process.env.GOOGLE_EMAIL_DATA_SHEET ?? "DATA";
 const EMAIL_DATA_CSV_URL   = process.env.GOOGLE_EMAIL_DATA_CSV_URL ?? "";
 
 export async function GET() {
-  const results: Record<string, { status: number | string; ok: boolean; preview?: string }> = {};
+  const results: Record<string, unknown> = {};
 
-  // 1 — Sheets API
+  // 1 — Sheets API: list all sheets + find DATA tab gid
   if (SHEETS_API_KEY && EMAIL_SPREADSHEET_ID) {
-    const range = encodeURIComponent(`'${EMAIL_DATA_SHEET}'`);
-    const url =
+    const metaUrl =
       `https://sheets.googleapis.com/v4/spreadsheets/${EMAIL_SPREADSHEET_ID}` +
-      `?includeGridData=true&ranges=${range}&key=${SHEETS_API_KEY}`;
+      `?key=${SHEETS_API_KEY}`;
     try {
-      const res  = await fetch(url, { cache: "no-store" });
-      const text = await res.text();
-      results.sheetsApi = { status: res.status, ok: res.ok, preview: text.slice(0, 300) };
+      const res  = await fetch(metaUrl, { cache: "no-store" });
+      const json = await res.json() as { sheets?: Array<{ properties: { title: string; sheetId: number } }> };
+      const sheets = json.sheets?.map(s => ({ title: s.properties.title, gid: s.properties.sheetId })) ?? [];
+      results.sheetsList = { status: res.status, ok: res.ok, sheets };
     } catch (e) {
-      results.sheetsApi = { status: String(e), ok: false };
+      results.sheetsList = { status: String(e), ok: false };
+    }
+
+    // 2 — Sheets API: first 5 rows of DATA sheet values
+    const valUrl =
+      `https://sheets.googleapis.com/v4/spreadsheets/${EMAIL_SPREADSHEET_ID}` +
+      `/values/${encodeURIComponent(EMAIL_DATA_SHEET + "!A1:L5")}?key=${SHEETS_API_KEY}`;
+    try {
+      const res  = await fetch(valUrl, { cache: "no-store" });
+      const json = await res.json() as { values?: string[][] };
+      results.sheetsDataPreview = { status: res.status, ok: res.ok, rows: json.values ?? [] };
+    } catch (e) {
+      results.sheetsDataPreview = { status: String(e), ok: false };
     }
   } else {
-    results.sheetsApi = { status: "skipped — missing GOOGLE_SHEETS_API_KEY or GOOGLE_EMAIL_SPREADSHEET_ID", ok: false };
+    results.sheetsList = { status: "skipped — missing GOOGLE_SHEETS_API_KEY or GOOGLE_EMAIL_SPREADSHEET_ID", ok: false };
   }
 
-  // 2 — Published CSV URL (GOOGLE_EMAIL_DATA_CSV_URL)
+  // 3 — Published CSV URL
   if (EMAIL_DATA_CSV_URL) {
     try {
       const res  = await fetch(EMAIL_DATA_CSV_URL, { cache: "no-store" });
       const text = await res.text();
-      results.publishedCsv = { status: res.status, ok: res.ok, preview: text.slice(0, 300) };
+      results.publishedCsv = { status: res.status, ok: res.ok, preview: text.slice(0, 400) };
     } catch (e) {
       results.publishedCsv = { status: String(e), ok: false };
     }
   } else {
-    results.publishedCsv = { status: "skipped — GOOGLE_EMAIL_DATA_CSV_URL not set in .env.local", ok: false };
-  }
-
-  // 3 — Export CSV fallback (hardcoded gid=1377726109)
-  if (EMAIL_SPREADSHEET_ID) {
-    const url = `https://docs.google.com/spreadsheets/d/${EMAIL_SPREADSHEET_ID}/export?format=csv&gid=1377726109`;
-    try {
-      const res  = await fetch(url, { cache: "no-store" });
-      const text = await res.text();
-      results.csvExportFallback = { status: res.status, ok: res.ok, preview: text.slice(0, 300) };
-    } catch (e) {
-      results.csvExportFallback = { status: String(e), ok: false };
-    }
-  } else {
-    results.csvExportFallback = { status: "skipped — GOOGLE_EMAIL_SPREADSHEET_ID not set", ok: false };
+    results.publishedCsv = { status: "skipped — GOOGLE_EMAIL_DATA_CSV_URL not set", ok: false };
   }
 
   return NextResponse.json({
@@ -58,7 +56,7 @@ export async function GET() {
       hasSpreadsheetId: !!EMAIL_SPREADSHEET_ID,
       spreadsheetId:    EMAIL_SPREADSHEET_ID || "(not set)",
       dataSheet:        EMAIL_DATA_SHEET,
-      hasPublishedUrl:  !!EMAIL_DATA_CSV_URL,
+      publishedCsvUrl:  EMAIL_DATA_CSV_URL || "(not set)",
     },
     results,
   });
