@@ -220,7 +220,6 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
               <SortTh label="Like %"        col="reachLike"     {...thP} />
               <SortTh label="Share %"       col="reachShares"   {...thP} />
               <SortTh label="Follow %"      col="reachFollowers" {...thP} />
-              <th className="text-left py-2 pr-4 text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>Video</th>
               <th className="text-left py-2 pr-4 text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>Who</th>
               <th className="text-left py-2 pr-4 text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>Style</th>
               <th className="text-left py-2 pr-4 text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>Type</th>
@@ -293,26 +292,6 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
                   <td className="py-2 pr-4"
                     style={{ color: heatColor(parsePct(p.reachFollowers), heat.reachFollowers.min, heat.reachFollowers.max), fontWeight: heatWeight(parsePct(p.reachFollowers), heat.reachFollowers.min, heat.reachFollowers.max) }}>
                     {p.reachFollowers || "—"}
-                  </td>
-                  <td className="py-2 pr-4">
-                    {p.videoUrl ? (
-                      <a
-                        href={p.videoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg whitespace-nowrap"
-                        style={{
-                          background: "rgba(217,70,239,0.12)",
-                          color: "#d946ef",
-                          border: "1px solid rgba(217,70,239,0.3)",
-                          textDecoration: "none",
-                        }}
-                      >
-                        ▶ Watch
-                      </a>
-                    ) : (
-                      <span style={{ color: "var(--muted-foreground)" }}>—</span>
-                    )}
                   </td>
                   <td className="py-2 pr-4">
                     <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: bg, color }}>
