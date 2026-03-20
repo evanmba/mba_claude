@@ -8,7 +8,7 @@ import type { EmailLog } from "@/lib/sheets";
 const WIN_OPEN_PCT = 72;
 // Outlier: good open rate AND good CTR
 const OUT_OPEN_PCT = 82;
-const OUT_CTR_PCT  = 1.3;
+const OUT_CTR_PCT  = 0.4;
 
 function isWinner(e: EmailLog): boolean {
   return e.openPct > WIN_OPEN_PCT;
