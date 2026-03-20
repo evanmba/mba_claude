@@ -1,4 +1,4 @@
-import { toNum } from "./sheets";
+import { toNum, parseCSV } from "./sheets";
 
 export const FUNNEL_SHEET_ID = "1c6rb9jAI1dJfuLZYxueBOTPxwhs-7Ud632S7MJ3GSIs";
 
@@ -168,21 +168,22 @@ export interface FunnelData {
 }
 
 // ─── Fetch helpers ─────────────────────────────────────────────────────────
+// Uses the gviz/tq endpoint — works for any "Anyone with the link can view"
+// Google Sheet without requiring an API key.
 
 async function fetchSheetValues(
   spreadsheetId: string,
   sheetName: string,
-  apiKey: string,
 ): Promise<string[][]> {
-  const encoded = encodeURIComponent(`'${sheetName}'`);
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encoded}?key=${apiKey}`;
+  const sheet = encodeURIComponent(sheetName);
+  const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${sheet}`;
   const res = await fetch(url, { next: { revalidate: 300 } });
   if (!res.ok) {
     console.warn(`[funnel] Sheet "${sheetName}" failed: ${res.status}`);
     return [];
   }
-  const json = await res.json();
-  return (json.values ?? []) as string[][];
+  const text = await res.text();
+  return parseCSV(text);
 }
 
 // ─── Parsing helpers ───────────────────────────────────────────────────────
@@ -619,15 +620,15 @@ function parseCustomers(rows: string[][]): Customer[] {
 
 // ─── Public fetch function ─────────────────────────────────────────────────
 
-export async function fetchFunnelData(apiKey: string): Promise<FunnelData> {
+export async function fetchFunnelData(): Promise<FunnelData> {
   const monthLabel = getCurrentMonthTab();
 
   const [monthlyRows, ytdRows, leadsRows, callsRows, customersRows] = await Promise.all([
-    fetchSheetValues(FUNNEL_SHEET_ID, monthLabel, apiKey),
-    fetchSheetValues(FUNNEL_SHEET_ID, "2026", apiKey),
-    fetchSheetValues(FUNNEL_SHEET_ID, "LEADS", apiKey),
-    fetchSheetValues(FUNNEL_SHEET_ID, "CALLS", apiKey),
-    fetchSheetValues(FUNNEL_SHEET_ID, "CUSTOMERS", apiKey),
+    fetchSheetValues(FUNNEL_SHEET_ID, monthLabel),
+    fetchSheetValues(FUNNEL_SHEET_ID, "2026"),
+    fetchSheetValues(FUNNEL_SHEET_ID, "LEADS"),
+    fetchSheetValues(FUNNEL_SHEET_ID, "CALLS"),
+    fetchSheetValues(FUNNEL_SHEET_ID, "CUSTOMERS"),
   ]);
 
   const { monthly, salesDashboard } = parseMonthly(monthlyRows);
