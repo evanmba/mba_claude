@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { StatCard } from "@/components/shared/StatCard";
 import { PlaceholderCard } from "@/components/shared/PlaceholderCard";
 import { SortablePostLog } from "@/components/instagram/SortablePostLog";
-import { Eye, Heart, Share2, UserPlus, AlertCircle, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Eye, Heart, Share2, UserPlus, Timer, AlertCircle, RefreshCw, CheckCircle2 } from "lucide-react";
 import type { IGMonthlyRow, IGData } from "@/lib/sheets";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -262,13 +262,20 @@ export function InstagramDashboard({ initialData, initialFetchError, serverFetch
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         <StatCard
           title={`Avg Reach${mon ? ` · ${mon}` : ""}`}
           value={latest ? latest.reach.toLocaleString() : "—"}
           change={latest && prev ? pct(latest.reach, prev.reach) : ""}
           trend={latest && prev ? trendDir(latest.reach, prev.reach) : "neutral"}
           icon={Eye}
+        />
+        <StatCard
+          title={`Avg Watch Time${mon ? ` · ${mon}` : ""}`}
+          value={latest ? `${latest.watchTime.toFixed(1)}s` : "—"}
+          change={latest && prev ? pct(latest.watchTime, prev.watchTime) : ""}
+          trend={latest && prev ? trendDir(latest.watchTime, prev.watchTime) : "neutral"}
+          icon={Timer}
         />
         <StatCard
           title={`Avg Likes${mon ? ` · ${mon}` : ""}`}
