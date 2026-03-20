@@ -50,7 +50,21 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
   const [sortCol, setSortCol] = useState<PostSortKey>("reach");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
-  if (posts.length === 0) return null;
+  if (posts.length === 0) {
+    return (
+      <PlaceholderCard
+        title="Post Log"
+        description="Individual post performance at 24 hours · click headers to sort"
+      >
+        <p className="mt-4 text-sm" style={{ color: "var(--muted-foreground)" }}>
+          No post-level data found in the sheet. Add a header row with{" "}
+          <strong style={{ color: "var(--foreground)" }}>Reach 24h</strong> and{" "}
+          <strong style={{ color: "var(--foreground)" }}>Likes 24h</strong> columns,
+          then add individual post rows beneath it.
+        </p>
+      </PlaceholderCard>
+    );
+  }
 
   const onSort = (col: PostSortKey) => {
     if (sortCol === col) setSortDir((d) => (d === "desc" ? "asc" : "desc"));

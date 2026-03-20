@@ -100,7 +100,10 @@ export function parseIGData(rows: string[][]): IGData {
       mode = "monthly";
       continue;
     }
-    if (joined.includes("reach 24h") && joined.includes("likes 24h")) {
+    if (
+      (joined.includes("reach 24h") || joined.includes("reach(24h)") || joined.includes("reach (24h)")) &&
+      (joined.includes("likes 24h") || joined.includes("likes(24h)") || joined.includes("likes (24h)"))
+    ) {
       mode = "posts";
       continue;
     }
