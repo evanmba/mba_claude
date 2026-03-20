@@ -2,31 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Instagram,
-  Youtube,
-  Mail,
-  Users,
-  LayoutDashboard,
-  Settings,
-  Bell,
-  TrendingUp,
-} from "lucide-react";
+import { TrendingUp, Settings } from "lucide-react";
 
-const socialItems = [
-  { label: "Dashboard",  href: "/",          icon: LayoutDashboard },
-  { label: "Instagram",  href: "/instagram", icon: Instagram, color: "#d946ef" },
-  { label: "YouTube",    href: "/youtube",   icon: Youtube,   color: "#ef4444" },
-  { label: "Email",      href: "/email",     icon: Mail,      color: "#22c55e" },
-];
-
-const toolsItems = [
-  { label: "Funnel Dashboard",   href: "/funnel",      icon: TrendingUp, color: "#22c55e" },
-  { label: "Competitor Tracker", href: "/competitors", icon: Users },
+const navItems = [
+  { label: "Funnel Dashboard", href: "/funnel", icon: TrendingUp, color: "#22c55e" },
 ];
 
 const bottomNavItems = [
-  { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -110,39 +92,15 @@ export function Sidebar() {
 
       {/* Main Navigation */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        <p
-          className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider"
-          style={{ color: "var(--muted-foreground)" }}
-        >
-          Social Platforms
-        </p>
-        <ul className="space-y-1 mb-5">
-          {socialItems.map((item) => (
-            <NavLink
-              key={item.href}
-              href={item.href}
-              icon={item.icon}
-              label={item.label}
-              isActive={pathname === item.href}
-              accentColor={"color" in item ? item.color : undefined}
-            />
-          ))}
-        </ul>
-
-        <p
-          className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider"
-          style={{ color: "var(--muted-foreground)" }}
-        >
-          Tools
-        </p>
         <ul className="space-y-1">
-          {toolsItems.map((item) => (
+          {navItems.map((item) => (
             <NavLink
               key={item.href}
               href={item.href}
               icon={item.icon}
               label={item.label}
-              isActive={pathname === item.href}
+              isActive={pathname === item.href || pathname.startsWith(item.href)}
+              accentColor={item.color}
             />
           ))}
         </ul>
