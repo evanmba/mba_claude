@@ -19,6 +19,41 @@ function trendDir(curr: number, prev: number | undefined): "up" | "down" | "neut
   return curr >= prev ? "up" : "down";
 }
 
+// ─── Heat scale (red→amber→yellow→grey→green) ────────────────────────────────
+
+const HEAT_STOPS: [number, number, number][] = [
+  [255,  30,   0],
+  [255, 140,   0],
+  [255, 220,   0],
+  [120, 120, 120],
+  [ 22, 101,  52],
+  [ 74, 222, 128],
+  [ 57, 255,  20],
+];
+function heatColor(val: number, min: number, max: number): string {
+  if (max <= min || isNaN(val)) return "var(--muted-foreground)";
+  const t = Math.max(0, Math.min(1, (val - min) / (max - min)));
+  const scaled = t * (HEAT_STOPS.length - 1);
+  const lo = Math.floor(scaled);
+  const hi = Math.min(lo + 1, HEAT_STOPS.length - 1);
+  const u = scaled - lo;
+  const [r1, g1, b1] = HEAT_STOPS[lo];
+  const [r2, g2, b2] = HEAT_STOPS[hi];
+  return `rgb(${Math.round(r1+(r2-r1)*u)},${Math.round(g1+(g2-g1)*u)},${Math.round(b1+(b2-b1)*u)})`;
+}
+function heatWeight(val: number, min: number, max: number): number {
+  if (max <= min || isNaN(val)) return 400;
+  return Math.round(400 + Math.max(0, Math.min(1, (val - min) / (max - min))) * 500);
+}
+function heatStats(vals: number[]) {
+  const nums = vals.filter((v) => !isNaN(v) && v > 0);
+  if (!nums.length) return { min: 0, max: 0 };
+  return { min: Math.min(...nums), max: Math.max(...nums) };
+}
+function parsePct(s: string): number {
+  return parseFloat((s ?? "").replace(/%/g, "")) || 0;
+}
+
 // ─── Monthly table ─────────────────────────────────────────────────────────────
 
 function MonthlyTable({ monthly, averages }: { monthly: YTMonthlyRow[]; averages: YTMonthlyRow | null }) {
@@ -27,6 +62,15 @@ function MonthlyTable({ monthly, averages }: { monthly: YTMonthlyRow[]; averages
 
   const cols = ["Month", "CTR @ 24h", "Watch Time (min)", "Impressions", "Watch:Impressions"];
   const rows = averages ? [...filled, averages] : filled;
+
+  const heat = {
+    ctr:           heatStats(filled.map((m) => parsePct(m.ctr))),
+    watchTime:     heatStats(filled.map((m) => m.watchTime)),
+    impressions:   heatStats(filled.map((m) => m.impressions)),
+    wtImpressions: heatStats(filled.map((m) => parsePct(m.wtImpressions))),
+  };
+
+  const white = "#ffffff";
 
   return (
     <PlaceholderCard title="Monthly Performance" description="YouTube 24-hour averages by month">
@@ -48,28 +92,33 @@ function MonthlyTable({ monthly, averages }: { monthly: YTMonthlyRow[]; averages
           <tbody>
             {rows.map((m, i) => {
               const isAvg = m.month === "Monthly Avg";
+              const cc  = isAvg ? white : heatColor(parsePct(m.ctr),             heat.ctr.min,           heat.ctr.max);
+              const wc  = isAvg ? white : heatColor(m.watchTime,                  heat.watchTime.min,     heat.watchTime.max);
+              const ic  = isAvg ? white : heatColor(m.impressions,                heat.impressions.min,   heat.impressions.max);
+              const wtc = isAvg ? white : heatColor(parsePct(m.wtImpressions),    heat.wtImpressions.min, heat.wtImpressions.max);
               return (
                 <tr
                   key={i}
+                  className="hoverable"
                   style={{
                     borderBottom: "1px solid var(--border)",
-                    background: isAvg ? "rgba(239,68,68,0.04)" : undefined,
+                    background: isAvg ? "rgba(255,255,255,0.04)" : undefined,
                   }}
                 >
                   <td className="py-2.5 pr-6 whitespace-nowrap font-medium"
-                    style={{ color: isAvg ? "#ef4444" : "var(--foreground)" }}>
+                    style={{ color: isAvg ? white : "var(--foreground)" }}>
                     {m.month}
                   </td>
-                  <td className="py-2.5 pr-6 font-semibold" style={{ color: "#ef4444" }}>
+                  <td className="py-2.5 pr-6" style={{ color: cc, fontWeight: isAvg ? 700 : heatWeight(parsePct(m.ctr), heat.ctr.min, heat.ctr.max) }}>
                     {m.ctr || "—"}
                   </td>
-                  <td className="py-2.5 pr-6" style={{ color: "var(--foreground)" }}>
+                  <td className="py-2.5 pr-6" style={{ color: wc, fontWeight: isAvg ? 700 : heatWeight(m.watchTime, heat.watchTime.min, heat.watchTime.max) }}>
                     {m.watchTime ? m.watchTime.toFixed(1) : "—"}
                   </td>
-                  <td className="py-2.5 pr-6" style={{ color: "var(--foreground)" }}>
+                  <td className="py-2.5 pr-6" style={{ color: ic, fontWeight: isAvg ? 700 : heatWeight(m.impressions, heat.impressions.min, heat.impressions.max) }}>
                     {m.impressions ? m.impressions.toLocaleString() : "—"}
                   </td>
-                  <td className="py-2.5 pr-6" style={{ color: "var(--muted-foreground)" }}>
+                  <td className="py-2.5 pr-6" style={{ color: wtc, fontWeight: isAvg ? 700 : heatWeight(parsePct(m.wtImpressions), heat.wtImpressions.min, heat.wtImpressions.max) }}>
                     {m.wtImpressions || "—"}
                   </td>
                 </tr>
