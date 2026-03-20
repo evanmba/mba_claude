@@ -4,29 +4,18 @@ import { useState } from "react";
 import type { EmailLog } from "@/lib/sheets";
 
 // ─── Thresholds ────────────────────────────────────────────────────────────────
-// Winners: 2 of 4 (~top ~30%)
-const WIN = { openPct: 72, ctrPct: 0.8, clicks: 20, delivered: 500 };
-// Outliers: 3 of 4 (~top ~10%)
-const OUT = { openPct: 82, ctrPct: 1.3, clicks: 35, delivered: 700 };
+// Winner: good open rate
+const WIN_OPEN_PCT = 72;
+// Outlier: good open rate AND good CTR
+const OUT_OPEN_PCT = 82;
+const OUT_CTR_PCT  = 1.3;
 
 function isWinner(e: EmailLog): boolean {
-  const checks = [
-    e.openPct   > WIN.openPct,
-    e.ctrPct    > WIN.ctrPct,
-    e.clicks    > WIN.clicks,
-    e.delivered > WIN.delivered,
-  ];
-  return checks.filter(Boolean).length >= 2;
+  return e.openPct > WIN_OPEN_PCT;
 }
 
 function isOutlier(e: EmailLog): boolean {
-  const checks = [
-    e.openPct   > OUT.openPct,
-    e.ctrPct    > OUT.ctrPct,
-    e.clicks    > OUT.clicks,
-    e.delivered > OUT.delivered,
-  ];
-  return checks.filter(Boolean).length >= 3;
+  return e.openPct > OUT_OPEN_PCT && e.ctrPct > OUT_CTR_PCT;
 }
 
 // ─── Heat scale: red → orange → yellow → grey → dark green → light green → neon green
@@ -195,8 +184,8 @@ export function SortableEmailLog({ emails }: { emails: EmailLog[] }) {
       </div>
 
       <p className="text-sm mb-4" style={{ color: "var(--muted-foreground)" }}>
-        {filter === "winners"  ? `2 of 4: Open% >${WIN.openPct}% · CTR >${WIN.ctrPct}% · Clicks >${WIN.clicks} · Delivered >${WIN.delivered.toLocaleString()}`
-       : filter === "outliers" ? `3 of 4: Open% >${OUT.openPct}% · CTR >${OUT.ctrPct}% · Clicks >${OUT.clicks} · Delivered >${OUT.delivered.toLocaleString()}`
+        {filter === "winners"  ? `Open Rate >${WIN_OPEN_PCT}%`
+       : filter === "outliers" ? `Open Rate >${OUT_OPEN_PCT}% and CTR >${OUT_CTR_PCT}%`
        : "Individual email performance · click headers to sort"}
       </p>
 
