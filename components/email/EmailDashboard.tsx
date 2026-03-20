@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { RefreshCw, CheckCircle2, AlertCircle, TrendingUp, TrendingDown } from "lucide-react";
 import type { EmailData, EmailMonthlyRow } from "@/lib/sheets";
 
@@ -95,120 +95,6 @@ function Th({ label, col, activeCol, dir, onSort }: {
         {active ? (dir === "desc" ? "↓" : "↑") : "↕"}
       </span>
     </th>
-  );
-}
-
-// ─── Interactive SVG Line Chart ───────────────────────────────────────────────
-
-interface ChartSeries { label: string; color: string; values: number[]; }
-
-function LineChart({
-  series, xLabels, formatY = (v) => fmtNum(v), height = 130,
-}: {
-  series: ChartSeries[]; xLabels: string[]; formatY?: (v: number) => string; height?: number;
-}) {
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-
-  const VW = 520, VH = height;
-  const pad = { t: 16, r: 12, b: 28, l: 52 };
-  const iW = VW - pad.l - pad.r;
-  const iH = VH - pad.t - pad.b;
-  const n = xLabels.length;
-
-  const allVals = series.flatMap((s) => s.values).filter((v) => v > 0);
-  const maxV = allVals.length > 0 ? Math.max(...allVals) * 1.05 : 1;
-
-  const xs = (i: number) => pad.l + (n <= 1 ? iW / 2 : (i / (n - 1)) * iW);
-  const ys = (v: number) => pad.t + iH - (v / maxV) * iH;
-  const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => ({ v: maxV * f, y: ys(maxV * f) }));
-
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const svg = svgRef.current;
-    if (!svg || n <= 1) return;
-    const rect = svg.getBoundingClientRect();
-    const svgX = ((e.clientX - rect.left) / rect.width) * VW;
-    const closest = Math.round((svgX - pad.l) / iW * (n - 1));
-    setHoverIdx(Math.max(0, Math.min(n - 1, closest)));
-  };
-
-  // Tooltip: flip to left side when near right edge
-  const tooltipFlip = hoverIdx !== null && xs(hoverIdx) > VW * 0.65;
-  const lineH = 14;
-  const boxW = 120;
-  const boxH = 14 + series.length * lineH + 4;
-
-  return (
-    <svg
-      ref={svgRef}
-      viewBox={`0 0 ${VW} ${VH}`}
-      className="w-full"
-      style={{ height, cursor: "crosshair" }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={() => setHoverIdx(null)}
-    >
-      {/* Grid lines */}
-      {yTicks.map(({ v, y }, i) => (
-        <g key={i}>
-          <line x1={pad.l} y1={y} x2={VW - pad.r} y2={y} stroke="#1e293b" strokeWidth={1} />
-          <text x={pad.l - 6} y={y + 4} textAnchor="end" fontSize={9} style={{ fill: "#64748b" }}>
-            {formatY(v)}
-          </text>
-        </g>
-      ))}
-
-      {/* X labels */}
-      {xLabels.map((label, i) => (
-        <text key={i} x={xs(i)} y={VH - 4} textAnchor="middle" fontSize={9} style={{ fill: "#64748b" }}>
-          {label.slice(0, 3)}
-        </text>
-      ))}
-
-      {/* Series */}
-      {series.map((s, si) => {
-        const pts = s.values.map((v, i) => [xs(i), ys(v)] as [number, number]);
-        const linePath = pts.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x},${y}`).join(" ");
-        const areaPath = `${linePath} L ${pts[pts.length - 1][0]},${ys(0)} L ${pts[0][0]},${ys(0)} Z`;
-        return (
-          <g key={si}>
-            <path d={areaPath} fill={s.color} opacity={0.08} />
-            <path d={linePath} fill="none" stroke={s.color} strokeWidth={2}
-              strokeLinecap="round" strokeLinejoin="round" />
-            {pts.map(([cx, cy], i) => (
-              <circle key={i} cx={cx} cy={cy}
-                r={hoverIdx === i ? 5 : 3.5}
-                fill={s.color} stroke="#0f172a" strokeWidth={1.5} />
-            ))}
-          </g>
-        );
-      })}
-
-      {/* Hover indicator */}
-      {hoverIdx !== null && (() => {
-        const hx = xs(hoverIdx);
-        const tx = tooltipFlip ? hx - 8 - boxW : hx + 8;
-        const ty = pad.t;
-        return (
-          <g>
-            {/* Vertical guide */}
-            <line x1={hx} y1={pad.t} x2={hx} y2={VH - pad.b}
-              stroke="#ffffff" strokeWidth={1} strokeDasharray="3,3" opacity={0.2} />
-            {/* Tooltip */}
-            <rect x={tx} y={ty} width={boxW} height={boxH}
-              rx={4} fill="#0f172a" stroke="#1e293b" strokeWidth={1} opacity={0.96} />
-            <text x={tx + 8} y={ty + 11} fontSize={9} style={{ fill: "#94a3b8" }}>
-              {xLabels[hoverIdx]}
-            </text>
-            {series.map((s, si) => (
-              <text key={si} x={tx + 8} y={ty + 11 + (si + 1) * lineH}
-                fontSize={10} fontWeight={600} style={{ fill: s.color }}>
-                {s.label}: {formatY(s.values[hoverIdx!])}
-              </text>
-            ))}
-          </g>
-        );
-      })()}
-    </svg>
   );
 }
 
@@ -378,16 +264,6 @@ export function EmailDashboard({ initialData, initialError, serverFetchedAt }: P
   const latest = filled[filled.length - 1];
   const prev   = filled[filled.length - 2];
 
-  const chartLabels   = filled.map((m) => m.month);
-  const volumeSeries: ChartSeries[] = [
-    { label: "Delivered", color: "#22c55e", values: filled.map((m) => m.delivered) },
-    { label: "Opens",     color: "#3b82f6", values: filled.map((m) => m.opens) },
-  ];
-  const rateSeries: ChartSeries[] = [
-    { label: "Open %", color: "#3b82f6", values: filled.map((m) => m.openPct) },
-    { label: "CTR %",  color: "#f59e0b", values: filled.map((m) => m.ctrPct) },
-  ];
-
   return (
     <>
       {/* Error banner */}
@@ -453,44 +329,6 @@ export function EmailDashboard({ initialData, initialError, serverFetchedAt }: P
           trend={latest && prev ? trendDir(latest.ctrPct, prev.ctrPct) : null}
         />
       </div>
-
-      {/* Charts — volume (2/3) + rates (1/3), no clicks chart */}
-      {filled.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
-          <div className="lg:col-span-2 rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-            <p className="text-sm font-semibold mb-0.5" style={{ color: "var(--foreground)" }}>Volume — Delivered &amp; Opens</p>
-            <p className="text-xs mb-3" style={{ color: "var(--muted-foreground)" }}>Emails delivered vs opened by month · hover for values</p>
-            <LineChart series={volumeSeries} xLabels={chartLabels} height={140} />
-            <div className="flex gap-5 mt-2">
-              {volumeSeries.map((s) => (
-                <div key={s.label} className="flex items-center gap-1.5">
-                  <div style={{ width: 12, height: 2.5, background: s.color, borderRadius: 2 }} />
-                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{s.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-            <p className="text-sm font-semibold mb-0.5" style={{ color: "var(--foreground)" }}>Engagement Rates</p>
-            <p className="text-xs mb-3" style={{ color: "var(--muted-foreground)" }}>Open rate &amp; CTR · hover for values</p>
-            <LineChart
-              series={rateSeries}
-              xLabels={chartLabels}
-              formatY={(v) => `${v.toFixed(1)}%`}
-              height={140}
-            />
-            <div className="flex gap-5 mt-2">
-              {rateSeries.map((s) => (
-                <div key={s.label} className="flex items-center gap-1.5">
-                  <div style={{ width: 12, height: 2.5, background: s.color, borderRadius: 2 }} />
-                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{s.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Monthly table */}
       <div className="mb-5">
