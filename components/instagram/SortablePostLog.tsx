@@ -158,7 +158,6 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
         <table className="w-full text-xs min-w-max">
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)" }}>
-              <th className="py-2 pr-3" style={{ width: 44 }} />
               <SortTh label="Date"          col="date"          {...thP} />
               <SortTh label="Title"         col="title"         {...thP} />
               <SortTh label="Reach"         col="reach"         {...thP} />
@@ -183,35 +182,6 @@ export function SortablePostLog({ posts }: { posts: IGPost[] }) {
               const followColor = parsePct(p.reachFollowers) > WIN.reachFollowers ? "#22c55e" : parsePct(p.reachFollowers) > WIN.reachFollowers * 0.6 ? "#f59e0b" : "var(--muted-foreground)";
               return (
                 <tr key={i} className="hoverable" style={{ borderBottom: "1px solid var(--border)" }}>
-                  {/* Thumbnail */}
-                  <td className="py-2 pr-3" style={{ width: 44 }}>
-                    {p.url ? (
-                      <a href={p.url} target="_blank" rel="noopener noreferrer" style={{ display: "block", flexShrink: 0 }}>
-                        {p.thumbnail ? (
-                          <img
-                            src={p.thumbnail}
-                            alt=""
-                            style={{ width: 36, height: 36, objectFit: "cover", borderRadius: 6, display: "block" }}
-                          />
-                        ) : (
-                          <div style={{
-                            width: 36, height: 36, borderRadius: 6, flexShrink: 0, display: "flex",
-                            alignItems: "center", justifyContent: "center",
-                            background: "rgba(217,70,239,0.12)", border: "1px solid rgba(217,70,239,0.25)",
-                          }}>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d946ef" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
-                            </svg>
-                          </div>
-                        )}
-                      </a>
-                    ) : (
-                      <div style={{
-                        width: 36, height: 36, borderRadius: 6, flexShrink: 0,
-                        background: "rgba(100,116,139,0.08)", border: "1px solid var(--border)",
-                      }} />
-                    )}
-                  </td>
                   <td className="py-2 pr-4 whitespace-nowrap" style={{ color: "var(--muted-foreground)" }}>
                     {p.date}
                   </td>
