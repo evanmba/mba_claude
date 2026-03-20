@@ -3,10 +3,17 @@ import { StatCard } from "@/components/shared/StatCard";
 import { PlaceholderCard } from "@/components/shared/PlaceholderCard";
 import { SortableVideoLog } from "@/components/youtube/SortableVideoLog";
 import { Youtube, Eye, MousePointerClick, Clock, AlertCircle } from "lucide-react";
-import { fetchCSV, parseYTData, type YTMonthlyRow, type YTVideo } from "@/lib/sheets";
+import { fetchCSV, fetchSheetLinks, parseYTData, parseVideoLogCSV, type YTMonthlyRow, type YTVideo } from "@/lib/sheets";
 
-const YT_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSS66XUTykWwbUBp6i7hZlbt6uFlleXnCXHhrlAVBM82kf0iTV4N_AjwRsx_NIJBmmU-AYmnssuZvKX/pub?output=csv";
+const YT_BASE =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSS66XUTykWwbUBp6i7hZlbt6uFlleXnCXHhrlAVBM82kf0iTV4N_AjwRsx_NIJBmmU-AYmnssuZvKX/pub";
+
+const YT_CSV_URL      = `${YT_BASE}?output=csv`;
+// TODO: replace YT_DATA_GID with the actual gid of your "YT DATA" tab
+// (open the tab in Google Sheets → the URL will show #gid=XXXXXX)
+const YT_DATA_GID     = "0"; // placeholder — update this
+const YT_DATA_CSV_URL = `${YT_BASE}?gid=${YT_DATA_GID}&single=true&output=csv`;
+const YT_DATA_HTML_URL = `${YT_BASE}?gid=${YT_DATA_GID}&single=true&output=html`;
 
 function pct(curr: number, prev: number): string {
   if (!prev) return "";
@@ -140,11 +147,24 @@ export default async function YouTubePage() {
   let fetchError = false;
 
   try {
-    const rows = await fetchCSV(YT_CSV_URL);
-    const data = parseYTData(rows);
-    monthly = data.monthly;
+    const [mainRows, dataRows, linkMap] = await Promise.all([
+      fetchCSV(YT_CSV_URL),
+      fetchCSV(YT_DATA_CSV_URL, { cache: "no-store" }).catch(() => [] as string[][]),
+      fetchSheetLinks(YT_DATA_HTML_URL),
+    ]);
+    const data = parseYTData(mainRows);
+    monthly  = data.monthly;
     averages = data.averages;
-    videos = data.videos;
+
+    // Prefer dedicated DATA tab; fall back to videos parsed from main sheet
+    let parsed = parseVideoLogCSV(dataRows);
+    if (parsed.length === 0) parsed = data.videos;
+
+    // Enrich with hyperlinks extracted from the HTML-published sheet
+    videos = parsed.map((v) => ({
+      ...v,
+      url: v.url || linkMap.get(v.title) || linkMap.get(v.title.trim()) || "",
+    }));
   } catch {
     fetchError = true;
   }

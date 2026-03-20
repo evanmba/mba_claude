@@ -409,6 +409,7 @@ export interface YTMonthlyRow {
 export interface YTVideo {
   title: string;
   publishDate: string;
+  url: string;
   ctr: string;
   watchTime: number;
   impressions: number;
@@ -478,6 +479,7 @@ export function parseYTData(rows: string[][]): YTData {
         videos.push({
           title: cleanTitle(row[0] ?? ""),
           publishDate: dateCell,
+          url: "",
           ctr: row[2] ?? "",
           watchTime: toNum(row[3]),
           impressions: toNum(row[4]),
@@ -488,6 +490,39 @@ export function parseYTData(rows: string[][]): YTData {
   }
 
   return { monthly, averages, videos };
+}
+
+/**
+ * Header-based parser for a dedicated YT DATA tab.
+ * Column order doesn't matter — matched by keyword.
+ */
+export function parseVideoLogCSV(rows: string[][]): YTVideo[] {
+  if (rows.length < 2) return [];
+  const hdrs = rows[0].map((h) => h.toLowerCase().trim());
+  const fi = (keys: string[]) => hdrs.findIndex((h) => keys.some((k) => h.includes(k)));
+  const idx = {
+    title:         fi(["title", "video name", "video"]),
+    publishDate:   fi(["date", "publish"]),
+    url:           fi(["url", "link", "watch"]),
+    ctr:           fi(["ctr"]),
+    watchTime:     fi(["watch time", "watchtime", "avg watch"]),
+    impressions:   fi(["impression"]),
+    wtImpressions: fi(["watch:impr", "wt:impr", "ratio", "watch impr", "w:i"]),
+  };
+  const get = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "").trim() : "");
+  return rows
+    .slice(1)
+    .filter((row) => row.some((c) => c.trim()))
+    .map((row) => ({
+      title:         get(row, idx.title),
+      publishDate:   get(row, idx.publishDate),
+      url:           get(row, idx.url),
+      ctr:           get(row, idx.ctr),
+      watchTime:     toNum(get(row, idx.watchTime)),
+      impressions:   toNum(get(row, idx.impressions)),
+      wtImpressions: get(row, idx.wtImpressions),
+    }))
+    .filter((v) => v.title || v.publishDate);
 }
 
 // ─── Email Data Types ─────────────────────────────────────────────────────────
