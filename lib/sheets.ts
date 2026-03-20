@@ -170,6 +170,65 @@ export function parseIGData(rows: string[][]): IGData {
   return { monthly, averages, posts };
 }
 
+/**
+ * Parse a standalone post-log CSV where row 0 is the header row.
+ * Used for the separate DATA tab (individual post records).
+ * Column names are matched by keyword so column order doesn't matter.
+ */
+export function parsePostLogCSV(rows: string[][]): IGPost[] {
+  if (rows.length < 2) return [];
+
+  const hdrs = rows[0].map((h) => h.toLowerCase().trim());
+
+  // Find column index by required keywords (all must be present in the header cell)
+  function fi(kw: string[]): number {
+    return hdrs.findIndex((h) => kw.every((k) => h.includes(k)));
+  }
+
+  const cols = {
+    title:          fi(["title"]),
+    reach:          fi(["reach", "24"]),
+    watchTime:      fi(["watch"]),
+    likes:          fi(["likes", "24"]),
+    shares:         fi(["shares", "24"]),
+    follows:        fi(["follows", "24"]),
+    reachLike:      fi(["reach", "like"]),
+    reachShares:    hdrs.findIndex((h) => h.includes("reach") && h.includes("share") && !h.includes("24")),
+    reachFollowers: fi(["reach", "follow"]),
+    who:            fi(["who"]),
+    style:          fi(["style"]),
+    type:           fi(["type"]),
+    intentional:    fi(["intentional"]),
+    cta:            fi(["cta"]),
+    notes:          fi(["notes"]),
+  };
+
+  const get = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "") : "");
+
+  return rows.slice(1).flatMap((row) => {
+    const col0 = (row[0] ?? "").trim();
+    if (!/^\d+\/\d+\/\d+/.test(col0)) return [];
+    return [{
+      date:           col0,
+      title:          cleanTitle(get(row, cols.title)),
+      reach:          toNum(get(row, cols.reach)),
+      watchTime:      toNum(get(row, cols.watchTime)),
+      likes:          toNum(get(row, cols.likes)),
+      shares:         toNum(get(row, cols.shares)),
+      follows:        toNum(get(row, cols.follows)),
+      reachLike:      get(row, cols.reachLike),
+      reachShares:    get(row, cols.reachShares),
+      reachFollowers: get(row, cols.reachFollowers),
+      who:            get(row, cols.who),
+      style:          get(row, cols.style),
+      type:           get(row, cols.type),
+      intentional:    get(row, cols.intentional),
+      cta:            get(row, cols.cta),
+      notes:          get(row, cols.notes),
+    }];
+  });
+}
+
 // ─── YouTube Data Types ───────────────────────────────────────────────────────
 
 export interface YTMonthlyRow {

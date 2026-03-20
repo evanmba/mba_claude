@@ -1,8 +1,12 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { InstagramDashboard } from "@/components/instagram/InstagramDashboard";
-import { fetchCSV, parseIGData, type IGData } from "@/lib/sheets";
+import { fetchCSV, parseIGData, parsePostLogCSV, type IGData } from "@/lib/sheets";
 
 const IG_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt9HlvUd1055qAlYc_x-oflTe2quXENd-q8W6oV2-AOs3uGPumpmPgQZHCnZQaYFKU9QzKubHt-68v/pub?output=csv";
+
+// DATA tab (individual post records) — update gid when published separately
+const IG_DATA_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt9HlvUd1055qAlYc_x-oflTe2quXENd-q8W6oV2-AOs3uGPumpmPgQZHCnZQaYFKU9QzKubHt-68v/pub?output=csv";
 
 export default async function InstagramPage() {
@@ -11,8 +15,13 @@ export default async function InstagramPage() {
   const fetchedAt = new Date().toISOString();
 
   try {
-    const rows = await fetchCSV(IG_CSV_URL);
+    const [rows, dataRows] = await Promise.all([
+      fetchCSV(IG_CSV_URL),
+      fetchCSV(IG_DATA_CSV_URL),
+    ]);
     data = parseIGData(rows);
+    const posts = parsePostLogCSV(dataRows);
+    if (posts.length > 0) data = { ...data, posts };
   } catch {
     fetchError = true;
   }
