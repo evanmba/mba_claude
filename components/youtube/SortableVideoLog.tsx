@@ -5,8 +5,8 @@ import type { YTVideo } from "@/lib/sheets";
 
 // ─── Thresholds ───────────────────────────────────────────────────────────────
 // Winners: ANY one of these
-const WIN = { ctr: 3.5, watchTime: 90, impressions: 1000, wtImpr: 0.2 };
-// Outliers: ALL of these
+const WIN = { ctr: 7, watchTime: 180, impressions: 2000, wtImpr: 0.4 };
+// Outliers: 3 of 4 of these (base bar)
 const OUT = { ctr: 3.5, watchTime: 90, impressions: 1000, wtImpr: 0.2 };
 
 function parsePct(s: string): number {
@@ -223,7 +223,7 @@ export function SortableVideoLog({ videos }: { videos: YTVideo[] }) {
                   </td>
                   <td className="py-2 pr-4" style={{ color: "var(--foreground)", maxWidth: 280 }}>
                     <div className="flex items-center gap-1.5">
-                      {outlier && filter !== "outliers" && (
+                      {outlier && (
                         <span style={{ color: "#39ff14", fontSize: 10, flexShrink: 0 }}>★</span>
                       )}
                       {v.url ? (

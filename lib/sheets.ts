@@ -503,7 +503,7 @@ export function parseVideoLogCSV(rows: string[][]): YTVideo[] {
   const idx = {
     title:         fi(["title", "video name", "video"]),
     publishDate:   fi(["date", "publish"]),
-    url:           fi(["url", "link", "watch"]),
+    url:           fi(["video url", "video link", "youtube", " url", "link url", "url", "link"]),
     ctr:           fi(["ctr"]),
     watchTime:     fi(["watch time", "watchtime", "avg watch"]),
     impressions:   fi(["impression"]),
