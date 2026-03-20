@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { Mail, RefreshCw, CheckCircle2, AlertCircle, TrendingUp, TrendingDown, MousePointerClick, Eye, Send } from "lucide-react";
-import type { EmailData, EmailMonthlyRow, EmailCampaign } from "@/lib/sheets";
+import { useState, useCallback, useRef } from "react";
+import { RefreshCw, CheckCircle2, AlertCircle, TrendingUp, TrendingDown } from "lucide-react";
+import type { EmailData, EmailMonthlyRow } from "@/lib/sheets";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -21,6 +21,17 @@ function fmtNum(n: number): string {
   return String(Math.round(n));
 }
 
+function momPct(curr: number, prev: number): string {
+  if (!prev) return "";
+  const d = ((curr - prev) / prev) * 100;
+  return `${d >= 0 ? "+" : ""}${d.toFixed(0)}% vs last month`;
+}
+
+function trendDir(curr: number, prev: number | undefined): "up" | "down" | null {
+  if (!prev) return null;
+  return curr >= prev ? "up" : "down";
+}
+
 type SortDir = "asc" | "desc";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30,6 +41,41 @@ function sortRows<T>(arr: T[], key: keyof T, dir: SortDir): T[] {
     if (typeof av === "number" && typeof bv === "number") return dir === "asc" ? av - bv : bv - av;
     return dir === "asc" ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
   });
+}
+
+// ─── Heat scale (matching YT/IG) ──────────────────────────────────────────────
+
+const HEAT_STOPS: [number, number, number][] = [
+  [255,  30,   0],
+  [255, 140,   0],
+  [255, 220,   0],
+  [120, 120, 120],
+  [ 22, 101,  52],
+  [ 74, 222, 128],
+  [ 57, 255,  20],
+];
+
+function heatColor(val: number, min: number, max: number): string {
+  if (max <= min || isNaN(val)) return "var(--muted-foreground)";
+  const t = Math.max(0, Math.min(1, (val - min) / (max - min)));
+  const scaled = t * (HEAT_STOPS.length - 1);
+  const lo = Math.floor(scaled);
+  const hi = Math.min(lo + 1, HEAT_STOPS.length - 1);
+  const u = scaled - lo;
+  const [r1, g1, b1] = HEAT_STOPS[lo];
+  const [r2, g2, b2] = HEAT_STOPS[hi];
+  return `rgb(${Math.round(r1+(r2-r1)*u)},${Math.round(g1+(g2-g1)*u)},${Math.round(b1+(b2-b1)*u)})`;
+}
+
+function heatWeight(val: number, min: number, max: number): number {
+  if (max <= min || isNaN(val)) return 400;
+  return Math.round(400 + Math.max(0, Math.min(1, (val - min) / (max - min))) * 500);
+}
+
+function colStats(vals: number[]) {
+  const nums = vals.filter((v) => !isNaN(v) && v > 0);
+  if (!nums.length) return { min: 0, max: 0 };
+  return { min: Math.min(...nums), max: Math.max(...nums) };
 }
 
 // ─── Sortable TH ──────────────────────────────────────────────────────────────
@@ -52,7 +98,7 @@ function Th({ label, col, activeCol, dir, onSort }: {
   );
 }
 
-// ─── SVG Line Chart ───────────────────────────────────────────────────────────
+// ─── Interactive SVG Line Chart ───────────────────────────────────────────────
 
 interface ChartSeries { label: string; color: string; values: number[]; }
 
@@ -61,6 +107,9 @@ function LineChart({
 }: {
   series: ChartSeries[]; xLabels: string[]; formatY?: (v: number) => string; height?: number;
 }) {
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
   const VW = 520, VH = height;
   const pad = { t: 16, r: 12, b: 28, l: 52 };
   const iW = VW - pad.l - pad.r;
@@ -72,18 +121,37 @@ function LineChart({
 
   const xs = (i: number) => pad.l + (n <= 1 ? iW / 2 : (i / (n - 1)) * iW);
   const ys = (v: number) => pad.t + iH - (v / maxV) * iH;
-
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => ({ v: maxV * f, y: ys(maxV * f) }));
 
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    if (!svg || n <= 1) return;
+    const rect = svg.getBoundingClientRect();
+    const svgX = ((e.clientX - rect.left) / rect.width) * VW;
+    const closest = Math.round((svgX - pad.l) / iW * (n - 1));
+    setHoverIdx(Math.max(0, Math.min(n - 1, closest)));
+  };
+
+  // Tooltip: flip to left side when near right edge
+  const tooltipFlip = hoverIdx !== null && xs(hoverIdx) > VW * 0.65;
+  const lineH = 14;
+  const boxW = 120;
+  const boxH = 14 + series.length * lineH + 4;
+
   return (
-    <svg viewBox={`0 0 ${VW} ${VH}`} className="w-full" style={{ height }}>
+    <svg
+      ref={svgRef}
+      viewBox={`0 0 ${VW} ${VH}`}
+      className="w-full"
+      style={{ height, cursor: "crosshair" }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setHoverIdx(null)}
+    >
       {/* Grid lines */}
       {yTicks.map(({ v, y }, i) => (
         <g key={i}>
-          <line x1={pad.l} y1={y} x2={VW - pad.r} y2={y}
-            stroke="#1e293b" strokeWidth={1} />
-          <text x={pad.l - 6} y={y + 4} textAnchor="end" fontSize={9}
-            style={{ fill: "#64748b" }}>
+          <line x1={pad.l} y1={y} x2={VW - pad.r} y2={y} stroke="#1e293b" strokeWidth={1} />
+          <text x={pad.l - 6} y={y + 4} textAnchor="end" fontSize={9} style={{ fill: "#64748b" }}>
             {formatY(v)}
           </text>
         </g>
@@ -91,8 +159,7 @@ function LineChart({
 
       {/* X labels */}
       {xLabels.map((label, i) => (
-        <text key={i} x={xs(i)} y={VH - 4} textAnchor="middle" fontSize={9}
-          style={{ fill: "#64748b" }}>
+        <text key={i} x={xs(i)} y={VH - 4} textAnchor="middle" fontSize={9} style={{ fill: "#64748b" }}>
           {label.slice(0, 3)}
         </text>
       ))}
@@ -102,19 +169,45 @@ function LineChart({
         const pts = s.values.map((v, i) => [xs(i), ys(v)] as [number, number]);
         const linePath = pts.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x},${y}`).join(" ");
         const areaPath = `${linePath} L ${pts[pts.length - 1][0]},${ys(0)} L ${pts[0][0]},${ys(0)} Z`;
-
         return (
           <g key={si}>
             <path d={areaPath} fill={s.color} opacity={0.08} />
             <path d={linePath} fill="none" stroke={s.color} strokeWidth={2}
               strokeLinecap="round" strokeLinejoin="round" />
             {pts.map(([cx, cy], i) => (
-              <circle key={i} cx={cx} cy={cy} r={3.5} fill={s.color}
-                stroke="#0f172a" strokeWidth={1.5} />
+              <circle key={i} cx={cx} cy={cy}
+                r={hoverIdx === i ? 5 : 3.5}
+                fill={s.color} stroke="#0f172a" strokeWidth={1.5} />
             ))}
           </g>
         );
       })}
+
+      {/* Hover indicator */}
+      {hoverIdx !== null && (() => {
+        const hx = xs(hoverIdx);
+        const tx = tooltipFlip ? hx - 8 - boxW : hx + 8;
+        const ty = pad.t;
+        return (
+          <g>
+            {/* Vertical guide */}
+            <line x1={hx} y1={pad.t} x2={hx} y2={VH - pad.b}
+              stroke="#ffffff" strokeWidth={1} strokeDasharray="3,3" opacity={0.2} />
+            {/* Tooltip */}
+            <rect x={tx} y={ty} width={boxW} height={boxH}
+              rx={4} fill="#0f172a" stroke="#1e293b" strokeWidth={1} opacity={0.96} />
+            <text x={tx + 8} y={ty + 11} fontSize={9} style={{ fill: "#94a3b8" }}>
+              {xLabels[hoverIdx]}
+            </text>
+            {series.map((s, si) => (
+              <text key={si} x={tx + 8} y={ty + 11 + (si + 1) * lineH}
+                fontSize={10} fontWeight={600} style={{ fill: s.color }}>
+                {s.label}: {formatY(s.values[hoverIdx!])}
+              </text>
+            ))}
+          </g>
+        );
+      })()}
     </svg>
   );
 }
@@ -130,9 +223,11 @@ function KPI({ label, value, sub, trend }: {
       <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>{value}</p>
       {sub && (
         <div className="flex items-center gap-1 mt-1">
-          {trend === "up" && <TrendingUp size={11} style={{ color: "#22c55e" }} />}
+          {trend === "up"   && <TrendingUp   size={11} style={{ color: "#22c55e" }} />}
           {trend === "down" && <TrendingDown size={11} style={{ color: "#ef4444" }} />}
-          <span className="text-xs" style={{ color: trend === "up" ? "#22c55e" : trend === "down" ? "#ef4444" : "var(--muted-foreground)" }}>
+          <span className="text-xs" style={{
+            color: trend === "up" ? "#22c55e" : trend === "down" ? "#ef4444" : "var(--muted-foreground)"
+          }}>
             {sub}
           </span>
         </div>
@@ -141,13 +236,14 @@ function KPI({ label, value, sub, trend }: {
   );
 }
 
-// ─── Monthly Table (sortable) ─────────────────────────────────────────────────
+// ─── Monthly Table (heat-colored, sortable, avg row in white) ─────────────────
 
 type MonthKey = keyof Omit<EmailMonthlyRow, "month">;
 
 function MonthlyTable({ monthly, yearlyAvg }: { monthly: EmailMonthlyRow[]; yearlyAvg: EmailMonthlyRow | null }) {
-  const [sortCol, setSortCol] = useState<MonthKey | null>(null);
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [sortCol, setSortCol]   = useState<MonthKey | null>(null);
+  const [sortDir, setSortDir]   = useState<SortDir>("desc");
+  const [hoveredRow, setHoveredRow] = useState<number | null>(null);
 
   const onSort = (col: string) => {
     const k = col as MonthKey;
@@ -163,114 +259,76 @@ function MonthlyTable({ monthly, yearlyAvg }: { monthly: EmailMonthlyRow[]; year
 
   if (filled.length === 0) return null;
 
+  const heat = {
+    delivered: colStats(filled.map((m) => m.delivered)),
+    opens:     colStats(filled.map((m) => m.opens)),
+    openPct:   colStats(filled.map((m) => m.openPct)),
+    clicks:    colStats(filled.map((m) => m.clicks)),
+    ctrPct:    colStats(filled.map((m) => m.ctrPct)),
+  };
+
   const thProps = { activeCol: sortCol, dir: sortDir, onSort };
+  const white = "#ffffff";
 
   return (
     <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
       <p className="text-sm font-semibold mb-0.5" style={{ color: "var(--foreground)" }}>Monthly Performance</p>
-      <p className="text-xs mb-4" style={{ color: "var(--muted-foreground)" }}>2026 email metrics by month · click headers to sort</p>
+      <p className="text-xs mb-4" style={{ color: "var(--muted-foreground)" }}>Email metrics by month · click headers to sort</p>
       <div className="overflow-x-auto">
         <table className="w-full text-xs min-w-max">
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)" }}>
-              <th className="text-left py-2 pr-4 text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>Month</th>
+              <th className="text-left py-2 pr-6 text-xs font-semibold whitespace-nowrap"
+                style={{ color: "var(--muted-foreground)" }}>Month</th>
               <Th label="Delivered" col="delivered" {...thProps} />
-              <Th label="Opens" col="opens" {...thProps} />
-              <Th label="Open %" col="openPct" {...thProps} />
-              <Th label="Clicks" col="clicks" {...thProps} />
-              <Th label="CTR %" col="ctrPct" {...thProps} />
+              <Th label="Opens"     col="opens"     {...thProps} />
+              <Th label="Open %"    col="openPct"   {...thProps} />
+              <Th label="Clicks"    col="clicks"    {...thProps} />
+              <Th label="CTR %"     col="ctrPct"    {...thProps} />
             </tr>
           </thead>
           <tbody>
             {rows.map((m, i) => {
-              const isAvg = !!m._isAvg;
-              const openColor = m.openPct >= 80 ? "#22c55e" : m.openPct >= 65 ? "#f59e0b" : "#ef4444";
-              const ctrColor  = m.ctrPct >= 1  ? "#22c55e" : m.ctrPct  >= 0.5 ? "#f59e0b" : "#ef4444";
+              const isAvg  = !!m._isAvg;
+              const hovered = hoveredRow === i && !isAvg;
               return (
-                <tr key={i} style={{ borderBottom: "1px solid var(--border)", background: isAvg ? "rgba(239,68,68,0.04)" : undefined }}>
-                  <td className="py-2.5 pr-4 font-medium whitespace-nowrap" style={{ color: isAvg ? "#ef4444" : "var(--foreground)" }}>{m.month}</td>
-                  <td className="py-2.5 pr-4 font-semibold" style={{ color: "#22c55e" }}>{m.delivered ? fmtNum(m.delivered) : "—"}</td>
-                  <td className="py-2.5 pr-4" style={{ color: "var(--foreground)" }}>{m.opens ? fmtNum(m.opens) : "—"}</td>
-                  <td className="py-2.5 pr-4 font-semibold" style={{ color: m.openPct ? openColor : "var(--muted-foreground)" }}>
+                <tr
+                  key={i}
+                  onMouseEnter={() => setHoveredRow(i)}
+                  onMouseLeave={() => setHoveredRow(null)}
+                  style={{
+                    borderBottom: "1px solid var(--border)",
+                    background: isAvg
+                      ? "rgba(255,255,255,0.04)"
+                      : hovered
+                      ? "rgba(255,255,255,0.03)"
+                      : undefined,
+                  }}
+                >
+                  <td className="py-2.5 pr-6 whitespace-nowrap font-medium"
+                    style={{ color: isAvg ? white : "var(--foreground)" }}>
+                    {m.month}
+                  </td>
+                  <td className="py-2.5 pr-6"
+                    style={{ color: isAvg ? white : heatColor(m.delivered, heat.delivered.min, heat.delivered.max), fontWeight: isAvg ? 700 : heatWeight(m.delivered, heat.delivered.min, heat.delivered.max) }}>
+                    {m.delivered ? fmtNum(m.delivered) : "—"}
+                  </td>
+                  <td className="py-2.5 pr-6"
+                    style={{ color: isAvg ? white : heatColor(m.opens, heat.opens.min, heat.opens.max), fontWeight: isAvg ? 700 : heatWeight(m.opens, heat.opens.min, heat.opens.max) }}>
+                    {m.opens ? fmtNum(m.opens) : "—"}
+                  </td>
+                  <td className="py-2.5 pr-6"
+                    style={{ color: isAvg ? white : heatColor(m.openPct, heat.openPct.min, heat.openPct.max), fontWeight: isAvg ? 700 : heatWeight(m.openPct, heat.openPct.min, heat.openPct.max) }}>
                     {m.openPct ? `${m.openPct.toFixed(1)}%` : "—"}
                   </td>
-                  <td className="py-2.5 pr-4" style={{ color: "var(--foreground)" }}>{m.clicks || "—"}</td>
-                  <td className="py-2.5 pr-4 font-semibold" style={{ color: m.ctrPct ? ctrColor : "var(--muted-foreground)" }}>
+                  <td className="py-2.5 pr-6"
+                    style={{ color: isAvg ? white : heatColor(m.clicks, heat.clicks.min, heat.clicks.max), fontWeight: isAvg ? 700 : heatWeight(m.clicks, heat.clicks.min, heat.clicks.max) }}>
+                    {m.clicks || "—"}
+                  </td>
+                  <td className="py-2.5 pr-6"
+                    style={{ color: isAvg ? white : heatColor(m.ctrPct, heat.ctrPct.min, heat.ctrPct.max), fontWeight: isAvg ? 700 : heatWeight(m.ctrPct, heat.ctrPct.min, heat.ctrPct.max) }}>
                     {m.ctrPct ? `${m.ctrPct.toFixed(2)}%` : "—"}
                   </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ─── Campaigns Log (sortable) ─────────────────────────────────────────────────
-
-type CampaignKey = keyof EmailCampaign;
-
-function CampaignsLog({ campaigns }: { campaigns: EmailCampaign[] }) {
-  const [sortCol, setSortCol] = useState<CampaignKey>("openPct");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-
-  const onSort = (col: string) => {
-    const k = col as CampaignKey;
-    if (sortCol === k) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
-    else { setSortCol(k); setSortDir("desc"); }
-  };
-
-  const sorted: EmailCampaign[] = sortRows(campaigns, sortCol, sortDir);
-  const thProps = { activeCol: sortCol, dir: sortDir, onSort };
-
-  if (campaigns.length === 0) {
-    return (
-      <div className="rounded-2xl border p-6 text-center" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-        <Mail size={28} className="mx-auto mb-3" style={{ color: "var(--muted-foreground)", opacity: 0.4 }} />
-        <p className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>No individual campaigns detected</p>
-        <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-          Individual email rows will appear here when the sheet includes per-campaign data rows below the monthly summary.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-      <p className="text-sm font-semibold mb-0.5" style={{ color: "var(--foreground)" }}>
-        Campaign Log — {campaigns.length} emails
-      </p>
-      <p className="text-xs mb-4" style={{ color: "var(--muted-foreground)" }}>Individual campaign performance · click headers to sort</p>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs min-w-max">
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--border)" }}>
-              <Th label="Subject" col="subject" {...thProps} />
-              <Th label="Delivered" col="delivered" {...thProps} />
-              <Th label="Opens" col="opens" {...thProps} />
-              <Th label="Open %" col="openPct" {...thProps} />
-              <Th label="Clicks" col="clicks" {...thProps} />
-              <Th label="CTR %" col="ctrPct" {...thProps} />
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((c, i) => {
-              const openColor = c.openPct >= 80 ? "#22c55e" : c.openPct >= 65 ? "#f59e0b" : "#ef4444";
-              const ctrColor  = c.ctrPct >= 1 ? "#22c55e" : c.ctrPct >= 0.5 ? "#f59e0b" : "#ef4444";
-              return (
-                <tr key={i} style={{ borderBottom: "1px solid var(--border)" }}>
-                  <td className="py-2.5 pr-4" style={{ color: "var(--foreground)", maxWidth: 300 }}>
-                    <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                      {c.subject || "—"}
-                    </span>
-                  </td>
-                  <td className="py-2.5 pr-4 font-semibold" style={{ color: "#22c55e" }}>{fmtNum(c.delivered)}</td>
-                  <td className="py-2.5 pr-4" style={{ color: "var(--foreground)" }}>{fmtNum(c.opens)}</td>
-                  <td className="py-2.5 pr-4 font-semibold" style={{ color: openColor }}>{c.openPct.toFixed(1)}%</td>
-                  <td className="py-2.5 pr-4" style={{ color: "var(--foreground)" }}>{c.clicks}</td>
-                  <td className="py-2.5 pr-4 font-semibold" style={{ color: ctrColor }}>{c.ctrPct.toFixed(2)}%</td>
                 </tr>
               );
             })}
@@ -292,8 +350,8 @@ interface Props {
 type RefreshState = "idle" | "loading" | "success" | "error";
 
 export function EmailDashboard({ initialData, initialError, serverFetchedAt }: Props) {
-  const [data, setData]         = useState<EmailData>(initialData);
-  const [hasError, setHasError] = useState(initialError);
+  const [data, setData]           = useState<EmailData>(initialData);
+  const [hasError, setHasError]   = useState(initialError);
   const [fetchedAt, setFetchedAt] = useState(serverFetchedAt);
   const [refreshState, setRefreshState] = useState<RefreshState>("idle");
 
@@ -315,37 +373,20 @@ export function EmailDashboard({ initialData, initialError, serverFetchedAt }: P
     }
   }, []);
 
-  const { monthly, campaigns, yearlyAvg } = data;
-  const filled  = monthly.filter((m) => m.delivered > 0);
-  const latest  = filled[filled.length - 1];
-  const prev    = filled[filled.length - 2];
+  const { monthly, yearlyAvg } = data;
+  const filled = monthly.filter((m) => m.delivered > 0);
+  const latest = filled[filled.length - 1];
+  const prev   = filled[filled.length - 2];
 
-  const ytdDelivered = filled.reduce((s, m) => s + m.delivered, 0);
-  const ytdOpens     = filled.reduce((s, m) => s + m.opens, 0);
-  const ytdClicks    = filled.reduce((s, m) => s + m.clicks, 0);
-  const avgOpenPct   = yearlyAvg?.openPct ?? (filled.length > 0 ? filled.reduce((s, m) => s + m.openPct, 0) / filled.length : 0);
-  const avgCtrPct    = yearlyAvg?.ctrPct  ?? (filled.length > 0 ? filled.reduce((s, m) => s + m.ctrPct, 0)  / filled.length : 0);
-
-  // Chart data — only months with data
-  const chartLabels = filled.map((m) => m.month);
+  const chartLabels   = filled.map((m) => m.month);
   const volumeSeries: ChartSeries[] = [
     { label: "Delivered", color: "#22c55e", values: filled.map((m) => m.delivered) },
     { label: "Opens",     color: "#3b82f6", values: filled.map((m) => m.opens) },
-  ];
-  const clickSeries: ChartSeries[] = [
-    { label: "Clicks", color: "#f59e0b", values: filled.map((m) => m.clicks) },
   ];
   const rateSeries: ChartSeries[] = [
     { label: "Open %", color: "#3b82f6", values: filled.map((m) => m.openPct) },
     { label: "CTR %",  color: "#f59e0b", values: filled.map((m) => m.ctrPct) },
   ];
-
-  const momOpenPct = latest && prev && prev.openPct
-    ? ((latest.openPct - prev.openPct) / prev.openPct * 100).toFixed(0)
-    : null;
-  const momCtrPct = latest && prev && prev.ctrPct
-    ? ((latest.ctrPct - prev.ctrPct) / prev.ctrPct * 100).toFixed(0)
-    : null;
 
   return (
     <>
@@ -379,33 +420,47 @@ export function EmailDashboard({ initialData, initialError, serverFetchedAt }: P
       </div>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
-      {/* KPI cards */}
+      {/* KPI cards — current month with MoM comparison */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-        <KPI label="YTD Delivered" value={fmtNum(ytdDelivered)} />
-        <KPI label="YTD Opens" value={fmtNum(ytdOpens)} />
         <KPI
-          label={`Avg Open %${latest ? ` · ${latest.month}` : ""}`}
-          value={`${avgOpenPct.toFixed(1)}%`}
-          sub={momOpenPct ? `${Number(momOpenPct) >= 0 ? "+" : ""}${momOpenPct}% vs last month` : undefined}
-          trend={momOpenPct ? (Number(momOpenPct) >= 0 ? "up" : "down") : null}
+          label={`Delivered${latest ? ` · ${latest.month}` : ""}`}
+          value={latest ? fmtNum(latest.delivered) : "—"}
+          sub={latest && prev ? momPct(latest.delivered, prev.delivered) : undefined}
+          trend={latest && prev ? trendDir(latest.delivered, prev.delivered) : null}
         />
-        <KPI label="YTD Clicks" value={fmtNum(ytdClicks)} />
         <KPI
-          label={`Avg CTR${latest ? ` · ${latest.month}` : ""}`}
-          value={`${avgCtrPct.toFixed(2)}%`}
-          sub={momCtrPct ? `${Number(momCtrPct) >= 0 ? "+" : ""}${momCtrPct}% vs last month` : undefined}
-          trend={momCtrPct ? (Number(momCtrPct) >= 0 ? "up" : "down") : null}
+          label={`Opens${latest ? ` · ${latest.month}` : ""}`}
+          value={latest ? fmtNum(latest.opens) : "—"}
+          sub={latest && prev ? momPct(latest.opens, prev.opens) : undefined}
+          trend={latest && prev ? trendDir(latest.opens, prev.opens) : null}
+        />
+        <KPI
+          label={`Open %${latest ? ` · ${latest.month}` : ""}`}
+          value={latest ? `${latest.openPct.toFixed(1)}%` : "—"}
+          sub={latest && prev ? momPct(latest.openPct, prev.openPct) : undefined}
+          trend={latest && prev ? trendDir(latest.openPct, prev.openPct) : null}
+        />
+        <KPI
+          label={`Clicks${latest ? ` · ${latest.month}` : ""}`}
+          value={latest ? fmtNum(latest.clicks) : "—"}
+          sub={latest && prev ? momPct(latest.clicks, prev.clicks) : undefined}
+          trend={latest && prev ? trendDir(latest.clicks, prev.clicks) : null}
+        />
+        <KPI
+          label={`CTR %${latest ? ` · ${latest.month}` : ""}`}
+          value={latest ? `${latest.ctrPct.toFixed(2)}%` : "—"}
+          sub={latest && prev ? momPct(latest.ctrPct, prev.ctrPct) : undefined}
+          trend={latest && prev ? trendDir(latest.ctrPct, prev.ctrPct) : null}
         />
       </div>
 
-      {/* Line charts */}
+      {/* Charts — volume (2/3) + rates (1/3), no clicks chart */}
       {filled.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
-          {/* Delivered + Opens */}
           <div className="lg:col-span-2 rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
             <p className="text-sm font-semibold mb-0.5" style={{ color: "var(--foreground)" }}>Volume — Delivered &amp; Opens</p>
-            <p className="text-xs mb-3" style={{ color: "var(--muted-foreground)" }}>Emails delivered vs opened by month</p>
-            <LineChart series={volumeSeries} xLabels={chartLabels} height={130} />
+            <p className="text-xs mb-3" style={{ color: "var(--muted-foreground)" }}>Emails delivered vs opened by month · hover for values</p>
+            <LineChart series={volumeSeries} xLabels={chartLabels} height={140} />
             <div className="flex gap-5 mt-2">
               {volumeSeries.map((s) => (
                 <div key={s.label} className="flex items-center gap-1.5">
@@ -416,22 +471,14 @@ export function EmailDashboard({ initialData, initialError, serverFetchedAt }: P
             </div>
           </div>
 
-          {/* Clicks */}
           <div className="rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-            <p className="text-sm font-semibold mb-0.5" style={{ color: "var(--foreground)" }}>Clicks</p>
-            <p className="text-xs mb-3" style={{ color: "var(--muted-foreground)" }}>Total link clicks per month</p>
-            <LineChart series={clickSeries} xLabels={chartLabels} height={130} />
-          </div>
-
-          {/* Open % + CTR % */}
-          <div className="lg:col-span-3 rounded-2xl border p-5" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
             <p className="text-sm font-semibold mb-0.5" style={{ color: "var(--foreground)" }}>Engagement Rates</p>
-            <p className="text-xs mb-3" style={{ color: "var(--muted-foreground)" }}>Open rate and click-through rate by month</p>
+            <p className="text-xs mb-3" style={{ color: "var(--muted-foreground)" }}>Open rate &amp; CTR · hover for values</p>
             <LineChart
               series={rateSeries}
               xLabels={chartLabels}
               formatY={(v) => `${v.toFixed(1)}%`}
-              height={110}
+              height={140}
             />
             <div className="flex gap-5 mt-2">
               {rateSeries.map((s) => (
@@ -449,9 +496,6 @@ export function EmailDashboard({ initialData, initialError, serverFetchedAt }: P
       <div className="mb-5">
         <MonthlyTable monthly={monthly} yearlyAvg={yearlyAvg} />
       </div>
-
-      {/* Campaign log */}
-      <CampaignsLog campaigns={campaigns} />
 
       {/* Empty state */}
       {!hasError && filled.length === 0 && (
