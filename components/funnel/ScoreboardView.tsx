@@ -17,7 +17,11 @@ function ytdAvg(rows: YTDRow[], getter: Getter, excludeMonth?: string): number {
 
 function project(current: number, daysElapsed: number, daysInMonth: number): number {
   if (!daysElapsed || !current) return 0;
-  return (current / daysElapsed) * daysInMonth;
+  return Math.round((current / daysElapsed) * daysInMonth);
+}
+
+function round(n: number): number {
+  return Math.round(n);
 }
 
 function daysInMonth(monthIdx: number, year: number): number {
@@ -523,24 +527,28 @@ export function ScoreboardView({ scoreboard, monthly, ytd, ytd2025, monthLabel }
   const daysElapsed = Math.max(trimmedDaily.length, 1);
   const totalDays = daysInMonth(monthIdx, year);
 
-  // 2026 monthly averages (exclude current month since it's in progress)
+  // 2026 monthly avg — use the pre-computed "Monthly Avg" summary row (row 15 in sheet)
+  const ytd26Avg = ytd.find((r) => r.isSummary && r.month.toLowerCase().includes("avg")) ?? null;
   const avg26 = {
-    leads:       ytdAvg(ytd, (r) => r.leads,       curMonthName),
-    booked:      ytdAvg(ytd, (r) => r.bookedCalls,  curMonthName),
-    taken:       ytdAvg(ytd, (r) => r.takenCalls,   curMonthName),
-    cash:        ytdAvg(ytd, (r) => r.cash,         curMonthName),
-    closed:      ytdAvg(ytd, (r) => r.dealsClosed,  curMonthName),
-    cashPerCall: ytdAvg(ytd, (r) => r.takenCalls > 0 ? r.cash / r.takenCalls : 0, curMonthName),
+    leads:       round(ytd26Avg?.leads ?? 0),
+    booked:      round(ytd26Avg?.bookedCalls ?? 0),
+    taken:       round(ytd26Avg?.takenCalls ?? 0),
+    cash:        round(ytd26Avg?.cash ?? 0),
+    closed:      round(ytd26Avg?.dealsClosed ?? 0),
+    cashPerCall: round(ytd26Avg && ytd26Avg.takenCalls > 0 ? ytd26Avg.cash / ytd26Avg.takenCalls : 0),
   };
 
-  // 2025 monthly averages (all months — year is complete)
+  // 2025 monthly avg — same lookup from 2025 sheet, fall back to computed avg
+  const ytd25Avg = ytd2025.find((r) => r.isSummary && r.month.toLowerCase().includes("avg")) ?? null;
   const avg25 = {
-    leads:       ytdAvg(ytd2025, (r) => r.leads),
-    booked:      ytdAvg(ytd2025, (r) => r.bookedCalls),
-    taken:       ytdAvg(ytd2025, (r) => r.takenCalls),
-    cash:        ytdAvg(ytd2025, (r) => r.cash),
-    closed:      ytdAvg(ytd2025, (r) => r.dealsClosed),
-    cashPerCall: ytdAvg(ytd2025, (r) => r.takenCalls > 0 ? r.cash / r.takenCalls : 0),
+    leads:       round(ytd25Avg?.leads ?? ytdAvg(ytd2025, (r) => r.leads)),
+    booked:      round(ytd25Avg?.bookedCalls ?? ytdAvg(ytd2025, (r) => r.bookedCalls)),
+    taken:       round(ytd25Avg?.takenCalls ?? ytdAvg(ytd2025, (r) => r.takenCalls)),
+    cash:        round(ytd25Avg?.cash ?? ytdAvg(ytd2025, (r) => r.cash)),
+    closed:      round(ytd25Avg?.dealsClosed ?? ytdAvg(ytd2025, (r) => r.dealsClosed)),
+    cashPerCall: round(ytd25Avg && ytd25Avg.takenCalls > 0
+      ? ytd25Avg.cash / ytd25Avg.takenCalls
+      : ytdAvg(ytd2025, (r) => r.takenCalls > 0 ? r.cash / r.takenCalls : 0)),
   };
 
   // Projected end-of-month values
