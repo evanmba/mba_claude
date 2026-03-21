@@ -274,10 +274,10 @@ const DATE_RE = /^\d{1,2}\/\d{1,2}\/\d{2,4}$/;
 function parseMonthly(rows: string[][]): { monthly: MonthlyRow[]; salesDashboard: SalesDashboard | null } {
   if (rows.length < 2) return { monthly: [], salesDashboard: null };
 
-  const hdrIdx = rows.findIndex((r) => r.some((c) => c.toLowerCase().includes("amount spent")));
+  const hdrIdx = rows.findIndex((r) => r.some((c) => c.replace(/\n/g, " ").toLowerCase().includes("amount spent")));
   if (hdrIdx < 0) return { monthly: [], salesDashboard: null };
 
-  const hdrs = rows[hdrIdx].map((h) => h.toLowerCase().trim());
+  const hdrs = rows[hdrIdx].map((h) => h.replace(/\n/g, " ").toLowerCase().trim());
 
   const cols = {
     spent:      fi(hdrs, ["amount", "spent"]),
@@ -321,6 +321,10 @@ function parseMonthly(rows: string[][]): { monthly: MonthlyRow[]; salesDashboard
   for (let i = hdrIdx + 1; i < rows.length; i++) {
     const row = rows[i];
     const cell0 = (row[0] ?? "").trim();
+    // Column B ("Days") holds the period: "4 Days", "7 Days", "14 Days", "30 Days", or a date
+    const cell1 = (row[1] ?? "").trim();
+    // Use column B as period if it looks like a rollup/date, otherwise fall back to column A
+    const period = (ROLLUP_LABELS.has(cell1.toLowerCase()) || DATE_RE.test(cell1)) ? cell1 : cell0;
 
     if (cell0.toLowerCase().includes("sales dashboard")) {
       inSales = true;
@@ -330,13 +334,12 @@ function parseMonthly(rows: string[][]): { monthly: MonthlyRow[]; salesDashboard
       salesSection.push(row);
       continue;
     }
-    if (!cell0) continue;
 
-    const isRollup = ROLLUP_LABELS.has(cell0.toLowerCase());
-    if (!isRollup && !DATE_RE.test(cell0)) continue;
+    const isRollup = ROLLUP_LABELS.has(period.toLowerCase());
+    if (!isRollup && !DATE_RE.test(period)) continue;
 
     monthly.push({
-      period:       cell0,
+      period,
       isRollup,
       amountSpent:  toNum(cv(row, cols.spent)),
       frequency:    toNum(cv(row, cols.freq)),
@@ -425,11 +428,11 @@ function parseScoreboard(rows: string[][]): ScoreboardRow[] {
       amountSpent:   g(1),   // B
       leads:         g(9),   // J
       apps:          g(12),  // M
-      cashPerCall:   g(14),  // O
+      cashPerCall:   g(20),  // U - Cost Per Taken Call
       bookedCalls:   g(15),  // P
-      takenCalls:    g(15),  // P (same column)
-      showUpRate:    g(16),  // Q
-      cashCollected: g(20),  // U
+      takenCalls:    g(18),  // S
+      showUpRate:    g(19),  // T
+      cashCollected: g(23),  // X
       dealsClosed:   g(21),  // V
       closeRate:     g(22),  // W
       cashROAS:      g(26),  // AA
@@ -450,10 +453,10 @@ const SUMMARY_LABELS = new Set(["monthly avg","sums","total"]);
 function parseYTD(rows: string[][]): YTDRow[] {
   if (rows.length < 2) return [];
 
-  const hdrIdx = rows.findIndex((r) => r.some((c) => c.toLowerCase().includes("amount spent")));
+  const hdrIdx = rows.findIndex((r) => r.some((c) => c.replace(/\n/g, " ").toLowerCase().includes("amount spent")));
   if (hdrIdx < 0) return [];
 
-  const hdrs = rows[hdrIdx].map((h) => h.toLowerCase().trim());
+  const hdrs = rows[hdrIdx].map((h) => h.replace(/\n/g, " ").toLowerCase().trim());
 
   const cols = {
     spent:     fi(hdrs, ["amount", "spent"]),
