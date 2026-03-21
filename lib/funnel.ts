@@ -449,7 +449,7 @@ const MONTH_NAMES = new Set([
   "january","february","march","april","may","june",
   "july","august","september","october","november","december",
 ]);
-const SUMMARY_LABELS = new Set(["monthly avg","sums","total"]);
+const SUMMARY_LABELS = new Set(["monthly avg","monthly average","avg","average","sums","sum","total","totals"]);
 
 function parseYTD(rows: string[][]): YTDRow[] {
   if (rows.length < 2) return [];
