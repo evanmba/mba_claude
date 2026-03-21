@@ -312,17 +312,7 @@ interface Props {
 }
 
 export function ScoreboardView({ scoreboard }: Props) {
-  if (scoreboard.length === 0) {
-    return (
-      <div
-        className="rounded-2xl p-12 text-center"
-        style={{ background: CARD_BG, color: "#64748b", fontSize: 14 }}
-      >
-        No scoreboard data — ensure the <strong style={{ color: "#94a3b8" }}>2026</strong> tab
-        is accessible and contains month rows.
-      </div>
-    );
-  }
+  if (scoreboard.length === 0) return null;
 
   const months = scoreboard;
   const cur = months[months.length - 1];

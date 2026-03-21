@@ -113,17 +113,31 @@ function BigCard({
 }
 
 // ─── Small stat card ───────────────────────────────────────────────────────
+function momDeltaPct(cur: number, prev: number): number | null {
+  if (!prev || !cur) return null;
+  return ((cur - prev) / prev) * 100;
+}
+
 function SmallCard({
   label,
   value,
   color = "#3b82f6",
   values,
+  prev,
+  curVal,
+  higherIsBetter = true,
 }: {
   label: string;
   value: string;
   color?: string;
   values?: number[];
+  prev?: number | null;
+  curVal?: number;
+  higherIsBetter?: boolean;
 }) {
+  const d = prev != null && curVal != null ? momDeltaPct(curVal, prev) : null;
+  const isGood = d == null ? null : higherIsBetter ? d >= 0 : d <= 0;
+
   return (
     <div
       className="rounded-xl p-4"
@@ -132,12 +146,23 @@ function SmallCard({
       <p className="text-xs font-medium mb-1" style={{ color: "var(--muted-foreground)" }}>
         {label}
       </p>
-      <p className="text-xl font-bold mb-2" style={{ color }}>
+      <p className="text-xl font-bold mb-1" style={{ color }}>
         {value}
       </p>
-      {values && values.length > 1 && <Sparkline values={values} color={color} />}
+      {d != null && (
+        <p className="text-xs font-semibold mb-1" style={{ color: isGood ? "#4ade80" : "#f87171" }}>
+          {d > 0 ? "▲" : "▼"} {Math.abs(d).toFixed(1)}% vs prior mo
+        </p>
+      )}
+      {values && values.length > 1 && <Sparkline values={trimTrailingZeros(values)} color={color} />}
     </div>
   );
+}
+
+function trimTrailingZeros(arr: number[]): number[] {
+  let end = arr.length;
+  while (end > 0 && arr[end - 1] === 0) end--;
+  return arr.slice(0, end);
 }
 
 // Month name mapping for YTD row lookup
@@ -160,11 +185,8 @@ export function MonthlyView({ monthly, salesDashboard, monthLabel, ytd }: Props)
 
   const dailyRows = monthly.filter((r) => !r.isRollup);
 
-  const revenuePerCall = kpi && kpi.takenCalls > 0 ? kpi.revenue / kpi.takenCalls : 0;
-
   // ── MoM: find previous month's YTD row ──────────────────────────────────
-  // monthLabel looks like "MAR 2026" — parse it to get current month index
-  const [abbr, yearStr] = monthLabel.split(" ");
+  const [abbr] = monthLabel.split(" ");
   const ABBRS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
   const currentMonthIdx = ABBRS.indexOf(abbr?.toUpperCase() ?? "");
   const prevMonthIdx = currentMonthIdx > 0 ? currentMonthIdx - 1 : -1;
@@ -175,17 +197,14 @@ export function MonthlyView({ monthly, salesDashboard, monthLabel, ytd }: Props)
     ? ytd.find((r) => r.month.toLowerCase() === prevMonthName.toLowerCase()) ?? null
     : null;
 
-  const prevRevenuePerCall = prevYTD && prevYTD.takenCalls > 0
-    ? prevYTD.revenue / prevYTD.takenCalls
-    : 0;
+  const cashPerCall = kpi && kpi.takenCalls > 0 ? kpi.cash / kpi.takenCalls : 0;
+  const prevCashPerCall = prevYTD && prevYTD.takenCalls > 0 ? prevYTD.cash / prevYTD.takenCalls : 0;
 
-  // Sparkline data from daily rows
+  // Sparkline data — trimmed to actual tracked days (no trailing zeros)
   const dailySpend  = dailyRows.map((r) => r.amountSpent);
   const dailyLeads  = dailyRows.map((r) => r.leads);
   const dailyBooked = dailyRows.map((r) => r.bookedCalls);
   const dailyClosed = dailyRows.map((r) => r.dealsClosed);
-  const dailyCash   = dailyRows.map((r) => r.cash);
-  const dailyRev    = dailyRows.map((r) => r.revenue);
 
   return (
     <div>
@@ -202,11 +221,11 @@ export function MonthlyView({ monthly, salesDashboard, monthLabel, ytd }: Props)
         />
         <BigCard
           label="$ Per Call"
-          value={kpi ? $$(revenuePerCall) : "—"}
-          sub={kpi ? `Revenue: ${$$(kpi.revenue)}` : undefined}
+          value={kpi ? $$(cashPerCall) : "—"}
+          sub={kpi ? `Cash: ${$$(kpi.cash)}` : undefined}
           bg="#78350f"
-          current={revenuePerCall}
-          previous={prevRevenuePerCall}
+          current={cashPerCall}
+          previous={prevCashPerCall}
           prevLabel={prevMonthAbbr ?? undefined}
         />
         <BigCard
@@ -227,18 +246,6 @@ export function MonthlyView({ monthly, salesDashboard, monthLabel, ytd }: Props)
           previous={prevYTD?.cash}
           prevLabel={prevMonthAbbr ?? undefined}
         />
-      </div>
-
-      {/* Small stat cards */}
-      <div className="grid grid-cols-4 gap-3 mb-6">
-        <SmallCard label="Amount Spent" value={kpi ? $$(kpi.amountSpent) : "—"} color="#ef4444" values={dailySpend} />
-        <SmallCard label="AgeQ Leads"   value={kpi ? num(kpi.leads) : "—"}       color="#3b82f6" values={dailyLeads} />
-        <SmallCard label="Apps"         value={kpi ? num(kpi.apps) : "—"}        color="#8b5cf6" values={dailyRows.map(r => r.apps)} />
-        <SmallCard label="Booked Calls" value={kpi ? num(kpi.bookedCalls) : "—"} color="#06b6d4" values={dailyBooked} />
-        <SmallCard label="Deals Closed" value={kpi ? num(kpi.dealsClosed) : "—"} color="#22c55e" values={dailyClosed} />
-        <SmallCard label="Close Rate"   value={kpi ? pct(kpi.closeRate) : "—"}   color="#f59e0b" />
-        <SmallCard label="Cash ROAS"    value={kpi ? ratio(kpi.cashROAS) : "—"}   color="#10b981" values={dailyCash} />
-        <SmallCard label="Rev ROAS"     value={kpi ? ratio(kpi.revenueROAS) : "—"} color="#a78bfa" values={dailyRev} />
       </div>
 
       {/* Sales Dashboard callout (if available) */}
@@ -291,6 +298,17 @@ export function MonthlyView({ monthly, salesDashboard, monthLabel, ytd }: Props)
           </div>
         </div>
       )}
+
+      {/* Bottom stat cards with sparklines + MoM */}
+      <div className="grid grid-cols-4 gap-3">
+        <SmallCard label="Amount Spent" value={kpi ? $$(kpi.amountSpent) : "—"} color="#ef4444" values={dailySpend}  curVal={kpi?.amountSpent} prev={prevYTD?.amountSpent} higherIsBetter={false} />
+        <SmallCard label="AgeQ Leads"   value={kpi ? num(kpi.leads) : "—"}       color="#3b82f6" values={dailyLeads}  curVal={kpi?.leads}       prev={prevYTD?.leads} />
+        <SmallCard label="Booked Calls" value={kpi ? num(kpi.bookedCalls) : "—"} color="#06b6d4" values={dailyBooked} curVal={kpi?.bookedCalls} prev={prevYTD?.bookedCalls} />
+        <SmallCard label="Deals Closed" value={kpi ? num(kpi.dealsClosed) : "—"} color="#22c55e" values={dailyClosed} curVal={kpi?.dealsClosed} prev={prevYTD?.dealsClosed} />
+        <SmallCard label="Close Rate"   value={kpi ? pct(kpi.closeRate) : "—"}   color="#f59e0b" curVal={kpi?.closeRate}    prev={prevYTD?.closeRate}    higherIsBetter />
+        <SmallCard label="Cash ROAS"    value={kpi ? ratio(kpi.cashROAS) : "—"}   color="#10b981" curVal={kpi?.cashROAS}     prev={prevYTD?.cashROAS} />
+        <SmallCard label="Rev ROAS"     value={kpi ? ratio(kpi.revenueROAS) : "—"} color="#a78bfa" curVal={kpi?.revenueROAS}  prev={prevYTD?.revenueROAS} />
+      </div>
 
     </div>
   );
