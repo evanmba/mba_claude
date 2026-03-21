@@ -278,14 +278,35 @@ function InteractiveSparkline({
   );
 }
 
-// ─── Stat card (top row) ──────────────────────────────────────────────────────
+// ─── MoM badge ───────────────────────────────────────────────────────────────
 const CARD_BG = "#0b1628";
 
+function MomBadge({
+  cur, prv, hib = true, dark = false,
+}: {
+  cur: number; prv: number; hib?: boolean; dark?: boolean;
+}) {
+  if (!prv || !cur) return null;
+  const d = ((cur - prv) / prv) * 100;
+  const good = hib ? d >= 0 : d <= 0;
+  const color = dark
+    ? (good ? "rgba(0,80,0,0.85)" : "rgba(120,0,0,0.85)")
+    : (good ? "#4ade80" : "#f87171");
+  return (
+    <span style={{ fontSize: 12, fontWeight: 700, color }}>
+      {d > 0 ? "▲" : "▼"} {Math.abs(d).toFixed(1)}% vs last mo
+    </span>
+  );
+}
+
+// ─── Stat card (top row) ──────────────────────────────────────────────────────
 function StatCard({
-  label, value, sub, bg,
+  label, value, sub, bg, cur, prv, hib = true,
 }: {
   label: string; value: string; sub?: string; bg?: string;
+  cur?: number; prv?: number; hib?: boolean;
 }) {
+  const onDark = !bg;
   return (
     <div
       className="rounded-2xl flex flex-col p-6"
@@ -304,12 +325,21 @@ function StatCard({
       }}>
         {value}
       </p>
+      {cur != null && prv != null && (
+        <div style={{ textAlign: "center", marginTop: 8 }}>
+          <MomBadge cur={cur} prv={prv} hib={hib} dark={!onDark} />
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Medium tile (second row) ─────────────────────────────────────────────────
-function MedTile({ label, value }: { label: string; value: string }) {
+function MedTile({
+  label, value, cur, prv, hib = true,
+}: {
+  label: string; value: string; cur?: number; prv?: number; hib?: boolean;
+}) {
   return (
     <div
       className="rounded-2xl flex flex-col p-5"
@@ -324,13 +354,18 @@ function MedTile({ label, value }: { label: string; value: string }) {
       <p style={{ color: "#ffffff", fontSize: 36, fontWeight: 800, lineHeight: 1, textAlign: "center", marginTop: "auto", paddingTop: 12 }}>
         {value}
       </p>
+      {cur != null && prv != null && (
+        <div style={{ textAlign: "center", marginTop: 6 }}>
+          <MomBadge cur={cur} prv={prv} hib={hib} />
+        </div>
+      )}
     </div>
   );
 }
 
 // ─── Sparkline card ───────────────────────────────────────────────────────────
 function SparkCard({
-  label, curData, prvData, monthIdx, year, color, formatter,
+  label, curData, prvData, monthIdx, year, color, formatter, curTotal, prvTotal, hib = true,
 }: {
   label: string;
   curData: number[];
@@ -339,15 +374,30 @@ function SparkCard({
   year: number;
   color: string;
   formatter: (v: number) => string;
+  curTotal?: number;
+  prvTotal?: number;
+  hib?: boolean;
 }) {
   return (
     <div className="rounded-2xl p-6 flex flex-col" style={{ background: CARD_BG }}>
-      <p style={{ color: "rgba(255,255,255,0.85)", fontSize: 18, fontWeight: 600, textAlign: "center" }}>
-        {label}
-      </p>
-      <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, textAlign: "center", marginTop: 2, marginBottom: 16 }}>
-        Month to date
-      </p>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 }}>
+        <div>
+          <p style={{ color: "rgba(255,255,255,0.85)", fontSize: 18, fontWeight: 600 }}>
+            {label}
+          </p>
+          <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, marginTop: 2 }}>
+            Month to date
+          </p>
+        </div>
+        {curTotal != null && prvTotal != null && (
+          <div style={{ textAlign: "right" }}>
+            <p style={{ color: "#ffffff", fontSize: 22, fontWeight: 800, lineHeight: 1 }}>
+              {formatter(curTotal)}
+            </p>
+            <MomBadge cur={curTotal} prv={prvTotal} hib={hib} />
+          </div>
+        )}
+      </div>
       <InteractiveSparkline
         curData={curData}
         prvData={prvData}
@@ -381,6 +431,7 @@ export function ScoreboardView({ scoreboard, monthly, ytd, monthLabel }: Props) 
   const prevYTD = ytd.find((r) => r.month.toLowerCase() === prevMonthName.toLowerCase()) ?? null;
 
   const cashPerCall = kpi && kpi.takenCalls > 0 ? kpi.cash / kpi.takenCalls : 0;
+  const prevCashPerCall = prevYTD && prevYTD.takenCalls > 0 ? prevYTD.cash / prevYTD.takenCalls : 0;
 
   // Daily sparkline arrays
   const dailyLeads   = dailyRows.map((r) => r.leads);
@@ -398,21 +449,25 @@ export function ScoreboardView({ scoreboard, monthly, ytd, monthLabel }: Props) 
           label="Taken Calls"
           value={kpi ? num(kpi.takenCalls) : "—"}
           sub="Month to date"
+          cur={kpi?.takenCalls}
+          prv={prevYTD?.takenCalls}
         />
         <StatCard
           label="$ Per Call"
           value={kpi ? $$(cashPerCall) : "—"}
           sub="Current month"
           bg="#f59e0b"
+          cur={cashPerCall || undefined}
+          prv={prevCashPerCall || undefined}
         />
       </div>
 
       {/* ── Row 2: 4 medium tiles ── */}
       <div className="grid grid-cols-4 gap-3">
-        <MedTile label="New Leads"         value={kpi ? num(kpi.leads) : "—"} />
-        <MedTile label="Booked Calls"      value={kpi ? num(kpi.bookedCalls) : "—"} />
-        <MedTile label="Deals Closed"      value={kpi ? num(kpi.dealsClosed) : "—"} />
-        <MedTile label="New Cash Collected" value={kpi ? $$(kpi.cash) : "—"} />
+        <MedTile label="New Leads"          value={kpi ? num(kpi.leads) : "—"}        cur={kpi?.leads}        prv={prevYTD?.leads} />
+        <MedTile label="Booked Calls"       value={kpi ? num(kpi.bookedCalls) : "—"}  cur={kpi?.bookedCalls}  prv={prevYTD?.bookedCalls} />
+        <MedTile label="Deals Closed"       value={kpi ? num(kpi.dealsClosed) : "—"}  cur={kpi?.dealsClosed}  prv={prevYTD?.dealsClosed} />
+        <MedTile label="New Cash Collected" value={kpi ? $$(kpi.cash) : "—"}          cur={kpi?.cash}         prv={prevYTD?.cash} />
       </div>
 
       {/* ── Row 3: 2 sparkline cards ── */}
@@ -420,18 +475,16 @@ export function ScoreboardView({ scoreboard, monthly, ytd, monthLabel }: Props) 
         <SparkCard
           label="New Leads"
           curData={dailyLeads}
-          prvData={prevYTD ? Array(dailyLeads.length).fill(prevYTD.leads / Math.max(dailyLeads.length, 1)) : undefined}
           monthIdx={monthIdx} year={year}
-          color="#3b82f6"
-          formatter={num}
+          color="#3b82f6" formatter={num}
+          curTotal={kpi?.leads} prvTotal={prevYTD?.leads}
         />
         <SparkCard
           label="Deals Closed"
           curData={dailyClosed}
-          prvData={prevYTD ? Array(dailyClosed.length).fill(prevYTD.dealsClosed / Math.max(dailyClosed.length, 1)) : undefined}
           monthIdx={monthIdx} year={year}
-          color="#3b82f6"
-          formatter={num}
+          color="#3b82f6" formatter={num}
+          curTotal={kpi?.dealsClosed} prvTotal={prevYTD?.dealsClosed}
         />
       </div>
 
@@ -440,18 +493,16 @@ export function ScoreboardView({ scoreboard, monthly, ytd, monthLabel }: Props) 
         <SparkCard
           label="Taken Calls"
           curData={dailyTaken}
-          prvData={prevYTD ? Array(dailyTaken.length).fill(prevYTD.takenCalls / Math.max(dailyTaken.length, 1)) : undefined}
           monthIdx={monthIdx} year={year}
-          color="#3b82f6"
-          formatter={num}
+          color="#3b82f6" formatter={num}
+          curTotal={kpi?.takenCalls} prvTotal={prevYTD?.takenCalls}
         />
         <SparkCard
           label="New Cash Collected"
           curData={dailyCash}
-          prvData={prevYTD ? Array(dailyCash.length).fill(prevYTD.cash / Math.max(dailyCash.length, 1)) : undefined}
           monthIdx={monthIdx} year={year}
-          color="#3b82f6"
-          formatter={$$}
+          color="#3b82f6" formatter={$$}
+          curTotal={kpi?.cash} prvTotal={prevYTD?.cash}
         />
       </div>
 
