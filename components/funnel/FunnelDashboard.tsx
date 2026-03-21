@@ -6,15 +6,17 @@ import { MonthlyView } from "./MonthlyView";
 import { YTDView } from "./YTDView";
 import { LeadsView } from "./LeadsView";
 import { CallsView } from "./CallsView";
-import { TrendingUp, Calendar, Users, PhoneCall } from "lucide-react";
+import { ScoreboardView } from "./ScoreboardView";
+import { BarChart2, TrendingUp, Calendar, Users, PhoneCall } from "lucide-react";
 
-type Tab = "monthly" | "ytd" | "leads" | "calls";
+type Tab = "scoreboard" | "monthly" | "ytd" | "leads" | "calls";
 
 const TABS: { id: Tab; label: string; icon: React.ElementType; color: string }[] = [
-  { id: "monthly",  label: "Monthly",           icon: TrendingUp, color: "#3b82f6" },
-  { id: "ytd",      label: "YTD 2026",           icon: Calendar,   color: "#22c55e" },
-  { id: "leads",    label: "Leads",              icon: Users,      color: "#d946ef" },
-  { id: "calls",    label: "Calls / Customers",  icon: PhoneCall,  color: "#f59e0b" },
+  { id: "scoreboard", label: "Scoreboard",        icon: BarChart2,  color: "#3b82f6" },
+  { id: "monthly",    label: "Monthly",           icon: TrendingUp, color: "#3b82f6" },
+  { id: "ytd",        label: "YTD 2026",           icon: Calendar,   color: "#22c55e" },
+  { id: "leads",      label: "Leads",              icon: Users,      color: "#d946ef" },
+  { id: "calls",      label: "Calls / Customers",  icon: PhoneCall,  color: "#f59e0b" },
 ];
 
 interface Props {
@@ -23,7 +25,7 @@ interface Props {
 }
 
 export function FunnelDashboard({ data, error }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>("monthly");
+  const [activeTab, setActiveTab] = useState<Tab>("scoreboard");
 
   return (
     <div style={{ padding: "24px" }}>
@@ -76,6 +78,9 @@ export function FunnelDashboard({ data, error }: Props) {
       </div>
 
       {/* Content */}
+      {activeTab === "scoreboard" && (
+        <ScoreboardView scoreboard={data?.scoreboard ?? []} />
+      )}
       {activeTab === "monthly" && (
         <MonthlyView
           monthly={data?.monthly ?? []}

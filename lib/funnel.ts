@@ -62,6 +62,36 @@ export interface SalesDashboard {
   totalCloses: number;
 }
 
+// ─── Scoreboard (2026 sheet, fixed column positions) ──────────────────────
+// Column mapping (0-based index):
+//   B=1  Amount Spent
+//   J=9  Leads
+//   M=12 Apps
+//   O=14 $ Per Call
+//   P=15 Taken Calls / Booked Calls
+//   Q=16 Show Up Rate
+//   U=20 Cash Collected
+//   V=21 Deals Closed
+//   W=22 Close Rate
+//   AA=26 Cash ROAS
+//   AB=27 Rev ROAS
+
+export interface ScoreboardRow {
+  month: string;
+  amountSpent: number;   // B
+  leads: number;         // J
+  apps: number;          // M
+  cashPerCall: number;   // O
+  bookedCalls: number;   // P
+  takenCalls: number;    // P
+  showUpRate: number;    // Q
+  cashCollected: number; // U
+  dealsClosed: number;   // V
+  closeRate: number;     // W
+  cashROAS: number;      // AA
+  revROAS: number;       // AB
+}
+
 export interface YTDRow {
   month: string;
   isSummary: boolean;
@@ -161,6 +191,7 @@ export interface FunnelData {
   monthly: MonthlyRow[];
   salesDashboard: SalesDashboard | null;
   ytd: YTDRow[];
+  scoreboard: ScoreboardRow[];
   leads: Lead[];
   calls: Call[];
   customers: Customer[];
@@ -341,6 +372,33 @@ function parseSalesDashboard(rows: string[][]): SalesDashboard | null {
     revenuePerCall:   get("revenuepercall"),
     totalCloses:      get("totalcloses"),
   };
+}
+
+// ─── Scoreboard parser (fixed column positions) ────────────────────────────
+
+function parseScoreboard(rows: string[][]): ScoreboardRow[] {
+  const result: ScoreboardRow[] = [];
+  for (const row of rows) {
+    const label = (row[0] ?? "").trim().toLowerCase();
+    if (!MONTH_NAMES.has(label)) continue;
+    const g = (i: number) => toNum(row[i] ?? "");
+    result.push({
+      month:         (row[0] ?? "").trim(),
+      amountSpent:   g(1),   // B
+      leads:         g(9),   // J
+      apps:          g(12),  // M
+      cashPerCall:   g(14),  // O
+      bookedCalls:   g(15),  // P
+      takenCalls:    g(15),  // P (same column)
+      showUpRate:    g(16),  // Q
+      cashCollected: g(20),  // U
+      dealsClosed:   g(21),  // V
+      closeRate:     g(22),  // W
+      cashROAS:      g(26),  // AA
+      revROAS:       g(27),  // AB
+    });
+  }
+  return result;
 }
 
 // ─── YTD sheet parser ──────────────────────────────────────────────────────
@@ -637,10 +695,11 @@ export async function fetchFunnelData(apiKey: string): Promise<FunnelData> {
   return {
     monthly,
     salesDashboard,
-    ytd:       parseYTD(ytdRows),
-    leads:     parseLeads(leadsRows),
-    calls:     parseCalls(callsRows),
-    customers: parseCustomers(customersRows),
+    ytd:        parseYTD(ytdRows),
+    scoreboard: parseScoreboard(ytdRows),
+    leads:      parseLeads(leadsRows),
+    calls:      parseCalls(callsRows),
+    customers:  parseCustomers(customersRows),
     monthLabel,
   };
 }
