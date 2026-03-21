@@ -11,7 +11,7 @@ const IG_CSV_URL =
 const IG_DATA_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSt9HlvUd1055qAlYc_x-oflTe2quXENd-q8W6oV2-AOs3uGPumpmPgQZHCnZQaYFKU9QzKubHt-68v/pub?gid=28382314&single=true&output=csv";
 
-const SHEETS_API_KEY    = process.env.GOOGLE_SHEETS_API_KEY ?? "";
+const SHEETS_API_KEY    = process.env.GOOGLE_MASTER_SHEETS_API_KEY ?? "";
 const SPREADSHEET_ID    = process.env.GOOGLE_SPREADSHEET_ID ?? "";
 const DATA_SHEET_NAME   = process.env.GOOGLE_IG_DATA_SHEET ?? "DATA";
 

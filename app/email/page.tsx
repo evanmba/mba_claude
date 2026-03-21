@@ -8,7 +8,7 @@ const EMAIL_PUB_BASE =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vQa0nFBHXMQn5zfiYq3ywzwWQ4VegoPw9tLQDS7BQfoXvLoeXHcDdSzKTD-XaDRsB7nNEuTfrF62c1x/pub";
 const EMAIL_CSV_URL = `${EMAIL_PUB_BASE}?output=csv`;
 
-const SHEETS_API_KEY         = process.env.GOOGLE_SHEETS_API_KEY ?? "";
+const SHEETS_API_KEY         = process.env.GOOGLE_MASTER_SHEETS_API_KEY ?? "";
 const EMAIL_SPREADSHEET_ID   = process.env.GOOGLE_EMAIL_SPREADSHEET_ID ?? "";
 const EMAIL_DATA_SHEET       = process.env.GOOGLE_EMAIL_DATA_SHEET ?? "DATA";
 // Published CSV for the DATA tab — env var takes priority, falls back to base URL + hardcoded gid

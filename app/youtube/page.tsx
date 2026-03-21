@@ -12,7 +12,7 @@ const YT_CSV_URL      = `${YT_BASE}?output=csv`;
 const YT_DATA_GID     = process.env.YT_DATA_GID ?? "0";
 const YT_DATA_CSV_URL = `${YT_BASE}?gid=${YT_DATA_GID}&single=true&output=csv`;
 
-const SHEETS_API_KEY    = process.env.GOOGLE_SHEETS_API_KEY ?? "";
+const SHEETS_API_KEY    = process.env.GOOGLE_MASTER_SHEETS_API_KEY ?? "";
 const YT_SPREADSHEET_ID = process.env.GOOGLE_YT_SPREADSHEET_ID ?? "";
 const YT_DATA_SHEET     = process.env.GOOGLE_YT_DATA_SHEET ?? "DATA";
 

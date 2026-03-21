@@ -3,7 +3,7 @@ import { FunnelDashboard } from "@/components/funnel/FunnelDashboard";
 import { fetchFunnelData, type FunnelData } from "@/lib/funnel";
 
 export default async function FunnelPage() {
-  const apiKey = process.env.GOOGLE_SHEETS_API_KEY ?? "";
+  const apiKey = process.env.GOOGLE_MASTER_SHEETS_API_KEY ?? "";
   let data: FunnelData | null = null;
   let fetchError = false;
 

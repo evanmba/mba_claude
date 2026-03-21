@@ -97,7 +97,7 @@ interface GridData {
 /**
  * Fetch a sheet's grid data via the Sheets API v4.
  * Returns cell values AND embedded hyperlinks (which CSV exports strip).
- * Requires GOOGLE_SHEETS_API_KEY and the spreadsheet to be accessible.
+ * Requires GOOGLE_MASTER_SHEETS_API_KEY and the spreadsheet to be accessible.
  */
 export async function fetchPostsViaAPI(
   spreadsheetId: string,

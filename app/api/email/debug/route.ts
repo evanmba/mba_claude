@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const SHEETS_API_KEY       = process.env.GOOGLE_SHEETS_API_KEY ?? "";
+const SHEETS_API_KEY       = process.env.GOOGLE_MASTER_SHEETS_API_KEY ?? "";
 const EMAIL_SPREADSHEET_ID = process.env.GOOGLE_EMAIL_SPREADSHEET_ID ?? "";
 const EMAIL_DATA_SHEET     = process.env.GOOGLE_EMAIL_DATA_SHEET ?? "DATA";
 const EMAIL_DATA_CSV_URL   = process.env.GOOGLE_EMAIL_DATA_CSV_URL ?? "";
@@ -34,7 +34,7 @@ export async function GET() {
       results.sheetsDataPreview = { status: String(e), ok: false };
     }
   } else {
-    results.sheetsList = { status: "skipped — missing GOOGLE_SHEETS_API_KEY or GOOGLE_EMAIL_SPREADSHEET_ID", ok: false };
+    results.sheetsList = { status: "skipped — missing GOOGLE_MASTER_SHEETS_API_KEY or GOOGLE_EMAIL_SPREADSHEET_ID", ok: false };
   }
 
   // 3 — Published CSV URL
