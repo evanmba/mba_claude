@@ -1,403 +1,280 @@
 "use client";
 
-import { type ScoreboardRow } from "@/lib/funnel";
+import { type ScoreboardRow, type MonthlyRow, type YTDRow } from "@/lib/funnel";
 
-// ─── Formatters ──────────────────────────────────────────────────────────────
-
+// ─── Formatters ───────────────────────────────────────────────────────────────
 const $$ = (n: number) =>
   n === 0 ? "—" : `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-const $dec = (n: number) =>
-  n === 0 ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const pct = (n: number) => (n === 0 ? "—" : `${n.toFixed(1)}%`);
 const num = (n: number) => (n === 0 ? "—" : n.toLocaleString("en-US"));
 const ratio = (n: number) => (n === 0 ? "—" : `${n.toFixed(2)}x`);
 
-type MetricKey = keyof Omit<ScoreboardRow, "month">;
+const MONTH_NAMES = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
+const ABBRS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
 
-// ─── Sparkline ────────────────────────────────────────────────────────────────
-
-function Sparkline({
-  data,
-  color,
-  height = 72,
-}: {
-  data: number[];
-  color: string;
-  height?: number;
-}) {
-  const valid = data.map((v) => (isNaN(v) ? 0 : v));
-  const max = Math.max(...valid, 0.001);
-  const min = Math.min(...valid.filter((v) => v > 0), 0);
-  const range = max - min || 1;
-  const W = 260;
-  const H = height;
-  const padX = 6;
-  const padY = 6;
-
-  if (valid.length < 2) return null;
-
-  const pts = valid.map((v, i) => {
-    const x = padX + (i / (valid.length - 1)) * (W - padX * 2);
-    const y = H - padY - ((v - min) / range) * (H - padY * 2);
-    return [x, y] as [number, number];
-  });
-
-  const polyline = pts.map(([x, y]) => `${x},${y}`).join(" ");
-  const area = [
-    `${pts[0][0]},${H - padY}`,
-    ...pts.map(([x, y]) => `${x},${y}`),
-    `${pts[pts.length - 1][0]},${H - padY}`,
-  ].join(" ");
-
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      style={{ width: "100%", height, display: "block" }}
-      preserveAspectRatio="none"
-    >
-      {/* Horizontal guide lines */}
-      {[0.25, 0.5, 0.75].map((t) => (
-        <line
-          key={t}
-          x1={padX}
-          x2={W - padX}
-          y1={padY + (1 - t) * (H - padY * 2)}
-          y2={padY + (1 - t) * (H - padY * 2)}
-          stroke="rgba(255,255,255,0.06)"
-          strokeWidth="1"
-        />
-      ))}
-      {/* Area fill */}
-      <polygon points={area} fill={`${color}20`} />
-      {/* Line */}
-      <polyline
-        points={polyline}
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-      {/* Dots */}
-      {pts.map(([x, y], i) => (
-        <circle key={i} cx={x} cy={y} r="3" fill={color} />
-      ))}
-    </svg>
-  );
-}
-
-// ─── Delta chip ───────────────────────────────────────────────────────────────
-
-function delta(cur: number, prv: number): number | null {
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function mom(cur: number, prv: number): number | null {
   if (!prv || !cur) return null;
   return ((cur - prv) / prv) * 100;
 }
 
-function DeltaChip({
-  d,
-  higherIsBetter,
-  dark = false,
-}: {
-  d: number | null;
-  higherIsBetter: boolean;
-  dark?: boolean;
-}) {
-  if (d === null)
-    return (
-      <span style={{ color: dark ? "rgba(255,255,255,0.4)" : "var(--muted-foreground)", fontSize: 12 }}>
-        no prior data
-      </span>
-    );
-  const up = d >= 0;
-  const good = up === higherIsBetter;
-  const color = good ? "#4ade80" : "#f87171";
+function MomBadge({ cur, prv, hib = true }: { cur: number; prv: number; hib?: boolean }) {
+  const d = mom(cur, prv);
+  if (d === null) return null;
+  const good = hib ? d >= 0 : d <= 0;
   return (
-    <span
-      style={{
-        fontSize: 13,
-        fontWeight: 700,
-        color,
-        letterSpacing: "0.01em",
-      }}
-    >
-      {up ? "▲" : "▼"} {Math.abs(d).toFixed(1)}% vs prior month
+    <span style={{ fontSize: 12, fontWeight: 700, color: good ? "#4ade80" : "#f87171" }}>
+      {d > 0 ? "▲" : "▼"} {Math.abs(d).toFixed(1)}%
     </span>
   );
 }
 
-// ─── Hero card (large, solid background color) ────────────────────────────────
-
-function HeroCard({
-  label,
-  subtitle,
-  value,
-  delta: d,
-  higherIsBetter,
-  bg,
-  textColor = "#ffffff",
-}: {
-  label: string;
-  subtitle: string;
-  value: string;
-  delta: number | null;
-  higherIsBetter: boolean;
-  bg: string;
-  textColor?: string;
-}) {
-  return (
-    <div
-      className="rounded-2xl flex flex-col items-center justify-center gap-2 p-6"
-      style={{ background: bg, minHeight: 160 }}
-    >
-      <p
-        className="text-center font-semibold"
-        style={{ color: textColor, fontSize: 18, opacity: 0.9 }}
-      >
-        {label}
-      </p>
-      <p
-        className="text-center text-sm"
-        style={{ color: textColor, opacity: 0.65, marginTop: -4 }}
-      >
-        {subtitle}
-      </p>
-      <p
-        className="text-center font-bold tabular-nums"
-        style={{ color: textColor, fontSize: 38, lineHeight: 1.1, marginTop: 4 }}
-      >
-        {value}
-      </p>
-      <DeltaChip d={d} higherIsBetter={higherIsBetter} dark />
-    </div>
-  );
-}
-
-// ─── Small metric tile ────────────────────────────────────────────────────────
-
-const CARD_BG = "#0d1b35";
-
-function MetricTile({
-  label,
-  subtitle,
-  value,
-  d,
-  higherIsBetter,
-}: {
-  label: string;
-  subtitle: string;
-  value: string;
-  d: number | null;
-  higherIsBetter: boolean;
-}) {
-  return (
-    <div
-      className="rounded-2xl flex flex-col items-center justify-center gap-1.5 p-5"
-      style={{ background: CARD_BG, minHeight: 110 }}
-    >
-      <p className="text-center font-semibold text-sm" style={{ color: "#e2e8f0" }}>
-        {label}
-      </p>
-      <p className="text-center text-xs" style={{ color: "#64748b" }}>
-        {subtitle}
-      </p>
-      <p className="text-center font-bold tabular-nums" style={{ color: "#ffffff", fontSize: 26, lineHeight: 1.1 }}>
-        {value}
-      </p>
-      <DeltaChip d={d} higherIsBetter={higherIsBetter} />
-    </div>
-  );
-}
-
-// ─── Trend card (sparkline + legend) ─────────────────────────────────────────
-
-function TrendCard({
-  label,
-  subtitle,
-  months,
-  values,
+// ─── Sparkline ────────────────────────────────────────────────────────────────
+function Sparkline({
+  cur,
+  prv,
+  curLabel,
+  prvLabel,
   color,
 }: {
-  label: string;
-  subtitle: string;
-  months: string[];
-  values: number[];
+  cur: number[];
+  prv?: number[];
+  curLabel: string;
+  prvLabel?: string;
   color: string;
 }) {
-  const prevValues = values.slice(0, -1);
-  const curValue = values[values.length - 1];
-  const prevValue = values[values.length - 2];
-  const prevMonth = months[months.length - 2] ?? "";
-  const curMonth = months[months.length - 1] ?? "";
+  const W = 300;
+  const H = 80;
+  const pad = 6;
+
+  function points(data: number[]) {
+    const valid = data.map((v) => (isNaN(v) ? 0 : v));
+    const max = Math.max(...valid, 0.001);
+    const min = 0;
+    const range = max - min || 1;
+    return valid.map((v, i) => {
+      const x = pad + (i / Math.max(valid.length - 1, 1)) * (W - pad * 2);
+      const y = H - pad - ((v - min) / range) * (H - pad * 2);
+      return [x, y] as [number, number];
+    });
+  }
+
+  const curPts = cur.length >= 2 ? points(cur) : [];
+  const prvPts = prv && prv.length >= 2 ? points(prv) : [];
+
+  const poly = (pts: [number, number][]) => pts.map(([x, y]) => `${x},${y}`).join(" ");
+
+  // x-axis labels: show ~5 labels
+  const labelCount = Math.min(cur.length, 5);
+  const step = Math.max(1, Math.floor(cur.length / (labelCount - 1)));
+  const xLabels: number[] = [];
+  for (let i = 0; i < cur.length; i += step) xLabels.push(i);
+  if (xLabels[xLabels.length - 1] !== cur.length - 1) xLabels.push(cur.length - 1);
 
   return (
-    <div
-      className="rounded-2xl flex flex-col p-5 gap-3"
-      style={{ background: CARD_BG, minHeight: 200 }}
-    >
-      <div>
-        <p className="font-semibold text-sm" style={{ color: "#e2e8f0" }}>
-          {label}
-        </p>
-        <p className="text-xs" style={{ color: "#64748b" }}>
-          {subtitle}
-        </p>
-      </div>
+    <div>
+      {cur.length >= 2 ? (
+        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, display: "block" }} preserveAspectRatio="none">
+          {/* Grid lines */}
+          {[0.33, 0.66].map((t) => (
+            <line key={t} x1={pad} x2={W - pad}
+              y1={pad + (1 - t) * (H - pad * 2)} y2={pad + (1 - t) * (H - pad * 2)}
+              stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+          ))}
+          {/* Previous period (dim) */}
+          {prvPts.length >= 2 && (
+            <polyline points={poly(prvPts)} fill="none" stroke={color} strokeWidth="1.5"
+              strokeOpacity="0.3" strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4 2" />
+          )}
+          {/* Current period */}
+          {curPts.length >= 2 && (
+            <>
+              <polygon
+                points={[`${curPts[0][0]},${H - pad}`, ...curPts.map(([x, y]) => `${x},${y}`), `${curPts[curPts.length - 1][0]},${H - pad}`].join(" ")}
+                fill={`${color}18`} />
+              <polyline points={poly(curPts)} fill="none" stroke={color} strokeWidth="2"
+                strokeLinejoin="round" strokeLinecap="round" />
+              {curPts.map(([x, y], i) => (
+                <circle key={i} cx={x} cy={y} r="2.5" fill={color} />
+              ))}
+            </>
+          )}
+        </svg>
+      ) : (
+        <div style={{ height: H, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ color: "#334155", fontSize: 11 }}>no data</span>
+        </div>
+      )}
 
-      {/* Chart area */}
-      <div style={{ flex: 1 }}>
-        {values.length >= 2 ? (
-          <div className="relative">
-            {/* Previous months in muted */}
-            {prevValues.length >= 2 && (
-              <div style={{ position: "absolute", inset: 0, opacity: 0.35 }}>
-                <Sparkline data={prevValues} color={color} height={72} />
-              </div>
-            )}
-            {/* Full line (current) in full color */}
-            <Sparkline data={values} color={color} height={72} />
-          </div>
-        ) : (
-          <div
-            style={{ height: 72, display: "flex", alignItems: "center", justifyContent: "center" }}
-          >
-            <span style={{ color: "#334155", fontSize: 12 }}>not enough data</span>
-          </div>
-        )}
-      </div>
-
-      {/* Month axis labels */}
-      {months.length > 1 && (
-        <div className="flex justify-between px-1">
-          {months.map((m) => (
-            <span key={m} style={{ color: "#475569", fontSize: 10 }}>
-              {m.slice(0, 3)}
-            </span>
+      {/* X-axis day labels */}
+      {cur.length >= 2 && (
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 6px 0", marginTop: 2 }}>
+          {xLabels.map((i) => (
+            <span key={i} style={{ color: "#475569", fontSize: 9 }}>{i + 1}</span>
           ))}
         </div>
       )}
 
       {/* Legend */}
-      <div className="flex flex-col gap-1 pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-        {prevMonth && (
-          <div className="flex items-center gap-2">
-            <span
-              className="rounded-full"
-              style={{ width: 8, height: 8, background: color, opacity: 0.4, flexShrink: 0 }}
-            />
-            <span style={{ color: "#64748b", fontSize: 11 }}>
-              {prevMonth} — {prevValue > 0 ? prevValue.toLocaleString() : "—"}
-            </span>
+      <div style={{ display: "flex", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
+        {prvLabel && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, opacity: 0.35, display: "inline-block" }} />
+            <span style={{ color: "#64748b", fontSize: 10 }}>{prvLabel}</span>
           </div>
         )}
-        {curMonth && (
-          <div className="flex items-center gap-2">
-            <span
-              className="rounded-full"
-              style={{ width: 8, height: 8, background: color, flexShrink: 0 }}
-            />
-            <span style={{ color: "#94a3b8", fontSize: 11 }}>
-              {curMonth} — {curValue > 0 ? curValue.toLocaleString() : "—"}
-            </span>
-          </div>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, display: "inline-block" }} />
+          <span style={{ color: "#94a3b8", fontSize: 10 }}>{curLabel}</span>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
-
-interface Props {
-  scoreboard: ScoreboardRow[];
+// ─── Hero card ────────────────────────────────────────────────────────────────
+function HeroCard({ label, value, sub, bg, cur, prv, hib = true }: {
+  label: string; value: string; sub?: string; bg: string;
+  cur?: number; prv?: number; hib?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl flex flex-col justify-between p-6" style={{ background: bg, minHeight: 170 }}>
+      <div>
+        <p style={{ color: "rgba(255,255,255,0.8)", fontSize: 17, fontWeight: 600 }}>{label}</p>
+        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginTop: 2 }}>Month to date</p>
+      </div>
+      <div>
+        <p style={{ color: "#ffffff", fontSize: 42, fontWeight: 800, lineHeight: 1, marginBottom: 6 }}>{value}</p>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {sub && <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 12 }}>{sub}</span>}
+          {cur != null && prv != null && <MomBadge cur={cur} prv={prv} hib={hib} />}
+        </div>
+      </div>
+    </div>
+  );
 }
 
-export function ScoreboardView({ scoreboard }: Props) {
-  if (scoreboard.length === 0) return null;
+// ─── Small tile ───────────────────────────────────────────────────────────────
+const TILE_BG = "#0d1525";
 
-  const months = scoreboard;
-  const cur = months[months.length - 1];
-  const prv = months.length >= 2 ? months[months.length - 2] : undefined;
+function Tile({ label, value, cur, prv, hib = true }: {
+  label: string; value: string; cur?: number; prv?: number; hib?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl flex flex-col items-center justify-center gap-1 p-4 text-center"
+      style={{ background: TILE_BG, minHeight: 110 }}>
+      <p style={{ color: "#94a3b8", fontSize: 12, fontWeight: 500 }}>{label}</p>
+      <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>Month to date</p>
+      <p style={{ color: "#ffffff", fontSize: 28, fontWeight: 700, lineHeight: 1.1 }}>{value}</p>
+      {cur != null && prv != null && <MomBadge cur={cur} prv={prv} hib={hib} />}
+    </div>
+  );
+}
 
-  const d = (key: MetricKey) => (prv ? delta(cur[key], prv[key]) : null);
-  const vals = (key: MetricKey) => months.map((m) => m[key]);
-  const monthNames = months.map((m) => m.month);
+// ─── Trend card (sparkline) ───────────────────────────────────────────────────
+function TrendCard({ label, curData, prvData, curLabel, prvLabel, color }: {
+  label: string; curData: number[]; prvData?: number[];
+  curLabel: string; prvLabel?: string; color: string;
+}) {
+  const trimmed = [...curData];
+  while (trimmed.length > 0 && trimmed[trimmed.length - 1] === 0) trimmed.pop();
 
   return (
-    <div className="flex flex-col gap-4" style={{ padding: "4px 0" }}>
+    <div className="rounded-2xl p-5 flex flex-col gap-3" style={{ background: TILE_BG, minHeight: 220 }}>
+      <div>
+        <p style={{ color: "#e2e8f0", fontSize: 14, fontWeight: 600 }}>{label}</p>
+        <p style={{ color: "#64748b", fontSize: 11 }}>Month to date</p>
+      </div>
+      <Sparkline cur={trimmed} prv={prvData} curLabel={curLabel} prvLabel={prvLabel} color={color} />
+    </div>
+  );
+}
 
-      {/* ── Row 1: 4 large hero cards ── */}
-      <div className="grid grid-cols-4 gap-4">
-        <HeroCard
-          label="Taken Calls"
-          subtitle="Month to date"
-          value={num(cur.takenCalls)}
-          delta={d("takenCalls")}
-          higherIsBetter
-          bg="#0f2044"
-        />
-        <HeroCard
-          label="$ Per Call"
-          subtitle="Current month"
-          value={$dec(cur.cashPerCall)}
-          delta={d("cashPerCall")}
-          higherIsBetter
-          bg="#d97706"
-        />
-        <HeroCard
-          label="Show-Up Rate"
-          subtitle="Month to date"
-          value={pct(cur.showUpRate)}
-          delta={d("showUpRate")}
-          higherIsBetter
-          bg="#b91c1c"
-        />
-        <HeroCard
-          label="Cash Collected"
-          subtitle="Month to date"
-          value={$$(cur.cashCollected)}
-          delta={d("cashCollected")}
-          higherIsBetter
-          bg="#15803d"
-        />
+// ─── Main ─────────────────────────────────────────────────────────────────────
+interface Props {
+  scoreboard: ScoreboardRow[];
+  monthly: MonthlyRow[];
+  ytd: YTDRow[];
+  monthLabel: string;
+}
+
+export function ScoreboardView({ scoreboard, monthly, ytd, monthLabel }: Props) {
+  // Current month KPI from 30-day rollup
+  const kpi = monthly.find((r) => r.period === "30 Days") ?? monthly.find((r) => r.isRollup) ?? null;
+  const dailyRows = monthly.filter((r) => !r.isRollup);
+
+  // Previous month lookup
+  const [abbr] = monthLabel.split(" ");
+  const curMonthIdx = ABBRS.indexOf(abbr?.toUpperCase() ?? "");
+  const prevMonthIdx = curMonthIdx > 0 ? curMonthIdx - 1 : -1;
+  const prevMonthName = prevMonthIdx >= 0 ? MONTH_NAMES[prevMonthIdx] : null;
+  const prevMonthAbbr = prevMonthIdx >= 0 ? ABBRS[prevMonthIdx] : null;
+
+  const prevYTD = prevMonthName
+    ? ytd.find((r) => r.month.toLowerCase() === prevMonthName.toLowerCase()) ?? null
+    : null;
+
+  const cashPerCall = kpi && kpi.takenCalls > 0 ? kpi.cash / kpi.takenCalls : 0;
+  const prevCashPerCall = prevYTD && prevYTD.takenCalls > 0 ? prevYTD.cash / prevYTD.takenCalls : 0;
+
+  // Daily sparkline arrays
+  const dailyLeads   = dailyRows.map((r) => r.leads);
+  const dailyBooked  = dailyRows.map((r) => r.bookedCalls);
+  const dailyTaken   = dailyRows.map((r) => r.takenCalls);
+  const dailyCash    = dailyRows.map((r) => r.cash);
+  const dailyClosed  = dailyRows.map((r) => r.dealsClosed);
+
+  // Labels for sparkline legend
+  const curLabel = monthLabel || "Current";
+  const prvLabel = prevMonthAbbr ?? undefined;
+
+  return (
+    <div className="flex flex-col gap-3">
+
+      {/* ── Row 1: 4 hero cards ── */}
+      <div className="grid grid-cols-4 gap-3">
+        <HeroCard label="Taken Calls"    value={kpi ? num(kpi.takenCalls) : "—"}
+          sub={kpi ? `Show-up: ${pct(kpi.showUpRate)}` : undefined}
+          bg="#0f2044" cur={kpi?.takenCalls} prv={prevYTD?.takenCalls ?? 0} />
+        <HeroCard label="$ Per Call"     value={kpi ? $$(cashPerCall) : "—"}
+          sub={kpi ? `Cash: ${$$(kpi.cash)}` : undefined}
+          bg="#92400e" cur={cashPerCall} prv={prevCashPerCall} />
+        <HeroCard label="Show-Up Rate"   value={kpi ? pct(kpi.showUpRate) : "—"}
+          sub={kpi ? `${num(kpi.takenCalls)} of ${num(kpi.bookedCalls)} booked` : undefined}
+          bg="#7f1d1d" cur={kpi?.showUpRate} prv={prevYTD?.showUpRate ?? 0} />
+        <HeroCard label="Cash Collected" value={kpi ? $$(kpi.cash) : "—"}
+          sub={kpi ? `Revenue: ${$$(kpi.revenue)}` : undefined}
+          bg="#14532d" cur={kpi?.cash} prv={prevYTD?.cash ?? 0} />
       </div>
 
-      {/* ── Row 2: 8 small metric tiles ── */}
+      {/* ── Row 2: 8 small tiles ── */}
       <div className="grid grid-cols-8 gap-3">
-        {(
-          [
-            { key: "leads" as MetricKey,       label: "New Leads",     fmt: num,   hib: true  },
-            { key: "apps" as MetricKey,         label: "Apps",          fmt: num,   hib: true  },
-            { key: "bookedCalls" as MetricKey,  label: "Booked Calls",  fmt: num,   hib: true  },
-            { key: "dealsClosed" as MetricKey,  label: "Deals Closed",  fmt: num,   hib: true  },
-            { key: "amountSpent" as MetricKey,  label: "Amount Spent",  fmt: $$,    hib: false },
-            { key: "closeRate" as MetricKey,    label: "Close Rate",    fmt: pct,   hib: true  },
-            { key: "cashROAS" as MetricKey,     label: "Cash ROAS",     fmt: ratio, hib: true  },
-            { key: "revROAS" as MetricKey,      label: "Rev ROAS",      fmt: ratio, hib: true  },
-          ] as { key: MetricKey; label: string; fmt: (n: number) => string; hib: boolean }[]
-        ).map(({ key, label, fmt, hib }) => (
-          <MetricTile
-            key={key}
-            label={label}
-            subtitle="Month to date"
-            value={fmt(cur[key])}
-            d={d(key)}
-            higherIsBetter={hib}
-          />
-        ))}
+        <Tile label="New Leads"    value={kpi ? num(kpi.leads) : "—"}       cur={kpi?.leads}       prv={prevYTD?.leads ?? 0} />
+        <Tile label="Booked Calls" value={kpi ? num(kpi.bookedCalls) : "—"} cur={kpi?.bookedCalls} prv={prevYTD?.bookedCalls ?? 0} />
+        <Tile label="Deals Closed" value={kpi ? num(kpi.dealsClosed) : "—"} cur={kpi?.dealsClosed} prv={prevYTD?.dealsClosed ?? 0} />
+        <Tile label="Amount Spent" value={kpi ? $$(kpi.amountSpent) : "—"}  cur={kpi?.amountSpent} prv={prevYTD?.amountSpent ?? 0} hib={false} />
+        <Tile label="Taken Calls"  value={kpi ? num(kpi.takenCalls) : "—"}  cur={kpi?.takenCalls}  prv={prevYTD?.takenCalls ?? 0} />
+        <Tile label="Close Rate"   value={kpi ? pct(kpi.closeRate) : "—"}   cur={kpi?.closeRate}   prv={prevYTD?.closeRate ?? 0} />
+        <Tile label="Cash ROAS"    value={kpi ? ratio(kpi.cashROAS) : "—"}   cur={kpi?.cashROAS}    prv={prevYTD?.cashROAS ?? 0} />
+        <Tile label="Rev ROAS"     value={kpi ? ratio(kpi.revenueROAS) : "—"} cur={kpi?.revenueROAS} prv={prevYTD?.revenueROAS ?? 0} />
       </div>
 
-      {/* ── Rows 3 & 4: trend / sparkline cards ── */}
-      <div className="grid grid-cols-4 gap-4">
-        <TrendCard label="New Leads"      subtitle="Month to date" months={monthNames} values={vals("leads")}         color="#d946ef" />
-        <TrendCard label="Deals Closed"   subtitle="Month to date" months={monthNames} values={vals("dealsClosed")}   color="#22c55e" />
-        <TrendCard label="Taken Calls"    subtitle="Month to date" months={monthNames} values={vals("takenCalls")}    color="#3b82f6" />
-        <TrendCard label="Cash Collected" subtitle="Month to date" months={monthNames} values={vals("cashCollected")} color="#4ade80" />
+      {/* ── Row 3: 4 sparkline trend cards ── */}
+      <div className="grid grid-cols-4 gap-3">
+        <TrendCard label="New Leads"    curData={dailyLeads}  curLabel={curLabel} prvLabel={prvLabel} color="#d946ef" />
+        <TrendCard label="Deals Closed" curData={dailyClosed} curLabel={curLabel} prvLabel={prvLabel} color="#22c55e" />
+        <TrendCard label="Taken Calls"  curData={dailyTaken}  curLabel={curLabel} prvLabel={prvLabel} color="#3b82f6" />
+        <TrendCard label="Cash Collected" curData={dailyCash} curLabel={curLabel} prvLabel={prvLabel} color="#4ade80" />
       </div>
-      <div className="grid grid-cols-4 gap-4">
-        <TrendCard label="Booked Calls" subtitle="Month to date" months={monthNames} values={vals("bookedCalls")} color="#a78bfa" />
-        <TrendCard label="$ Per Call"   subtitle="Current month"  months={monthNames} values={vals("cashPerCall")} color="#fbbf24" />
-        <TrendCard label="Close Rate"   subtitle="Month to date" months={monthNames} values={vals("closeRate")}   color="#f87171" />
-        <TrendCard label="Cash ROAS"    subtitle="Month to date" months={monthNames} values={vals("cashROAS")}    color="#38bdf8" />
+
+      {/* ── Row 4: 3 sparkline trend cards ── */}
+      <div className="grid grid-cols-3 gap-3">
+        <TrendCard label="Booked Calls" curData={dailyBooked} curLabel={curLabel} prvLabel={prvLabel} color="#a78bfa" />
+        <TrendCard label="Amount Spent" curData={dailyRows.map((r) => r.amountSpent)} curLabel={curLabel} prvLabel={prvLabel} color="#f87171" />
+        <TrendCard label="$ Per Call"   curData={dailyRows.map((r) => r.takenCalls > 0 ? r.cash / r.takenCalls : 0)} curLabel={curLabel} prvLabel={prvLabel} color="#fbbf24" />
       </div>
 
     </div>
