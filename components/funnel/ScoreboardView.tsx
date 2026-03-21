@@ -229,7 +229,7 @@ interface Props {
   monthLabel: string;
 }
 
-export function ScoreboardView({ monthly, ytd, monthLabel }: Props) {
+export function ScoreboardView({ scoreboard, monthly, ytd, monthLabel }: Props) {
   const kpi = monthly.find((r) => r.period === "30 Days") ?? monthly.find((r) => r.isRollup) ?? null;
   const dailyRows = monthly.filter((r) => !r.isRollup);
 
@@ -238,10 +238,22 @@ export function ScoreboardView({ monthly, ytd, monthLabel }: Props) {
 
   const prevMonthIdx = monthIdx > 0 ? monthIdx - 1 : 11;
   const prevMonthName = MONTH_NAMES[prevMonthIdx];
-  const prevYTD = ytd.find((r) => r.month.toLowerCase() === prevMonthName.toLowerCase()) ?? null;
+
+  // Prefer scoreboard rows (parsed from fixed columns, always available)
+  // Fall back to ytd rows (parsed from header-based format)
+  const prevSb = scoreboard.find((r) => r.month.toLowerCase() === prevMonthName.toLowerCase()) ?? null;
+  const prevYtd = ytd.find((r) => r.month.toLowerCase() === prevMonthName.toLowerCase()) ?? null;
+
+  const prev = {
+    leads:       prevSb?.leads       ?? prevYtd?.leads       ?? 0,
+    bookedCalls: prevSb?.bookedCalls ?? prevYtd?.bookedCalls ?? 0,
+    takenCalls:  prevSb?.takenCalls  ?? prevYtd?.takenCalls  ?? 0,
+    dealsClosed: prevSb?.dealsClosed ?? prevYtd?.dealsClosed ?? 0,
+    cash:        prevSb?.cashCollected ?? prevYtd?.cash      ?? 0,
+    cashPerCall: prevSb && prevSb.takenCalls > 0 ? prevSb.cashCollected / prevSb.takenCalls : 0,
+  };
 
   const cashPerCall = kpi && kpi.takenCalls > 0 ? kpi.cash / kpi.takenCalls : 0;
-  const prevCashPerCall = prevYTD && prevYTD.takenCalls > 0 ? prevYTD.cash / prevYTD.takenCalls : 0;
 
   return (
     <div className="flex flex-col gap-3">
@@ -250,38 +262,38 @@ export function ScoreboardView({ monthly, ytd, monthLabel }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <Card label="Taken Calls" monthName={monthName}
           value={kpi ? num(kpi.takenCalls) : "—"}
-          cur={kpi?.takenCalls ?? 0} prv={prevYTD?.takenCalls ?? 0} />
+          cur={kpi?.takenCalls ?? 0} prv={prev.takenCalls} />
         <Card label="$ Per Call" monthName={monthName}
           value={kpi ? $$(cashPerCall) : "—"}
-          cur={cashPerCall} prv={prevCashPerCall} bg="#f59e0b" />
+          cur={cashPerCall} prv={prev.cashPerCall} bg="#f59e0b" />
       </div>
 
       {/* ── Row 2: 4 tiles ── */}
       <div className="grid grid-cols-4 gap-3">
-        <Card label="New Leads"          monthName={monthName} value={kpi ? num(kpi.leads) : "—"}        cur={kpi?.leads ?? 0}        prv={prevYTD?.leads ?? 0} />
-        <Card label="Booked Calls"       monthName={monthName} value={kpi ? num(kpi.bookedCalls) : "—"}  cur={kpi?.bookedCalls ?? 0}  prv={prevYTD?.bookedCalls ?? 0} />
-        <Card label="Deals Closed"       monthName={monthName} value={kpi ? num(kpi.dealsClosed) : "—"}  cur={kpi?.dealsClosed ?? 0}  prv={prevYTD?.dealsClosed ?? 0} />
-        <Card label="New Cash Collected" monthName={monthName} value={kpi ? $$(kpi.cash) : "—"}          cur={kpi?.cash ?? 0}         prv={prevYTD?.cash ?? 0} />
+        <Card label="New Leads"          monthName={monthName} value={kpi ? num(kpi.leads) : "—"}        cur={kpi?.leads ?? 0}        prv={prev.leads} />
+        <Card label="Booked Calls"       monthName={monthName} value={kpi ? num(kpi.bookedCalls) : "—"}  cur={kpi?.bookedCalls ?? 0}  prv={prev.bookedCalls} />
+        <Card label="Deals Closed"       monthName={monthName} value={kpi ? num(kpi.dealsClosed) : "—"}  cur={kpi?.dealsClosed ?? 0}  prv={prev.dealsClosed} />
+        <Card label="New Cash Collected" monthName={monthName} value={kpi ? $$(kpi.cash) : "—"}          cur={kpi?.cash ?? 0}         prv={prev.cash} />
       </div>
 
       {/* ── Row 3: 2 sparkline cards ── */}
       <div className="grid grid-cols-2 gap-3">
         <SparkCard label="New Leads"    monthName={monthName} curData={dailyRows.map((r) => r.leads)}
           monthIdx={monthIdx} year={year} color="#3b82f6" formatter={num}
-          curTotal={kpi?.leads ?? 0} prv={prevYTD?.leads ?? 0} />
+          curTotal={kpi?.leads ?? 0} prv={prev.leads} />
         <SparkCard label="Deals Closed" monthName={monthName} curData={dailyRows.map((r) => r.dealsClosed)}
           monthIdx={monthIdx} year={year} color="#3b82f6" formatter={num}
-          curTotal={kpi?.dealsClosed ?? 0} prv={prevYTD?.dealsClosed ?? 0} />
+          curTotal={kpi?.dealsClosed ?? 0} prv={prev.dealsClosed} />
       </div>
 
       {/* ── Row 4: 2 sparkline cards ── */}
       <div className="grid grid-cols-2 gap-3">
-        <SparkCard label="Taken Calls"       monthName={monthName} curData={dailyRows.map((r) => r.takenCalls)}
+        <SparkCard label="Taken Calls"        monthName={monthName} curData={dailyRows.map((r) => r.takenCalls)}
           monthIdx={monthIdx} year={year} color="#3b82f6" formatter={num}
-          curTotal={kpi?.takenCalls ?? 0} prv={prevYTD?.takenCalls ?? 0} />
+          curTotal={kpi?.takenCalls ?? 0} prv={prev.takenCalls} />
         <SparkCard label="New Cash Collected" monthName={monthName} curData={dailyRows.map((r) => r.cash)}
           monthIdx={monthIdx} year={year} color="#3b82f6" formatter={$$}
-          curTotal={kpi?.cash ?? 0} prv={prevYTD?.cash ?? 0} />
+          curTotal={kpi?.cash ?? 0} prv={prev.cash} />
       </div>
 
     </div>
