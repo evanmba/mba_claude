@@ -221,7 +221,7 @@ async function makeProxyFetch(url: string): Promise<Response> {
       // fall through to native fetch
     }
   }
-  return fetch(url, { next: { revalidate: 300 } } as RequestInit);
+  return fetch(url, { cache: "no-store" } as RequestInit);
 }
 
 async function fetchSheetValues(
@@ -233,7 +233,7 @@ async function fetchSheetValues(
   const csvUrl = PUBLISHED_CSV[sheetName];
   if (csvUrl) {
     try {
-      const res = await fetch(csvUrl, { next: { revalidate: 300 } } as RequestInit);
+      const res = await fetch(csvUrl, { cache: "no-store" } as RequestInit);
       if (res.ok) {
         const text = await res.text();
         return parseCSV(text);
