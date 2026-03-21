@@ -1,32 +1,36 @@
 import { NextResponse } from "next/server";
-import { fetchFunnelData, FUNNEL_SHEET_ID } from "@/lib/funnel";
+import { FUNNEL_SHEET_ID, getCurrentMonthTab } from "@/lib/funnel";
 
 export const dynamic = "force-dynamic";
 
+async function fetchRaw(sheetName: string, apiKey: string): Promise<{ status: number; rows: string[][] }> {
+  const range = encodeURIComponent(`'${sheetName}'`);
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${FUNNEL_SHEET_ID}/values/${range}?key=${apiKey}`;
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return { status: res.status, rows: [] };
+    const json = await res.json() as { values?: string[][] };
+    return { status: res.status, rows: (json.values ?? []).slice(0, 10) };
+  } catch (err) {
+    return { status: -1, rows: [[String(err)]] };
+  }
+}
+
 export async function GET() {
   const apiKey = process.env.GOOGLE_MASTER_SHEETS_API_KEY ?? "";
+  const monthTab = getCurrentMonthTab();
 
-  const results: Record<string, unknown> = {
+  const [monthData, ytdData] = await Promise.all([
+    fetchRaw(monthTab, apiKey),
+    fetchRaw("2026", apiKey),
+  ]);
+
+  return NextResponse.json({
     apiKeySet: !!apiKey,
-    apiKeyPreview: apiKey ? apiKey.slice(0, 8) + "..." : "MISSING",
-    spreadsheetId: FUNNEL_SHEET_ID,
-  };
-
-  try {
-    const data = await fetchFunnelData(apiKey);
-    results.monthLabel = data.monthLabel;
-    results.monthlyRows = data.monthly.length;
-    results.ytdRows = data.ytd.length;
-    results.scoreboardRows = data.scoreboard.length;
-    results.leadsRows = data.leads.length;
-    results.callsRows = data.calls.length;
-    results.customersRows = data.customers.length;
-    results.salesDashboard = data.salesDashboard;
-    results.scoreboardSample = data.scoreboard.slice(0, 3);
-    results.ytdSample = data.ytd.slice(0, 3);
-  } catch (err) {
-    results.error = String(err);
-  }
-
-  return NextResponse.json(results, { status: 200 });
+    monthTab,
+    monthStatus: monthData.status,
+    monthFirst10Rows: monthData.rows,
+    ytdStatus: ytdData.status,
+    ytdFirst10Rows: ytdData.rows,
+  });
 }
