@@ -4,19 +4,14 @@ import { useState } from "react";
 import { type FunnelData } from "@/lib/funnel";
 import { MonthlyView } from "./MonthlyView";
 import { YTDView } from "./YTDView";
-import { LeadsView } from "./LeadsView";
-import { CallsView } from "./CallsView";
 import { ScoreboardView } from "./ScoreboardView";
-import { BarChart2, TrendingUp, Calendar, Users, PhoneCall } from "lucide-react";
+import { BarChart2, Calendar } from "lucide-react";
 
-type Tab = "scoreboard" | "monthly" | "ytd" | "leads" | "calls";
+type Tab = "scoreboard" | "ytd";
 
 const TABS: { id: Tab; label: string; icon: React.ElementType; color: string }[] = [
-  { id: "scoreboard", label: "Scoreboard",        icon: BarChart2,  color: "#3b82f6" },
-  { id: "monthly",    label: "Monthly",           icon: TrendingUp, color: "#3b82f6" },
-  { id: "ytd",        label: "YTD 2026",           icon: Calendar,   color: "#22c55e" },
-  { id: "leads",      label: "Leads",              icon: Users,      color: "#d946ef" },
-  { id: "calls",      label: "Calls / Customers",  icon: PhoneCall,  color: "#f59e0b" },
+  { id: "scoreboard", label: "Scoreboard", icon: BarChart2,  color: "#3b82f6" },
+  { id: "ytd",        label: "YTD 2026",   icon: Calendar,   color: "#22c55e" },
 ];
 
 interface Props {
@@ -47,8 +42,8 @@ export function FunnelDashboard({ data, error }: Props) {
           className="rounded-lg p-4 mb-6 text-sm"
           style={{ background: "rgba(239,68,68,0.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)" }}
         >
-          Could not load sheet data. Make sure the Google Sheet is shared with your API key and the tab names match:&nbsp;
-          <strong>{data?.monthLabel ?? "MAR 2026"}</strong>, <strong>2026</strong>, <strong>LEADS</strong>, <strong>CALLS</strong>, <strong>CUSTOMERS</strong>.
+          Could not load sheet data. Make sure the Google Sheet is shared and tab names match:&nbsp;
+          <strong>{data?.monthLabel ?? "MAR 2026"}</strong>, <strong>2026</strong>.
         </div>
       )}
 
@@ -79,21 +74,17 @@ export function FunnelDashboard({ data, error }: Props) {
 
       {/* Content */}
       {activeTab === "scoreboard" && (
-        <ScoreboardView scoreboard={data?.scoreboard ?? []} />
-      )}
-      {activeTab === "monthly" && (
-        <MonthlyView
-          monthly={data?.monthly ?? []}
-          salesDashboard={data?.salesDashboard ?? null}
-          monthLabel={data?.monthLabel ?? "—"}
-          ytd={data?.ytd ?? []}
-        />
+        <div className="flex flex-col gap-8">
+          <ScoreboardView scoreboard={data?.scoreboard ?? []} />
+          <MonthlyView
+            monthly={data?.monthly ?? []}
+            salesDashboard={data?.salesDashboard ?? null}
+            monthLabel={data?.monthLabel ?? "—"}
+            ytd={data?.ytd ?? []}
+          />
+        </div>
       )}
       {activeTab === "ytd" && <YTDView ytd={data?.ytd ?? []} />}
-      {activeTab === "leads" && <LeadsView leads={data?.leads ?? []} />}
-      {activeTab === "calls" && (
-        <CallsView calls={data?.calls ?? []} customers={data?.customers ?? []} />
-      )}
     </div>
   );
 }

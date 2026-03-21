@@ -159,7 +159,6 @@ export function MonthlyView({ monthly, salesDashboard, monthLabel, ytd }: Props)
   const kpi = rollup30 ?? monthly.find((r) => r.isRollup) ?? null;
 
   const dailyRows = monthly.filter((r) => !r.isRollup);
-  const rollupRows = monthly.filter((r) => r.isRollup);
 
   const revenuePerCall = kpi && kpi.takenCalls > 0 ? kpi.revenue / kpi.takenCalls : 0;
 
@@ -187,8 +186,6 @@ export function MonthlyView({ monthly, salesDashboard, monthLabel, ytd }: Props)
   const dailyClosed = dailyRows.map((r) => r.dealsClosed);
   const dailyCash   = dailyRows.map((r) => r.cash);
   const dailyRev    = dailyRows.map((r) => r.revenue);
-
-  const tableRows = [...rollupRows, ...dailyRows];
 
   return (
     <div>
@@ -295,96 +292,7 @@ export function MonthlyView({ monthly, salesDashboard, monthLabel, ytd }: Props)
         </div>
       )}
 
-      {/* Data table */}
-      <div
-        className="rounded-xl overflow-hidden"
-        style={{ border: "1px solid var(--border)" }}
-      >
-        <div
-          className="px-5 py-3 flex items-center justify-between"
-          style={{ background: "var(--card)", borderBottom: "1px solid var(--border)" }}
-        >
-          <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-            {monthLabel} — Daily Breakdown
-          </p>
-          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            {dailyRows.length} days tracked
-          </p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr style={{ background: "var(--secondary)", borderBottom: "1px solid var(--border)" }}>
-                {[
-                  "Period","Spent","Freq","Reach","Clicks","CTR",
-                  "Leads","Apps","Booked","Taken","Show%",
-                  "Closed","Close%","Cash","Revenue","ROAS","CPA",
-                ].map((h) => (
-                  <th
-                    key={h}
-                    className="px-3 py-2 text-left font-semibold whitespace-nowrap"
-                    style={{ color: "var(--muted-foreground)" }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {tableRows.map((row, i) => (
-                <tr
-                  key={row.period + i}
-                  style={{
-                    background: row.isRollup
-                      ? "rgba(59,130,246,0.08)"
-                      : i % 2 === 0
-                      ? "var(--card)"
-                      : "rgba(255,255,255,0.02)",
-                    borderBottom: "1px solid var(--border)",
-                    fontWeight: row.isRollup ? 600 : 400,
-                  }}
-                >
-                  <td className="px-3 py-2 whitespace-nowrap" style={{ color: row.isRollup ? "#3b82f6" : "var(--foreground)" }}>
-                    {row.period}
-                  </td>
-                  <Td>{$$$(row.amountSpent)}</Td>
-                  <Td>{row.frequency > 0 ? row.frequency.toFixed(2) : "—"}</Td>
-                  <Td>{num(row.reach)}</Td>
-                  <Td>{num(row.uniqueClicks)}</Td>
-                  <Td>{pct(row.ctr)}</Td>
-                  <Td>{num(row.leads)}</Td>
-                  <Td>{num(row.apps)}</Td>
-                  <Td>{num(row.bookedCalls)}</Td>
-                  <Td>{num(row.takenCalls)}</Td>
-                  <Td>{pct(row.showUpRate)}</Td>
-                  <Td>{num(row.dealsClosed)}</Td>
-                  <Td>{pct(row.closeRate)}</Td>
-                  <Td>{$$(row.cash)}</Td>
-                  <Td>{$$(row.revenue)}</Td>
-                  <Td>{ratio(row.revenueROAS)}</Td>
-                  <Td>{row.cpa > 0 ? $$$(row.cpa) : "—"}</Td>
-                </tr>
-              ))}
-              {tableRows.length === 0 && (
-                <tr>
-                  <td colSpan={17} className="px-5 py-8 text-center" style={{ color: "var(--muted-foreground)" }}>
-                    No data — check that the sheet tab is named <strong>{monthLabel}</strong> and is accessible.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
-  );
-}
-
-function Td({ children }: { children: React.ReactNode }) {
-  return (
-    <td className="px-3 py-2 whitespace-nowrap" style={{ color: "var(--foreground)" }}>
-      {children}
-    </td>
   );
 }
 
