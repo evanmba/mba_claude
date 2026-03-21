@@ -1,6 +1,12 @@
-import { toNum } from "./sheets";
+import { toNum, parseCSV } from "./sheets";
 
 export const FUNNEL_SHEET_ID = "1c6rb9jAI1dJfuLZYxueBOTPxwhs-7Ud632S7MJ3GSIs";
+
+// Published-to-web CSV URLs (File → Share → Publish to web → CSV per tab)
+// These work without an API key and without the Sheets API being enabled.
+const PUBLISHED_CSV: Record<string, string> = {
+  "2026": "https://docs.google.com/spreadsheets/d/e/2PACX-1vSC4-xQoouhaHtJkQ5OADfQ7BCnX9MDiQXAqRwiO9sD1Agmte1WwDsQ-3DGzQ6_bW-1nOYV_MX_Sggd/pub?output=csv&sheet=2026",
+};
 
 const MONTH_LABELS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
 export function getCurrentMonthTab(): string {
@@ -223,6 +229,22 @@ async function fetchSheetValues(
   sheetName: string,
   apiKey: string,
 ): Promise<string[][]> {
+  // Prefer published CSV URL when available — no API key needed
+  const csvUrl = PUBLISHED_CSV[sheetName];
+  if (csvUrl) {
+    try {
+      const res = await fetch(csvUrl, { next: { revalidate: 300 } } as RequestInit);
+      if (res.ok) {
+        const text = await res.text();
+        return parseCSV(text);
+      }
+      console.warn(`[funnel] CSV fetch for "${sheetName}" failed: ${res.status}`);
+    } catch (err) {
+      console.warn(`[funnel] CSV fetch for "${sheetName}" error:`, err);
+    }
+  }
+
+  // Fall back to Sheets API v4
   const range = encodeURIComponent(`'${sheetName}'`);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?key=${apiKey}`;
   const res = await makeProxyFetch(url);
