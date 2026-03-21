@@ -250,7 +250,11 @@ export function ScoreboardView({ scoreboard, monthly, ytd, monthLabel }: Props) 
     takenCalls:  prevSb?.takenCalls  ?? prevYtd?.takenCalls  ?? 0,
     dealsClosed: prevSb?.dealsClosed ?? prevYtd?.dealsClosed ?? 0,
     cash:        prevSb?.cashCollected ?? prevYtd?.cash      ?? 0,
-    cashPerCall: prevSb && prevSb.takenCalls > 0 ? prevSb.cashCollected / prevSb.takenCalls : 0,
+    cashPerCall: prevSb && prevSb.takenCalls > 0
+      ? prevSb.cashCollected / prevSb.takenCalls
+      : prevYtd && prevYtd.takenCalls > 0
+        ? prevYtd.cash / prevYtd.takenCalls
+        : 0,
   };
 
   const cashPerCall = kpi && kpi.takenCalls > 0 ? kpi.cash / kpi.takenCalls : 0;
