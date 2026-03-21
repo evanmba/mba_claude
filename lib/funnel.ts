@@ -428,7 +428,7 @@ function parseScoreboard(rows: string[][]): ScoreboardRow[] {
       amountSpent:   g(1),   // B
       leads:         g(9),   // J
       apps:          g(12),  // M
-      cashPerCall:   g(20),  // U - Cost Per Taken Call
+      cashPerCall:   g(18) > 0 ? g(23) / g(18) : 0,  // cash / takenCalls
       bookedCalls:   g(15),  // P
       takenCalls:    g(18),  // S
       showUpRate:    g(19),  // T
