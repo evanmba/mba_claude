@@ -197,6 +197,7 @@ export interface FunnelData {
   monthly: MonthlyRow[];
   salesDashboard: SalesDashboard | null;
   ytd: YTDRow[];
+  ytd2025: YTDRow[];
   scoreboard: ScoreboardRow[];
   leads: Lead[];
   calls: Call[];
@@ -723,9 +724,10 @@ function parseCustomers(rows: string[][]): Customer[] {
 export async function fetchFunnelData(apiKey: string): Promise<FunnelData> {
   const monthLabel = getCurrentMonthTab();
 
-  const [monthlyRows, ytdRows, leadsRows, callsRows, customersRows] = await Promise.all([
+  const [monthlyRows, ytdRows, ytd2025Rows, leadsRows, callsRows, customersRows] = await Promise.all([
     fetchSheetValues(FUNNEL_SHEET_ID, monthLabel, apiKey),
     fetchSheetValues(FUNNEL_SHEET_ID, "2026", apiKey),
+    fetchSheetValues(FUNNEL_SHEET_ID, "2025", apiKey),
     fetchSheetValues(FUNNEL_SHEET_ID, "LEADS", apiKey),
     fetchSheetValues(FUNNEL_SHEET_ID, "CALLS", apiKey),
     fetchSheetValues(FUNNEL_SHEET_ID, "CUSTOMERS", apiKey),
@@ -737,6 +739,7 @@ export async function fetchFunnelData(apiKey: string): Promise<FunnelData> {
     monthly,
     salesDashboard,
     ytd:        parseYTD(ytdRows),
+    ytd2025:    parseYTD(ytd2025Rows),
     scoreboard: parseScoreboard(ytdRows),
     leads:      parseLeads(leadsRows),
     calls:      parseCalls(callsRows),

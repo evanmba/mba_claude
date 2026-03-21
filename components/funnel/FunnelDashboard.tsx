@@ -36,6 +36,7 @@ export function FunnelDashboard({ data, error }: Props) {
         scoreboard={data?.scoreboard ?? []}
         monthly={data?.monthly ?? []}
         ytd={data?.ytd ?? []}
+        ytd2025={data?.ytd2025 ?? []}
         monthLabel={data?.monthLabel ?? ""}
       />
     </div>

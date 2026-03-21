@@ -3,6 +3,27 @@
 import { useState, useRef, useCallback } from "react";
 import { type ScoreboardRow, type MonthlyRow, type YTDRow } from "@/lib/funnel";
 
+// ─── Avg / Projection helpers ─────────────────────────────────────────────────
+type Getter = (r: YTDRow) => number;
+
+function ytdAvg(rows: YTDRow[], getter: Getter, excludeMonth?: string): number {
+  const months = rows.filter(
+    (r) => !r.isSummary && (!excludeMonth || r.month.toLowerCase() !== excludeMonth.toLowerCase())
+  );
+  if (!months.length) return 0;
+  const sum = months.reduce((acc, r) => acc + getter(r), 0);
+  return sum / months.length;
+}
+
+function project(current: number, daysElapsed: number, daysInMonth: number): number {
+  if (!daysElapsed || !current) return 0;
+  return (current / daysElapsed) * daysInMonth;
+}
+
+function daysInMonth(monthIdx: number, year: number): number {
+  return new Date(year, monthIdx + 1, 0).getDate();
+}
+
 // ─── Formatters ───────────────────────────────────────────────────────────────
 const $$ = (n: number) =>
   n === 0 ? "—" : `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
@@ -278,8 +299,47 @@ function InteractiveSparkline({
   );
 }
 
-// ─── MoM badge ───────────────────────────────────────────────────────────────
+// ─── Compare row (2025 avg · 2026 avg · projected) ───────────────────────────
 const CARD_BG = "#0b1628";
+
+function CompareRow({
+  avg2025, avg2026, projected, formatter, dark = false,
+}: {
+  avg2025: number; avg2026: number; projected: number;
+  formatter: (v: number) => string; dark?: boolean;
+}) {
+  const dim = dark ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.35)";
+  const bright = dark ? "rgba(0,0,0,0.8)" : "rgba(255,255,255,0.75)";
+  const divider = dark ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.1)";
+  const items = [
+    { label: "2025 avg", value: avg2025 > 0 ? formatter(avg2025) : "—" },
+    { label: "2026 avg", value: avg2026 > 0 ? formatter(avg2026) : "—" },
+    { label: "Projected", value: projected > 0 ? formatter(projected) : "—" },
+  ];
+  return (
+    <div style={{
+      display: "flex", gap: 0, marginTop: 12,
+      borderTop: `1px solid ${divider}`, paddingTop: 10,
+    }}>
+      {items.map((item, i) => (
+        <div key={i} style={{
+          flex: 1, textAlign: "center",
+          borderRight: i < 2 ? `1px solid ${divider}` : undefined,
+          paddingLeft: i > 0 ? 8 : 0, paddingRight: i < 2 ? 8 : 0,
+        }}>
+          <p style={{ color: dim, fontSize: 9, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", margin: 0 }}>
+            {item.label}
+          </p>
+          <p style={{ color: bright, fontSize: 13, fontWeight: 700, margin: "2px 0 0" }}>
+            {item.value}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── MoM badge ───────────────────────────────────────────────────────────────
 
 function MomBadge({
   cur, prv, hib = true, dark = false,
@@ -302,9 +362,12 @@ function MomBadge({
 // ─── Stat card (top row) ──────────────────────────────────────────────────────
 function StatCard({
   label, value, sub, bg, cur, prv, hib = true,
+  avg2025, avg2026, projected, formatter,
 }: {
   label: string; value: string; sub?: string; bg?: string;
   cur?: number; prv?: number; hib?: boolean;
+  avg2025?: number; avg2026?: number; projected?: number;
+  formatter?: (v: number) => string;
 }) {
   const onDark = !bg;
   return (
@@ -330,6 +393,9 @@ function StatCard({
           <MomBadge cur={cur} prv={prv} hib={hib} dark={!onDark} />
         </div>
       )}
+      {formatter && avg2025 != null && avg2026 != null && projected != null && (
+        <CompareRow avg2025={avg2025} avg2026={avg2026} projected={projected} formatter={formatter} dark={!onDark} />
+      )}
     </div>
   );
 }
@@ -337,8 +403,11 @@ function StatCard({
 // ─── Medium tile (second row) ─────────────────────────────────────────────────
 function MedTile({
   label, value, cur, prv, hib = true,
+  avg2025, avg2026, projected, formatter,
 }: {
   label: string; value: string; cur?: number; prv?: number; hib?: boolean;
+  avg2025?: number; avg2026?: number; projected?: number;
+  formatter?: (v: number) => string;
 }) {
   return (
     <div
@@ -359,6 +428,9 @@ function MedTile({
           <MomBadge cur={cur} prv={prv} hib={hib} />
         </div>
       )}
+      {formatter && avg2025 != null && avg2026 != null && projected != null && (
+        <CompareRow avg2025={avg2025} avg2026={avg2026} projected={projected} formatter={formatter} />
+      )}
     </div>
   );
 }
@@ -366,6 +438,7 @@ function MedTile({
 // ─── Sparkline card ───────────────────────────────────────────────────────────
 function SparkCard({
   label, curData, prvData, monthIdx, year, color, formatter, curTotal, prvTotal, hib = true,
+  avg2025, avg2026, projected,
 }: {
   label: string;
   curData: number[];
@@ -377,6 +450,9 @@ function SparkCard({
   curTotal?: number;
   prvTotal?: number;
   hib?: boolean;
+  avg2025?: number;
+  avg2026?: number;
+  projected?: number;
 }) {
   return (
     <div className="rounded-2xl p-6 flex flex-col" style={{ background: CARD_BG }}>
@@ -406,6 +482,9 @@ function SparkCard({
         color={color}
         formatter={formatter}
       />
+      {avg2025 != null && avg2026 != null && projected != null && (
+        <CompareRow avg2025={avg2025} avg2026={avg2026} projected={projected} formatter={formatter} />
+      )}
     </div>
   );
 }
@@ -415,23 +494,64 @@ interface Props {
   scoreboard: ScoreboardRow[];
   monthly: MonthlyRow[];
   ytd: YTDRow[];
+  ytd2025: YTDRow[];
   monthLabel: string;
 }
 
-export function ScoreboardView({ scoreboard, monthly, ytd, monthLabel }: Props) {
+export function ScoreboardView({ scoreboard, monthly, ytd, ytd2025, monthLabel }: Props) {
   const kpi = monthly.find((r) => r.period === "30 Days") ?? monthly.find((r) => r.isRollup) ?? null;
   const dailyRows = monthly.filter((r) => !r.isRollup);
 
   const { monthIdx, year } = parseMonthLabel(monthLabel);
+  const curMonthName = MONTH_NAMES[monthIdx];
 
-  // Previous month for comparison
+  // Previous month
   const prevMonthIdx = monthIdx > 0 ? monthIdx - 1 : 11;
-  const prevYear = monthIdx === 0 ? year - 1 : year;
   const prevMonthName = MONTH_NAMES[prevMonthIdx];
   const prevYTD = ytd.find((r) => r.month.toLowerCase() === prevMonthName.toLowerCase()) ?? null;
 
   const cashPerCall = kpi && kpi.takenCalls > 0 ? kpi.cash / kpi.takenCalls : 0;
   const prevCashPerCall = prevYTD && prevYTD.takenCalls > 0 ? prevYTD.cash / prevYTD.takenCalls : 0;
+
+  // Days elapsed (non-zero daily rows) and days in month
+  const trimmedDaily = [...dailyRows];
+  while (trimmedDaily.length > 0 && trimmedDaily[trimmedDaily.length - 1].takenCalls === 0
+    && trimmedDaily[trimmedDaily.length - 1].leads === 0
+    && trimmedDaily[trimmedDaily.length - 1].cash === 0) {
+    trimmedDaily.pop();
+  }
+  const daysElapsed = Math.max(trimmedDaily.length, 1);
+  const totalDays = daysInMonth(monthIdx, year);
+
+  // 2026 monthly averages (exclude current month since it's in progress)
+  const avg26 = {
+    leads:       ytdAvg(ytd, (r) => r.leads,       curMonthName),
+    booked:      ytdAvg(ytd, (r) => r.bookedCalls,  curMonthName),
+    taken:       ytdAvg(ytd, (r) => r.takenCalls,   curMonthName),
+    cash:        ytdAvg(ytd, (r) => r.cash,         curMonthName),
+    closed:      ytdAvg(ytd, (r) => r.dealsClosed,  curMonthName),
+    cashPerCall: ytdAvg(ytd, (r) => r.takenCalls > 0 ? r.cash / r.takenCalls : 0, curMonthName),
+  };
+
+  // 2025 monthly averages (all months — year is complete)
+  const avg25 = {
+    leads:       ytdAvg(ytd2025, (r) => r.leads),
+    booked:      ytdAvg(ytd2025, (r) => r.bookedCalls),
+    taken:       ytdAvg(ytd2025, (r) => r.takenCalls),
+    cash:        ytdAvg(ytd2025, (r) => r.cash),
+    closed:      ytdAvg(ytd2025, (r) => r.dealsClosed),
+    cashPerCall: ytdAvg(ytd2025, (r) => r.takenCalls > 0 ? r.cash / r.takenCalls : 0),
+  };
+
+  // Projected end-of-month values
+  const proj = {
+    leads:       project(kpi?.leads ?? 0,       daysElapsed, totalDays),
+    booked:      project(kpi?.bookedCalls ?? 0,  daysElapsed, totalDays),
+    taken:       project(kpi?.takenCalls ?? 0,   daysElapsed, totalDays),
+    cash:        project(kpi?.cash ?? 0,         daysElapsed, totalDays),
+    closed:      project(kpi?.dealsClosed ?? 0,  daysElapsed, totalDays),
+    cashPerCall: cashPerCall, // rate doesn't project the same way
+  };
 
   // Daily sparkline arrays
   const dailyLeads   = dailyRows.map((r) => r.leads);
@@ -451,6 +571,8 @@ export function ScoreboardView({ scoreboard, monthly, ytd, monthLabel }: Props) 
           sub="Month to date"
           cur={kpi?.takenCalls}
           prv={prevYTD?.takenCalls}
+          avg2025={avg25.taken} avg2026={avg26.taken} projected={proj.taken}
+          formatter={num}
         />
         <StatCard
           label="$ Per Call"
@@ -459,50 +581,56 @@ export function ScoreboardView({ scoreboard, monthly, ytd, monthLabel }: Props) 
           bg="#f59e0b"
           cur={cashPerCall || undefined}
           prv={prevCashPerCall || undefined}
+          avg2025={avg25.cashPerCall} avg2026={avg26.cashPerCall} projected={proj.cashPerCall}
+          formatter={$$}
         />
       </div>
 
       {/* ── Row 2: 4 medium tiles ── */}
       <div className="grid grid-cols-4 gap-3">
-        <MedTile label="New Leads"          value={kpi ? num(kpi.leads) : "—"}        cur={kpi?.leads}        prv={prevYTD?.leads} />
-        <MedTile label="Booked Calls"       value={kpi ? num(kpi.bookedCalls) : "—"}  cur={kpi?.bookedCalls}  prv={prevYTD?.bookedCalls} />
-        <MedTile label="Deals Closed"       value={kpi ? num(kpi.dealsClosed) : "—"}  cur={kpi?.dealsClosed}  prv={prevYTD?.dealsClosed} />
-        <MedTile label="New Cash Collected" value={kpi ? $$(kpi.cash) : "—"}          cur={kpi?.cash}         prv={prevYTD?.cash} />
+        <MedTile label="New Leads"          value={kpi ? num(kpi.leads) : "—"}
+          cur={kpi?.leads} prv={prevYTD?.leads}
+          avg2025={avg25.leads} avg2026={avg26.leads} projected={proj.leads} formatter={num} />
+        <MedTile label="Booked Calls"       value={kpi ? num(kpi.bookedCalls) : "—"}
+          cur={kpi?.bookedCalls} prv={prevYTD?.bookedCalls}
+          avg2025={avg25.booked} avg2026={avg26.booked} projected={proj.booked} formatter={num} />
+        <MedTile label="Deals Closed"       value={kpi ? num(kpi.dealsClosed) : "—"}
+          cur={kpi?.dealsClosed} prv={prevYTD?.dealsClosed}
+          avg2025={avg25.closed} avg2026={avg26.closed} projected={proj.closed} formatter={num} />
+        <MedTile label="New Cash Collected" value={kpi ? $$(kpi.cash) : "—"}
+          cur={kpi?.cash} prv={prevYTD?.cash}
+          avg2025={avg25.cash} avg2026={avg26.cash} projected={proj.cash} formatter={$$} />
       </div>
 
       {/* ── Row 3: 2 sparkline cards ── */}
       <div className="grid grid-cols-2 gap-3">
         <SparkCard
-          label="New Leads"
-          curData={dailyLeads}
-          monthIdx={monthIdx} year={year}
-          color="#3b82f6" formatter={num}
+          label="New Leads" curData={dailyLeads}
+          monthIdx={monthIdx} year={year} color="#3b82f6" formatter={num}
           curTotal={kpi?.leads} prvTotal={prevYTD?.leads}
+          avg2025={avg25.leads} avg2026={avg26.leads} projected={proj.leads}
         />
         <SparkCard
-          label="Deals Closed"
-          curData={dailyClosed}
-          monthIdx={monthIdx} year={year}
-          color="#3b82f6" formatter={num}
+          label="Deals Closed" curData={dailyClosed}
+          monthIdx={monthIdx} year={year} color="#3b82f6" formatter={num}
           curTotal={kpi?.dealsClosed} prvTotal={prevYTD?.dealsClosed}
+          avg2025={avg25.closed} avg2026={avg26.closed} projected={proj.closed}
         />
       </div>
 
       {/* ── Row 4: 2 sparkline cards ── */}
       <div className="grid grid-cols-2 gap-3">
         <SparkCard
-          label="Taken Calls"
-          curData={dailyTaken}
-          monthIdx={monthIdx} year={year}
-          color="#3b82f6" formatter={num}
+          label="Taken Calls" curData={dailyTaken}
+          monthIdx={monthIdx} year={year} color="#3b82f6" formatter={num}
           curTotal={kpi?.takenCalls} prvTotal={prevYTD?.takenCalls}
+          avg2025={avg25.taken} avg2026={avg26.taken} projected={proj.taken}
         />
         <SparkCard
-          label="New Cash Collected"
-          curData={dailyCash}
-          monthIdx={monthIdx} year={year}
-          color="#3b82f6" formatter={$$}
+          label="New Cash Collected" curData={dailyCash}
+          monthIdx={monthIdx} year={year} color="#3b82f6" formatter={$$}
           curTotal={kpi?.cash} prvTotal={prevYTD?.cash}
+          avg2025={avg25.cash} avg2026={avg26.cash} projected={proj.cash}
         />
       </div>
 
