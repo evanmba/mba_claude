@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useRef, useCallback } from "react";
 import { type ScoreboardRow, type MonthlyRow, type YTDRow } from "@/lib/funnel";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
@@ -7,188 +8,354 @@ const $$ = (n: number) =>
   n === 0 ? "—" : `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 const pct = (n: number) => (n === 0 ? "—" : `${n.toFixed(1)}%`);
 const num = (n: number) => (n === 0 ? "—" : n.toLocaleString("en-US"));
-const ratio = (n: number) => (n === 0 ? "—" : `${n.toFixed(2)}x`);
 
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
   "July","August","September","October","November","December",
 ];
+const MONTH_SHORT = [
+  "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec",
+];
 const ABBRS = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-function mom(cur: number, prv: number): number | null {
-  if (!prv || !cur) return null;
-  return ((cur - prv) / prv) * 100;
+// ─── Parse monthLabel (e.g. "MAR 2026") ──────────────────────────────────────
+function parseMonthLabel(label: string): { monthIdx: number; year: number } {
+  const [abbr, yearStr] = label.split(" ");
+  const monthIdx = ABBRS.indexOf((abbr ?? "").toUpperCase());
+  const year = parseInt(yearStr ?? "2026", 10);
+  return { monthIdx: monthIdx >= 0 ? monthIdx : 2, year };
 }
 
-function MomBadge({ cur, prv, hib = true }: { cur: number; prv: number; hib?: boolean }) {
-  const d = mom(cur, prv);
-  if (d === null) return null;
-  const good = hib ? d >= 0 : d <= 0;
-  return (
-    <span style={{ fontSize: 12, fontWeight: 700, color: good ? "#4ade80" : "#f87171" }}>
-      {d > 0 ? "▲" : "▼"} {Math.abs(d).toFixed(1)}%
-    </span>
-  );
-}
-
-// ─── Sparkline ────────────────────────────────────────────────────────────────
-function Sparkline({
-  cur,
-  prv,
-  curLabel,
-  prvLabel,
+// ─── Interactive Sparkline ────────────────────────────────────────────────────
+function InteractiveSparkline({
+  curData,
+  prvData,
+  monthIdx,
+  year,
   color,
+  formatter,
 }: {
-  cur: number[];
-  prv?: number[];
-  curLabel: string;
-  prvLabel?: string;
+  curData: number[];
+  prvData?: number[];
+  monthIdx: number;
+  year: number;
   color: string;
+  formatter: (v: number) => string;
 }) {
-  const W = 300;
-  const H = 80;
-  const pad = 6;
+  const W = 800;
+  const H = 120;
+  const padL = 8;
+  const padR = 8;
+  const padT = 16;
+  const padB = 32; // room for x-axis labels
 
-  function points(data: number[]) {
-    const valid = data.map((v) => (isNaN(v) ? 0 : v));
-    const max = Math.max(...valid, 0.001);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Trim trailing zeros from current data
+  const cur = [...curData];
+  while (cur.length > 0 && cur[cur.length - 1] === 0) cur.pop();
+  const n = cur.length;
+
+  function calcPoints(data: number[], len: number): [number, number][] {
+    const vals = data.map((v) => (isNaN(v) ? 0 : v));
+    const allVals = [...cur, ...(prvData ?? [])].filter((v) => !isNaN(v) && v > 0);
+    const max = allVals.length > 0 ? Math.max(...allVals) : 1;
     const min = 0;
     const range = max - min || 1;
-    return valid.map((v, i) => {
-      const x = pad + (i / Math.max(valid.length - 1, 1)) * (W - pad * 2);
-      const y = H - pad - ((v - min) / range) * (H - pad * 2);
-      return [x, y] as [number, number];
+    return vals.map((v, i) => {
+      const x = padL + (i / Math.max(len - 1, 1)) * (W - padL - padR);
+      const y = padT + (1 - (v - min) / range) * (H - padT - padB);
+      return [x, y];
     });
   }
 
-  const curPts = cur.length >= 2 ? points(cur) : [];
-  const prvPts = prv && prv.length >= 2 ? points(prv) : [];
+  const curPts = n >= 2 ? calcPoints(cur, n) : [];
+  const prvPts = prvData && prvData.length >= 2 ? calcPoints(prvData.slice(0, n), Math.max(prvData.slice(0, n).length, 2)) : [];
 
-  const poly = (pts: [number, number][]) => pts.map(([x, y]) => `${x},${y}`).join(" ");
+  const polyStr = (pts: [number, number][]) => pts.map(([x, y]) => `${x},${y}`).join(" ");
 
-  // x-axis labels: show ~5 labels
-  const labelCount = Math.min(cur.length, 5);
-  const step = Math.max(1, Math.floor(cur.length / (labelCount - 1)));
-  const xLabels: number[] = [];
-  for (let i = 0; i < cur.length; i += step) xLabels.push(i);
-  if (xLabels[xLabels.length - 1] !== cur.length - 1) xLabels.push(cur.length - 1);
+  // X-axis date labels — show every day, abbreviated "1 Mar" style
+  const xLabels = cur.map((_, i) => ({
+    i,
+    label: `${i + 1} ${MONTH_SHORT[monthIdx]}`,
+    x: padL + (i / Math.max(n - 1, 1)) * (W - padL - padR),
+  }));
+
+  // Show labels: skip some if too many days
+  const labelStep = n > 20 ? 2 : 1;
+  const visibleLabels = xLabels.filter((_, i) => i % labelStep === 0);
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent<SVGSVGElement>) => {
+      if (!svgRef.current || n < 2) return;
+      const rect = svgRef.current.getBoundingClientRect();
+      const rawX = ((e.clientX - rect.left) / rect.width) * W;
+      // Find closest point
+      let closest = 0;
+      let minDist = Infinity;
+      curPts.forEach(([px], i) => {
+        const d = Math.abs(rawX - px);
+        if (d < minDist) { minDist = d; closest = i; }
+      });
+      setHoverIdx(closest);
+      const [px, py] = curPts[closest];
+      setTooltipPos({ x: (px / W) * 100, y: (py / H) * 100 });
+    },
+    [curPts, n]
+  );
+
+  const handleMouseLeave = useCallback(() => {
+    setHoverIdx(null);
+    setTooltipPos(null);
+  }, []);
+
+  // Legend date ranges
+  const curStart = `${MONTH_SHORT[monthIdx]} 1, ${year}`;
+  const curEnd = n > 0 ? `${MONTH_SHORT[monthIdx]} ${n}, ${year}` : curStart;
+  const prevMonthIdx = monthIdx > 0 ? monthIdx - 1 : 11;
+  const prevYear = monthIdx === 0 ? year - 1 : year;
+  const prvStart = `${MONTH_SHORT[prevMonthIdx]} 1, ${prevYear}`;
+  const prvEnd = n > 0 ? `${MONTH_SHORT[prevMonthIdx]} ${n}, ${prevYear}` : prvStart;
 
   return (
-    <div>
-      {cur.length >= 2 ? (
-        <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: H, display: "block" }} preserveAspectRatio="none">
-          {/* Grid lines */}
-          {[0.33, 0.66].map((t) => (
-            <line key={t} x1={pad} x2={W - pad}
-              y1={pad + (1 - t) * (H - pad * 2)} y2={pad + (1 - t) * (H - pad * 2)}
-              stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
-          ))}
-          {/* Previous period (dim) */}
-          {prvPts.length >= 2 && (
-            <polyline points={poly(prvPts)} fill="none" stroke={color} strokeWidth="1.5"
-              strokeOpacity="0.3" strokeLinejoin="round" strokeLinecap="round" strokeDasharray="4 2" />
-          )}
-          {/* Current period */}
-          {curPts.length >= 2 && (
-            <>
-              <polygon
-                points={[`${curPts[0][0]},${H - pad}`, ...curPts.map(([x, y]) => `${x},${y}`), `${curPts[curPts.length - 1][0]},${H - pad}`].join(" ")}
-                fill={`${color}18`} />
-              <polyline points={poly(curPts)} fill="none" stroke={color} strokeWidth="2"
-                strokeLinejoin="round" strokeLinecap="round" />
-              {curPts.map(([x, y], i) => (
-                <circle key={i} cx={x} cy={y} r="2.5" fill={color} />
-              ))}
-            </>
-          )}
-        </svg>
-      ) : (
-        <div style={{ height: H, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ color: "#334155", fontSize: 11 }}>no data</span>
-        </div>
-      )}
+    <div style={{ position: "relative" }}>
+      {n >= 2 ? (
+        <div style={{ position: "relative" }}>
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${W} ${H}`}
+            style={{ width: "100%", height: 160, display: "block", cursor: "crosshair" }}
+            preserveAspectRatio="none"
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+          >
+            {/* Grid lines */}
+            {[0.25, 0.5, 0.75].map((t) => (
+              <line
+                key={t}
+                x1={padL} x2={W - padR}
+                y1={padT + (1 - t) * (H - padT - padB)}
+                y2={padT + (1 - t) * (H - padT - padB)}
+                stroke="rgba(255,255,255,0.04)" strokeWidth="1"
+              />
+            ))}
 
-      {/* X-axis day labels */}
-      {cur.length >= 2 && (
-        <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 6px 0", marginTop: 2 }}>
-          {xLabels.map((i) => (
-            <span key={i} style={{ color: "#475569", fontSize: 9 }}>{i + 1}</span>
-          ))}
+            {/* Previous period — dim dashed */}
+            {prvPts.length >= 2 && (
+              <polyline
+                points={polyStr(prvPts)}
+                fill="none"
+                stroke="rgba(255,255,255,0.3)"
+                strokeWidth="1.5"
+                strokeDasharray="5 3"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            )}
+
+            {/* Current period fill */}
+            {curPts.length >= 2 && (
+              <polygon
+                points={[
+                  `${curPts[0][0]},${H - padB}`,
+                  ...curPts.map(([x, y]) => `${x},${y}`),
+                  `${curPts[curPts.length - 1][0]},${H - padB}`,
+                ].join(" ")}
+                fill={`${color}1a`}
+              />
+            )}
+
+            {/* Current period line */}
+            {curPts.length >= 2 && (
+              <polyline
+                points={polyStr(curPts)}
+                fill="none"
+                stroke={color}
+                strokeWidth="2"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            )}
+
+            {/* Dots */}
+            {curPts.map(([x, y], i) => (
+              <circle
+                key={i}
+                cx={x} cy={y}
+                r={hoverIdx === i ? 5 : 2.5}
+                fill={hoverIdx === i ? "#fff" : color}
+                stroke={hoverIdx === i ? color : "none"}
+                strokeWidth="2"
+                style={{ transition: "r 0.1s" }}
+              />
+            ))}
+
+            {/* Hover vertical line */}
+            {hoverIdx !== null && curPts[hoverIdx] && (
+              <line
+                x1={curPts[hoverIdx][0]} x2={curPts[hoverIdx][0]}
+                y1={padT} y2={H - padB}
+                stroke="rgba(255,255,255,0.2)" strokeWidth="1" strokeDasharray="3 2"
+              />
+            )}
+
+            {/* X-axis rotated labels */}
+            {visibleLabels.map(({ i, label, x }) => (
+              <text
+                key={i}
+                x={x}
+                y={H - padB + 10}
+                textAnchor="end"
+                transform={`rotate(-45, ${x}, ${H - padB + 10})`}
+                fill={hoverIdx === i ? "#e2e8f0" : "#475569"}
+                fontSize="9"
+                style={{ userSelect: "none" }}
+              >
+                {label}
+              </text>
+            ))}
+          </svg>
+
+          {/* Tooltip */}
+          {hoverIdx !== null && tooltipPos && curPts[hoverIdx] && (
+            <div
+              style={{
+                position: "absolute",
+                left: `clamp(0px, calc(${tooltipPos.x}% - 48px), calc(100% - 96px))`,
+                top: `${tooltipPos.y}%`,
+                transform: "translateY(-120%)",
+                background: "#1e293b",
+                border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: 8,
+                padding: "6px 10px",
+                pointerEvents: "none",
+                zIndex: 10,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <p style={{ color: "#94a3b8", fontSize: 10, margin: 0 }}>
+                {MONTH_SHORT[monthIdx]} {hoverIdx + 1}, {year}
+              </p>
+              <p style={{ color: "#ffffff", fontSize: 13, fontWeight: 700, margin: 0 }}>
+                {formatter(cur[hoverIdx])}
+              </p>
+              {prvData && prvData[hoverIdx] != null && (
+                <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, margin: 0 }}>
+                  prev: {formatter(prvData[hoverIdx])}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ height: 160, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ color: "#334155", fontSize: 12 }}>No data yet</span>
         </div>
       )}
 
       {/* Legend */}
-      <div style={{ display: "flex", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
-        {prvLabel && (
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, opacity: 0.35, display: "inline-block" }} />
-            <span style={{ color: "#64748b", fontSize: 10 }}>{prvLabel}</span>
+      <div style={{ display: "flex", gap: 20, marginTop: 12 }}>
+        {prvData && prvData.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{
+              width: 10, height: 10, borderRadius: "50%",
+              background: "rgba(255,255,255,0.3)", display: "inline-block",
+            }} />
+            <span style={{ color: "#64748b", fontSize: 11 }}>{prvStart} – {prvEnd}</span>
           </div>
         )}
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: color, display: "inline-block" }} />
-          <span style={{ color: "#94a3b8", fontSize: 10 }}>{curLabel}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{
+            width: 10, height: 10, borderRadius: "50%",
+            background: color, display: "inline-block",
+          }} />
+          <span style={{ color: "#94a3b8", fontSize: 11 }}>{curStart} – {curEnd}</span>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── Hero card ────────────────────────────────────────────────────────────────
-function HeroCard({ label, value, sub, bg, cur, prv, hib = true }: {
-  label: string; value: string; sub?: string; bg: string;
-  cur?: number; prv?: number; hib?: boolean;
+// ─── Stat card (top row) ──────────────────────────────────────────────────────
+const CARD_BG = "#0b1628";
+
+function StatCard({
+  label, value, sub, bg,
+}: {
+  label: string; value: string; sub?: string; bg?: string;
 }) {
   return (
-    <div className="rounded-2xl flex flex-col justify-between p-6" style={{ background: bg, minHeight: 170 }}>
-      <div>
-        <p style={{ color: "rgba(255,255,255,0.8)", fontSize: 17, fontWeight: 600 }}>{label}</p>
-        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginTop: 2 }}>Month to date</p>
-      </div>
-      <div>
-        <p style={{ color: "#ffffff", fontSize: 42, fontWeight: 800, lineHeight: 1, marginBottom: 6 }}>{value}</p>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {sub && <span style={{ color: "rgba(255,255,255,0.55)", fontSize: 12 }}>{sub}</span>}
-          {cur != null && prv != null && <MomBadge cur={cur} prv={prv} hib={hib} />}
-        </div>
-      </div>
+    <div
+      className="rounded-2xl flex flex-col p-6"
+      style={{ background: bg ?? CARD_BG, minHeight: 160 }}
+    >
+      <p style={{ color: bg ? "rgba(0,0,0,0.75)" : "rgba(255,255,255,0.85)", fontSize: 18, fontWeight: 600, textAlign: "center" }}>
+        {label}
+      </p>
+      <p style={{ color: bg ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.45)", fontSize: 12, textAlign: "center", marginTop: 2 }}>
+        {sub ?? "Month to date"}
+      </p>
+      <p style={{
+        color: bg ? "rgba(0,0,0,0.9)" : "#ffffff",
+        fontSize: 44, fontWeight: 800, lineHeight: 1,
+        textAlign: "center", marginTop: "auto", paddingTop: 16,
+      }}>
+        {value}
+      </p>
     </div>
   );
 }
 
-// ─── Small tile ───────────────────────────────────────────────────────────────
-const TILE_BG = "#0d1525";
-
-function Tile({ label, value, cur, prv, hib = true }: {
-  label: string; value: string; cur?: number; prv?: number; hib?: boolean;
-}) {
+// ─── Medium tile (second row) ─────────────────────────────────────────────────
+function MedTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl flex flex-col items-center justify-center gap-1 p-4 text-center"
-      style={{ background: TILE_BG, minHeight: 110 }}>
-      <p style={{ color: "#94a3b8", fontSize: 12, fontWeight: 500 }}>{label}</p>
-      <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>Month to date</p>
-      <p style={{ color: "#ffffff", fontSize: 28, fontWeight: 700, lineHeight: 1.1 }}>{value}</p>
-      {cur != null && prv != null && <MomBadge cur={cur} prv={prv} hib={hib} />}
+    <div
+      className="rounded-2xl flex flex-col p-5"
+      style={{ background: CARD_BG, minHeight: 140 }}
+    >
+      <p style={{ color: "rgba(255,255,255,0.85)", fontSize: 16, fontWeight: 600, textAlign: "center" }}>
+        {label}
+      </p>
+      <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, textAlign: "center", marginTop: 2 }}>
+        Month to date
+      </p>
+      <p style={{ color: "#ffffff", fontSize: 36, fontWeight: 800, lineHeight: 1, textAlign: "center", marginTop: "auto", paddingTop: 12 }}>
+        {value}
+      </p>
     </div>
   );
 }
 
-// ─── Trend card (sparkline) ───────────────────────────────────────────────────
-function TrendCard({ label, curData, prvData, curLabel, prvLabel, color }: {
-  label: string; curData: number[]; prvData?: number[];
-  curLabel: string; prvLabel?: string; color: string;
+// ─── Sparkline card ───────────────────────────────────────────────────────────
+function SparkCard({
+  label, curData, prvData, monthIdx, year, color, formatter,
+}: {
+  label: string;
+  curData: number[];
+  prvData?: number[];
+  monthIdx: number;
+  year: number;
+  color: string;
+  formatter: (v: number) => string;
 }) {
-  const trimmed = [...curData];
-  while (trimmed.length > 0 && trimmed[trimmed.length - 1] === 0) trimmed.pop();
-
   return (
-    <div className="rounded-2xl p-5 flex flex-col gap-3" style={{ background: TILE_BG, minHeight: 220 }}>
-      <div>
-        <p style={{ color: "#e2e8f0", fontSize: 14, fontWeight: 600 }}>{label}</p>
-        <p style={{ color: "#64748b", fontSize: 11 }}>Month to date</p>
-      </div>
-      <Sparkline cur={trimmed} prv={prvData} curLabel={curLabel} prvLabel={prvLabel} color={color} />
+    <div className="rounded-2xl p-6 flex flex-col" style={{ background: CARD_BG }}>
+      <p style={{ color: "rgba(255,255,255,0.85)", fontSize: 18, fontWeight: 600, textAlign: "center" }}>
+        {label}
+      </p>
+      <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, textAlign: "center", marginTop: 2, marginBottom: 16 }}>
+        Month to date
+      </p>
+      <InteractiveSparkline
+        curData={curData}
+        prvData={prvData}
+        monthIdx={monthIdx}
+        year={year}
+        color={color}
+        formatter={formatter}
+      />
     </div>
   );
 }
@@ -202,23 +369,18 @@ interface Props {
 }
 
 export function ScoreboardView({ scoreboard, monthly, ytd, monthLabel }: Props) {
-  // Current month KPI from 30-day rollup
   const kpi = monthly.find((r) => r.period === "30 Days") ?? monthly.find((r) => r.isRollup) ?? null;
   const dailyRows = monthly.filter((r) => !r.isRollup);
 
-  // Previous month lookup
-  const [abbr] = monthLabel.split(" ");
-  const curMonthIdx = ABBRS.indexOf(abbr?.toUpperCase() ?? "");
-  const prevMonthIdx = curMonthIdx > 0 ? curMonthIdx - 1 : -1;
-  const prevMonthName = prevMonthIdx >= 0 ? MONTH_NAMES[prevMonthIdx] : null;
-  const prevMonthAbbr = prevMonthIdx >= 0 ? ABBRS[prevMonthIdx] : null;
+  const { monthIdx, year } = parseMonthLabel(monthLabel);
 
-  const prevYTD = prevMonthName
-    ? ytd.find((r) => r.month.toLowerCase() === prevMonthName.toLowerCase()) ?? null
-    : null;
+  // Previous month for comparison
+  const prevMonthIdx = monthIdx > 0 ? monthIdx - 1 : 11;
+  const prevYear = monthIdx === 0 ? year - 1 : year;
+  const prevMonthName = MONTH_NAMES[prevMonthIdx];
+  const prevYTD = ytd.find((r) => r.month.toLowerCase() === prevMonthName.toLowerCase()) ?? null;
 
   const cashPerCall = kpi && kpi.takenCalls > 0 ? kpi.cash / kpi.takenCalls : 0;
-  const prevCashPerCall = prevYTD && prevYTD.takenCalls > 0 ? prevYTD.cash / prevYTD.takenCalls : 0;
 
   // Daily sparkline arrays
   const dailyLeads   = dailyRows.map((r) => r.leads);
@@ -227,54 +389,70 @@ export function ScoreboardView({ scoreboard, monthly, ytd, monthLabel }: Props) 
   const dailyCash    = dailyRows.map((r) => r.cash);
   const dailyClosed  = dailyRows.map((r) => r.dealsClosed);
 
-  // Labels for sparkline legend
-  const curLabel = monthLabel || "Current";
-  const prvLabel = prevMonthAbbr ?? undefined;
-
   return (
     <div className="flex flex-col gap-3">
 
-      {/* ── Row 1: 4 hero cards ── */}
+      {/* ── Row 1: 2 large stat cards ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard
+          label="Taken Calls"
+          value={kpi ? num(kpi.takenCalls) : "—"}
+          sub="Month to date"
+        />
+        <StatCard
+          label="$ Per Call"
+          value={kpi ? $$(cashPerCall) : "—"}
+          sub="Current month"
+          bg="#f59e0b"
+        />
+      </div>
+
+      {/* ── Row 2: 4 medium tiles ── */}
       <div className="grid grid-cols-4 gap-3">
-        <HeroCard label="Taken Calls"    value={kpi ? num(kpi.takenCalls) : "—"}
-          sub={kpi ? `Show-up: ${pct(kpi.showUpRate)}` : undefined}
-          bg="#0f2044" cur={kpi?.takenCalls} prv={prevYTD?.takenCalls ?? 0} />
-        <HeroCard label="$ Per Call"     value={kpi ? $$(cashPerCall) : "—"}
-          sub={kpi ? `Cash: ${$$(kpi.cash)}` : undefined}
-          bg="#92400e" cur={cashPerCall} prv={prevCashPerCall} />
-        <HeroCard label="Show-Up Rate"   value={kpi ? pct(kpi.showUpRate) : "—"}
-          sub={kpi ? `${num(kpi.takenCalls)} of ${num(kpi.bookedCalls)} booked` : undefined}
-          bg="#7f1d1d" cur={kpi?.showUpRate} prv={prevYTD?.showUpRate ?? 0} />
-        <HeroCard label="Cash Collected" value={kpi ? $$(kpi.cash) : "—"}
-          sub={kpi ? `Revenue: ${$$(kpi.revenue)}` : undefined}
-          bg="#14532d" cur={kpi?.cash} prv={prevYTD?.cash ?? 0} />
+        <MedTile label="New Leads"         value={kpi ? num(kpi.leads) : "—"} />
+        <MedTile label="Booked Calls"      value={kpi ? num(kpi.bookedCalls) : "—"} />
+        <MedTile label="Deals Closed"      value={kpi ? num(kpi.dealsClosed) : "—"} />
+        <MedTile label="New Cash Collected" value={kpi ? $$(kpi.cash) : "—"} />
       </div>
 
-      {/* ── Row 2: 8 small tiles ── */}
-      <div className="grid grid-cols-8 gap-3">
-        <Tile label="New Leads"    value={kpi ? num(kpi.leads) : "—"}       cur={kpi?.leads}       prv={prevYTD?.leads ?? 0} />
-        <Tile label="Booked Calls" value={kpi ? num(kpi.bookedCalls) : "—"} cur={kpi?.bookedCalls} prv={prevYTD?.bookedCalls ?? 0} />
-        <Tile label="Deals Closed" value={kpi ? num(kpi.dealsClosed) : "—"} cur={kpi?.dealsClosed} prv={prevYTD?.dealsClosed ?? 0} />
-        <Tile label="Amount Spent" value={kpi ? $$(kpi.amountSpent) : "—"}  cur={kpi?.amountSpent} prv={prevYTD?.amountSpent ?? 0} hib={false} />
-        <Tile label="Taken Calls"  value={kpi ? num(kpi.takenCalls) : "—"}  cur={kpi?.takenCalls}  prv={prevYTD?.takenCalls ?? 0} />
-        <Tile label="Close Rate"   value={kpi ? pct(kpi.closeRate) : "—"}   cur={kpi?.closeRate}   prv={prevYTD?.closeRate ?? 0} />
-        <Tile label="Cash ROAS"    value={kpi ? ratio(kpi.cashROAS) : "—"}   cur={kpi?.cashROAS}    prv={prevYTD?.cashROAS ?? 0} />
-        <Tile label="Rev ROAS"     value={kpi ? ratio(kpi.revenueROAS) : "—"} cur={kpi?.revenueROAS} prv={prevYTD?.revenueROAS ?? 0} />
+      {/* ── Row 3: 2 sparkline cards ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <SparkCard
+          label="New Leads"
+          curData={dailyLeads}
+          prvData={prevYTD ? Array(dailyLeads.length).fill(prevYTD.leads / Math.max(dailyLeads.length, 1)) : undefined}
+          monthIdx={monthIdx} year={year}
+          color="#3b82f6"
+          formatter={num}
+        />
+        <SparkCard
+          label="Deals Closed"
+          curData={dailyClosed}
+          prvData={prevYTD ? Array(dailyClosed.length).fill(prevYTD.dealsClosed / Math.max(dailyClosed.length, 1)) : undefined}
+          monthIdx={monthIdx} year={year}
+          color="#3b82f6"
+          formatter={num}
+        />
       </div>
 
-      {/* ── Row 3: 4 sparkline trend cards ── */}
-      <div className="grid grid-cols-4 gap-3">
-        <TrendCard label="New Leads"    curData={dailyLeads}  curLabel={curLabel} prvLabel={prvLabel} color="#d946ef" />
-        <TrendCard label="Deals Closed" curData={dailyClosed} curLabel={curLabel} prvLabel={prvLabel} color="#22c55e" />
-        <TrendCard label="Taken Calls"  curData={dailyTaken}  curLabel={curLabel} prvLabel={prvLabel} color="#3b82f6" />
-        <TrendCard label="Cash Collected" curData={dailyCash} curLabel={curLabel} prvLabel={prvLabel} color="#4ade80" />
-      </div>
-
-      {/* ── Row 4: 3 sparkline trend cards ── */}
-      <div className="grid grid-cols-3 gap-3">
-        <TrendCard label="Booked Calls" curData={dailyBooked} curLabel={curLabel} prvLabel={prvLabel} color="#a78bfa" />
-        <TrendCard label="Amount Spent" curData={dailyRows.map((r) => r.amountSpent)} curLabel={curLabel} prvLabel={prvLabel} color="#f87171" />
-        <TrendCard label="$ Per Call"   curData={dailyRows.map((r) => r.takenCalls > 0 ? r.cash / r.takenCalls : 0)} curLabel={curLabel} prvLabel={prvLabel} color="#fbbf24" />
+      {/* ── Row 4: 2 sparkline cards ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <SparkCard
+          label="Taken Calls"
+          curData={dailyTaken}
+          prvData={prevYTD ? Array(dailyTaken.length).fill(prevYTD.takenCalls / Math.max(dailyTaken.length, 1)) : undefined}
+          monthIdx={monthIdx} year={year}
+          color="#3b82f6"
+          formatter={num}
+        />
+        <SparkCard
+          label="New Cash Collected"
+          curData={dailyCash}
+          prvData={prevYTD ? Array(dailyCash.length).fill(prevYTD.cash / Math.max(dailyCash.length, 1)) : undefined}
+          monthIdx={monthIdx} year={year}
+          color="#3b82f6"
+          formatter={$$}
+        />
       </div>
 
     </div>
