@@ -199,8 +199,24 @@ export interface FunnelData {
 }
 
 // ─── Fetch helpers ─────────────────────────────────────────────────────────
-// Uses Sheets API v4 — works for "Anyone with the link can view" sheets
-// using the same GOOGLE_SHEETS_API_KEY already used across this project.
+// Uses Sheets API v4 — works for "Anyone with the link can view" sheets.
+// In sandboxed environments, googleapis.com is excluded from the system proxy
+// via NO_PROXY, so we explicitly route through HTTPS_PROXY when set.
+
+async function makeProxyFetch(url: string): Promise<Response> {
+  const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy ?? "";
+  if (proxyUrl) {
+    try {
+      const { ProxyAgent, fetch: undiciFetch } = await import("undici");
+      const dispatcher = new ProxyAgent(proxyUrl);
+      // @ts-expect-error undici fetch is compatible but types differ slightly
+      return undiciFetch(url, { dispatcher }) as Promise<Response>;
+    } catch {
+      // fall through to native fetch
+    }
+  }
+  return fetch(url, { next: { revalidate: 300 } } as RequestInit);
+}
 
 async function fetchSheetValues(
   spreadsheetId: string,
@@ -209,12 +225,12 @@ async function fetchSheetValues(
 ): Promise<string[][]> {
   const range = encodeURIComponent(`'${sheetName}'`);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?key=${apiKey}`;
-  const res = await fetch(url, { next: { revalidate: 300 } });
+  const res = await makeProxyFetch(url);
   if (!res.ok) {
     console.warn(`[funnel] Sheet "${sheetName}" failed: ${res.status}`);
     return [];
   }
-  const json = await res.json();
+  const json = await res.json() as { values?: string[][] };
   return (json.values ?? []) as string[][];
 }
 
