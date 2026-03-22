@@ -13,6 +13,14 @@ export function getCurrentMonthTab(): string {
   const now = new Date();
   return `${MONTH_LABELS[now.getMonth()]} ${now.getFullYear()}`;
 }
+export function getPreviousMonthTab(): string {
+  const now = new Date();
+  const m = now.getMonth(); // 0-based
+  const y = now.getFullYear();
+  const prevM = m === 0 ? 11 : m - 1;
+  const prevY = m === 0 ? y - 1 : y;
+  return `${MONTH_LABELS[prevM]} ${prevY}`;
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -195,6 +203,7 @@ export interface Customer {
 
 export interface FunnelData {
   monthly: MonthlyRow[];
+  prevMonthly: MonthlyRow[];
   salesDashboard: SalesDashboard | null;
   ytd: YTDRow[];
   ytd2025: YTDRow[];
@@ -203,6 +212,7 @@ export interface FunnelData {
   calls: Call[];
   customers: Customer[];
   monthLabel: string;
+  prevMonthLabel: string;
 }
 
 // ─── Fetch helpers ─────────────────────────────────────────────────────────
@@ -723,9 +733,11 @@ function parseCustomers(rows: string[][]): Customer[] {
 
 export async function fetchFunnelData(apiKey: string): Promise<FunnelData> {
   const monthLabel = getCurrentMonthTab();
+  const prevMonthLabel = getPreviousMonthTab();
 
-  const [monthlyRows, ytdRows, ytd2025Rows, leadsRows, callsRows, customersRows] = await Promise.all([
+  const [monthlyRows, prevMonthlyRows, ytdRows, ytd2025Rows, leadsRows, callsRows, customersRows] = await Promise.all([
     fetchSheetValues(FUNNEL_SHEET_ID, monthLabel, apiKey),
+    fetchSheetValues(FUNNEL_SHEET_ID, prevMonthLabel, apiKey),
     fetchSheetValues(FUNNEL_SHEET_ID, "2026", apiKey),
     fetchSheetValues(FUNNEL_SHEET_ID, "2025", apiKey),
     fetchSheetValues(FUNNEL_SHEET_ID, "LEADS", apiKey),
@@ -734,9 +746,11 @@ export async function fetchFunnelData(apiKey: string): Promise<FunnelData> {
   ]);
 
   const { monthly, salesDashboard } = parseMonthly(monthlyRows);
+  const { monthly: prevMonthly } = parseMonthly(prevMonthlyRows);
 
   return {
     monthly,
+    prevMonthly,
     salesDashboard,
     ytd:        parseYTD(ytdRows),
     ytd2025:    parseYTD(ytd2025Rows),
@@ -745,5 +759,6 @@ export async function fetchFunnelData(apiKey: string): Promise<FunnelData> {
     calls:      parseCalls(callsRows),
     customers:  parseCustomers(customersRows),
     monthLabel,
+    prevMonthLabel,
   };
 }

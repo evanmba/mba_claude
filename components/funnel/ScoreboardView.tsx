@@ -215,44 +215,50 @@ function SparkCard({
 interface Props {
   scoreboard: ScoreboardRow[];
   monthly: MonthlyRow[];
+  prevMonthly: MonthlyRow[];
   ytd: YTDRow[];
   ytd2025: YTDRow[];
   monthLabel: string;
+  prevMonthLabel: string;
 }
 
-export function ScoreboardView({ scoreboard, monthly, ytd, monthLabel }: Props) {
+export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLabel, prevMonthLabel }: Props) {
   const kpi = monthly.find((r) => r.period === "30 Days") ?? monthly.find((r) => r.isRollup) ?? null;
   const dailyRows = monthly.filter((r) => !r.isRollup);
 
   const { monthIdx, year } = parseMonthLabel(monthLabel);
   const monthName = MONTH_NAMES[monthIdx];
 
+  // Previous month KPI: prefer the actual prev month sheet (full data), fall back to YTD/scoreboard rows
+  const prevKpi = prevMonthly.find((r) => r.period === "30 Days") ?? prevMonthly.find((r) => r.isRollup) ?? null;
+
   const prevMonthIdx = monthIdx > 0 ? monthIdx - 1 : 11;
   const prevMonthName = MONTH_NAMES[prevMonthIdx];
-
   const prevSb  = scoreboard.find((r) => r.month.toLowerCase() === prevMonthName.toLowerCase()) ?? null;
   const prevYtd = ytd.find((r) => r.month.toLowerCase() === prevMonthName.toLowerCase()) ?? null;
 
   const prev = {
-    uniqueClicks:  prevYtd?.uniqueClicks  ?? 0,
-    ctr:           prevYtd?.ctr           ?? 0,
-    costPerClick:  prevYtd?.costPerClick  ?? 0,
-    leads:         prevSb?.leads          ?? prevYtd?.leads          ?? 0,
-    optInConv:     prevYtd?.optInConv     ?? 0,
-    costPerLead:   prevYtd?.costPerLead   ?? 0,
-    apps:          prevSb?.apps           ?? 0,
-    appConv:       0, // not tracked in YTD sheet
-    costPerApp:    0, // not tracked in YTD sheet
-    bookedCalls:   prevSb?.bookedCalls    ?? prevYtd?.bookedCalls    ?? 0,
-    leadToBooked:  prevYtd?.leadToBookedRate ?? 0,
-    costPerBooked: prevYtd?.costPerBooked ?? 0,
-    takenCalls:    prevSb?.takenCalls     ?? prevYtd?.takenCalls     ?? 0,
-    showUpRate:    prevSb?.showUpRate     ?? prevYtd?.showUpRate     ?? 0,
-    costPerTaken:  prevYtd?.costPerTaken  ?? 0,
-    dealsClosed:   prevSb?.dealsClosed    ?? prevYtd?.dealsClosed    ?? 0,
-    closeRate:     prevSb?.closeRate      ?? prevYtd?.closeRate      ?? 0,
-    cpa:           prevYtd?.cpa           ?? 0,
+    uniqueClicks:  prevKpi?.uniqueClicks  ?? prevYtd?.uniqueClicks  ?? 0,
+    ctr:           prevKpi?.ctr           ?? prevYtd?.ctr           ?? 0,
+    costPerClick:  prevKpi?.costPerClick  ?? prevYtd?.costPerClick  ?? 0,
+    leads:         prevKpi?.leads         ?? prevSb?.leads          ?? prevYtd?.leads          ?? 0,
+    optInConv:     prevKpi?.leadConv      ?? prevYtd?.optInConv     ?? 0,
+    costPerLead:   prevKpi?.costPerLead   ?? prevYtd?.costPerLead   ?? 0,
+    apps:          prevKpi?.apps          ?? prevSb?.apps           ?? 0,
+    appConv:       prevKpi?.appConv       ?? 0,
+    costPerApp:    prevKpi?.costPerApp    ?? 0,
+    bookedCalls:   prevKpi?.bookedCalls   ?? prevSb?.bookedCalls    ?? prevYtd?.bookedCalls    ?? 0,
+    leadToBooked:  prevKpi?.bookedConv    ?? prevYtd?.leadToBookedRate ?? 0,
+    costPerBooked: prevKpi?.costPerBooked ?? prevYtd?.costPerBooked ?? 0,
+    takenCalls:    prevKpi?.takenCalls    ?? prevSb?.takenCalls     ?? prevYtd?.takenCalls     ?? 0,
+    showUpRate:    prevKpi?.showUpRate    ?? prevSb?.showUpRate     ?? prevYtd?.showUpRate     ?? 0,
+    costPerTaken:  prevKpi?.costPerTaken  ?? prevYtd?.costPerTaken  ?? 0,
+    dealsClosed:   prevKpi?.dealsClosed   ?? prevSb?.dealsClosed    ?? prevYtd?.dealsClosed    ?? 0,
+    closeRate:     prevKpi?.closeRate     ?? prevSb?.closeRate      ?? prevYtd?.closeRate      ?? 0,
+    cpa:           prevKpi?.cpa           ?? prevYtd?.cpa           ?? 0,
   };
+
+  void prevMonthLabel; // available for display if needed
 
   return (
     <div className="flex flex-col gap-4">
