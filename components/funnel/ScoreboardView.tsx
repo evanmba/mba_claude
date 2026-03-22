@@ -251,7 +251,13 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
   // ── Pace-based projections for count metrics ─────────────────────────────
   const totalDays = daysInMonthFn(monthIdx, year);
-  const daysWithData = dailyRows.length;
+  // Prefer count of daily rows; fall back to calendar day-of-month so
+  // projections still work when the sheet only has rollup rows (4/7/14/30 Days).
+  const today = new Date();
+  const isCurrentMonth = today.getMonth() === monthIdx && today.getFullYear() === year;
+  const daysWithData = dailyRows.length > 0
+    ? dailyRows.length
+    : isCurrentMonth ? today.getDate() : totalDays;
   const proj = kpi ? {
     uniqueClicks: projectCount(kpi.uniqueClicks, daysWithData, totalDays),
     leads:        projectCount(kpi.leads,        daysWithData, totalDays),
