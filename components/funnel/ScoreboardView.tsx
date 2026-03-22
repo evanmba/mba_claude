@@ -22,6 +22,10 @@ function parseMonthLabel(label: string): { monthIdx: number; year: number } {
   return { monthIdx: monthIdx >= 0 ? monthIdx : 2, year };
 }
 
+function daysInMonthFn(monthIdx: number, year: number): number {
+  return new Date(year, monthIdx + 1, 0).getDate();
+}
+
 // ─── MoM badge ────────────────────────────────────────────────────────────────
 function MomBadge({ cur, prv, hib = true }: { cur: number | undefined; prv: number | undefined; hib?: boolean }) {
   if (prv == null || cur == null) {
@@ -49,10 +53,11 @@ function MomBadge({ cur, prv, hib = true }: { cur: number | undefined; prv: numb
 const CARD_BG = "#0b1628";
 
 function MetricCard({
-  label, value, cur, prv, hib = true,
+  label, value, cur, prv, hib = true, sub,
 }: {
   label: string; value: string;
   cur: number | undefined; prv: number | undefined; hib?: boolean;
+  sub?: string;
 }) {
   return (
     <div className="rounded-xl p-5 flex flex-col gap-2" style={{ background: CARD_BG }}>
@@ -62,6 +67,9 @@ function MetricCard({
       <p style={{ color: "#ffffff", fontSize: 36, fontWeight: 800, lineHeight: 1, margin: 0 }}>
         {value}
       </p>
+      {sub != null && (
+        <p style={{ color: "#475569", fontSize: 12, margin: 0 }}>{sub}</p>
+      )}
       <MomBadge cur={cur} prv={prv} hib={hib} />
     </div>
   );
@@ -235,6 +243,14 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
   const { monthIdx, year } = parseMonthLabel(monthLabel);
   const monthName = MONTH_NAMES[monthIdx];
 
+  // ── Deals-closed projection (pace × remaining days) ─────────────────────
+  const totalDays = daysInMonthFn(monthIdx, year);
+  const daysWithData = dailyRows.length;
+  const projectedDeals =
+    kpi && kpi.dealsClosed > 0 && daysWithData > 0 && daysWithData < totalDays
+      ? Math.round((kpi.dealsClosed / daysWithData) * totalDays)
+      : null;
+
   // Previous month KPI: prefer the actual prev month sheet (full data), fall back to YTD/scoreboard rows
   const prevKpi = prevMonthly.find((r) => r.period === "30 Days") ?? prevMonthly.find((r) => r.isRollup) ?? null;
 
@@ -314,7 +330,14 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
       {/* ── Row 6: Deals ── */}
       <SectionLabel label="Deals" color="#ef4444" />
       <div className="grid grid-cols-3 gap-3">
-        <MetricCard label="Deals Closed"       value={kpi ? num(kpi.dealsClosed)  : "—"} cur={kpi?.dealsClosed  ?? 0} prv={prev.dealsClosed} hib={true}  />
+        <MetricCard
+          label="Deals Closed"
+          value={projectedDeals != null ? `~${projectedDeals.toLocaleString("en-US")}` : (kpi ? num(kpi.dealsClosed) : "—")}
+          cur={projectedDeals ?? kpi?.dealsClosed ?? 0}
+          prv={prev.dealsClosed}
+          hib={true}
+          sub={projectedDeals != null && kpi ? `${kpi.dealsClosed.toLocaleString("en-US")} actual · projected` : undefined}
+        />
         <MetricCard label="Close Rate"          value={kpi ? pct(kpi.closeRate)    : "—"} cur={kpi?.closeRate    ?? 0} prv={prev.closeRate}   hib={true}  />
         <MetricCard label="Cost Per Acquisition" value={kpi ? $$(kpi.cpa)         : "—"} cur={kpi?.cpa          ?? 0} prv={prev.cpa}         hib={false} />
       </div>
