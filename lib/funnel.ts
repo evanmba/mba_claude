@@ -275,6 +275,17 @@ function fi(hdrs: string[], keywords: string[]): number {
   );
 }
 
+// Find the "deals closed" column — tries several common header variations.
+function fideals(hdrs: string[]): number {
+  return (
+    fi(hdrs, ["deals closed"]) >= 0 ? fi(hdrs, ["deals closed"]) :
+    fi(hdrs, ["deal closed"])  >= 0 ? fi(hdrs, ["deal closed"])  :
+    fi(hdrs, ["deals"])        >= 0 ? fi(hdrs, ["deals"])        :
+    fi(hdrs, ["closes"])       >= 0 ? fi(hdrs, ["closes"])       :
+    -1
+  );
+}
+
 const cv = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "").trim() : "");
 
 // ─── Monthly sheet parser ──────────────────────────────────────────────────
@@ -314,7 +325,7 @@ function parseMonthly(rows: string[][]): { monthly: MonthlyRow[]; salesDashboard
     taken:      fi(hdrs, ["taken calls"]) >= 0 ? fi(hdrs, ["taken calls"]) : fi(hdrs, ["calls taken"]),
     showUp:     fi(hdrs, ["show"]),
     costTaken:  fi(hdrs, ["cost per taken"]) >= 0 ? fi(hdrs, ["cost per taken"]) : fi(hdrs, ["cost", "taken"]),
-    deals:      fi(hdrs, ["deals closed"]) >= 0 ? fi(hdrs, ["deals closed"]) : fi(hdrs, ["deals"]),
+    deals:      fideals(hdrs),
     closeRate:  fi(hdrs, ["close rate"]) >= 0 ? fi(hdrs, ["close rate"]) : fi(hdrs, ["closing rate"]),
     cash:       hdrs.findIndex((h) => h === "cash"),
     revenue:    hdrs.findIndex((h) => h === "revenue"),
@@ -429,9 +440,20 @@ function parseSalesDashboard(rows: string[][]): SalesDashboard | null {
   };
 }
 
-// ─── Scoreboard parser (fixed column positions) ────────────────────────────
+// ─── Scoreboard parser (fixed column positions, with header-based fallback for deals) ──
 
 function parseScoreboard(rows: string[][]): ScoreboardRow[] {
+  // Try to find the header row so we can locate the deals column dynamically.
+  const hdrIdx = rows.findIndex((r) =>
+    r.some((c) => c.replace(/\n/g, " ").toLowerCase().includes("amount spent"))
+  );
+  let dealsCol = 21; // default: column V
+  if (hdrIdx >= 0) {
+    const hdrs = rows[hdrIdx].map((h) => h.replace(/\n/g, " ").toLowerCase().trim());
+    const found = fideals(hdrs);
+    if (found >= 0) dealsCol = found;
+  }
+
   const result: ScoreboardRow[] = [];
   for (const row of rows) {
     const label = (row[0] ?? "").trim().toLowerCase();
@@ -447,7 +469,7 @@ function parseScoreboard(rows: string[][]): ScoreboardRow[] {
       takenCalls:    g(18),  // S
       showUpRate:    g(19),  // T
       cashCollected: g(23),  // X
-      dealsClosed:   g(21),  // V
+      dealsClosed:   g(dealsCol),
       closeRate:     g(22),  // W
       cashROAS:      g(26),  // AA
       revROAS:       g(27),  // AB
@@ -492,7 +514,7 @@ function parseYTD(rows: string[][]): YTDRow[] {
     taken:     fi(hdrs, ["taken calls"]),
     showUp:    fi(hdrs, ["show"]),
     costTaken: fi(hdrs, ["cost per taken"]) >= 0 ? fi(hdrs, ["cost per taken"]) : fi(hdrs, ["cost", "taken"]),
-    deals:     fi(hdrs, ["deals closed"]) >= 0 ? fi(hdrs, ["deals closed"]) : fi(hdrs, ["deals"]),
+    deals:     fideals(hdrs),
     closeRate: fi(hdrs, ["close rate"]) >= 0 ? fi(hdrs, ["close rate"]) : fi(hdrs, ["closing rate"]),
     cash:      hdrs.findIndex((h) => h === "cash"),
     revenue:   hdrs.findIndex((h) => h === "revenue"),
