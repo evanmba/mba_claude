@@ -23,9 +23,15 @@ function parseMonthLabel(label: string): { monthIdx: number; year: number } {
 }
 
 // ─── MoM badge ────────────────────────────────────────────────────────────────
-function MomBadge({ cur, prv, hib = true }: { cur: number; prv: number; hib?: boolean }) {
-  if (!prv || !cur) {
+function MomBadge({ cur, prv, hib = true }: { cur: number | undefined; prv: number | undefined; hib?: boolean }) {
+  if (prv == null || cur == null) {
     return <span style={{ color: "#334155", fontSize: 12 }}>No prev month</span>;
+  }
+  if (prv === 0 && cur === 0) {
+    return <span style={{ color: "#334155", fontSize: 12 }}>—</span>;
+  }
+  if (prv === 0) {
+    return <span style={{ color: "#4ade80", fontSize: 12, fontWeight: 600 }}>↑ New</span>;
   }
   const d = ((cur - prv) / prv) * 100;
   const good = hib ? d >= 0 : d <= 0;
@@ -46,7 +52,7 @@ function MetricCard({
   label, value, cur, prv, hib = true,
 }: {
   label: string; value: string;
-  cur: number; prv: number; hib?: boolean;
+  cur: number | undefined; prv: number | undefined; hib?: boolean;
 }) {
   return (
     <div className="rounded-xl p-5 flex flex-col gap-2" style={{ background: CARD_BG }}>
@@ -193,7 +199,7 @@ function SparkCard({
   label: string; monthName: string; curData: number[];
   monthIdx: number; year: number; color: string;
   formatter: (v: number) => string;
-  curTotal: number; prv: number; hib?: boolean;
+  curTotal: number; prv: number | undefined; hib?: boolean;
 }) {
   return (
     <div className="rounded-xl p-5 flex flex-col gap-2" style={{ background: CARD_BG }}>
@@ -237,25 +243,27 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
   const prevSb  = scoreboard.find((r) => r.month.toLowerCase() === prevMonthName.toLowerCase()) ?? null;
   const prevYtd = ytd.find((r) => r.month.toLowerCase() === prevMonthName.toLowerCase()) ?? null;
 
+  // undefined = no data (badge will show "No prev month"); 0 = genuinely zero
+  const nz = (n: number | undefined) => (n != null && n !== 0 ? n : undefined);
   const prev = {
-    uniqueClicks:  prevKpi?.uniqueClicks  ?? prevYtd?.uniqueClicks  ?? 0,
-    ctr:           prevKpi?.ctr           ?? prevYtd?.ctr           ?? 0,
-    costPerClick:  prevKpi?.costPerClick  ?? prevYtd?.costPerClick  ?? 0,
-    leads:         prevKpi?.leads         ?? prevSb?.leads          ?? prevYtd?.leads          ?? 0,
-    optInConv:     prevKpi?.leadConv      ?? prevYtd?.optInConv     ?? 0,
-    costPerLead:   prevKpi?.costPerLead   ?? prevYtd?.costPerLead   ?? 0,
-    apps:          prevKpi?.apps          ?? prevSb?.apps           ?? 0,
-    appConv:       prevKpi?.appConv       ?? 0,
-    costPerApp:    prevKpi?.costPerApp    ?? 0,
-    bookedCalls:   prevKpi?.bookedCalls   ?? prevSb?.bookedCalls    ?? prevYtd?.bookedCalls    ?? 0,
-    leadToBooked:  prevKpi?.bookedConv    ?? prevYtd?.leadToBookedRate ?? 0,
-    costPerBooked: prevKpi?.costPerBooked ?? prevYtd?.costPerBooked ?? 0,
-    takenCalls:    prevKpi?.takenCalls    ?? prevSb?.takenCalls     ?? prevYtd?.takenCalls     ?? 0,
-    showUpRate:    prevKpi?.showUpRate    ?? prevSb?.showUpRate     ?? prevYtd?.showUpRate     ?? 0,
-    costPerTaken:  prevKpi?.costPerTaken  ?? prevYtd?.costPerTaken  ?? 0,
-    dealsClosed:   prevKpi?.dealsClosed   ?? prevSb?.dealsClosed    ?? prevYtd?.dealsClosed    ?? 0,
-    closeRate:     prevKpi?.closeRate     ?? prevSb?.closeRate      ?? prevYtd?.closeRate      ?? 0,
-    cpa:           prevKpi?.cpa           ?? prevYtd?.cpa           ?? 0,
+    uniqueClicks:  nz(prevKpi?.uniqueClicks)  ?? nz(prevYtd?.uniqueClicks),
+    ctr:           nz(prevKpi?.ctr)           ?? nz(prevYtd?.ctr),
+    costPerClick:  nz(prevKpi?.costPerClick)  ?? nz(prevYtd?.costPerClick),
+    leads:         nz(prevKpi?.leads)         ?? nz(prevSb?.leads)          ?? nz(prevYtd?.leads),
+    optInConv:     nz(prevKpi?.leadConv)      ?? nz(prevYtd?.optInConv),
+    costPerLead:   nz(prevKpi?.costPerLead)   ?? nz(prevYtd?.costPerLead),
+    apps:          nz(prevKpi?.apps)          ?? nz(prevSb?.apps),
+    appConv:       nz(prevKpi?.appConv),
+    costPerApp:    nz(prevKpi?.costPerApp),
+    bookedCalls:   nz(prevKpi?.bookedCalls)   ?? nz(prevSb?.bookedCalls)    ?? nz(prevYtd?.bookedCalls),
+    leadToBooked:  nz(prevKpi?.bookedConv)    ?? nz(prevYtd?.leadToBookedRate),
+    costPerBooked: nz(prevKpi?.costPerBooked) ?? nz(prevYtd?.costPerBooked),
+    takenCalls:    nz(prevKpi?.takenCalls)    ?? nz(prevSb?.takenCalls)     ?? nz(prevYtd?.takenCalls),
+    showUpRate:    nz(prevKpi?.showUpRate)    ?? nz(prevSb?.showUpRate)     ?? nz(prevYtd?.showUpRate),
+    costPerTaken:  nz(prevKpi?.costPerTaken)  ?? nz(prevYtd?.costPerTaken),
+    dealsClosed:   nz(prevKpi?.dealsClosed)   ?? nz(prevSb?.dealsClosed)    ?? nz(prevYtd?.dealsClosed),
+    closeRate:     nz(prevKpi?.closeRate)     ?? nz(prevSb?.closeRate)      ?? nz(prevYtd?.closeRate),
+    cpa:           nz(prevKpi?.cpa)           ?? nz(prevYtd?.cpa),
   };
 
   void prevMonthLabel; // available for display if needed
