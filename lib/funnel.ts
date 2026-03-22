@@ -306,7 +306,10 @@ function parseMonthly(rows: string[][]): { monthly: MonthlyRow[]; salesDashboard
     appConv:    fi(hdrs, ["app conversion"]),
     costApp:    fi(hdrs, ["cost per app"]),
     booked:     fi(hdrs, ["booked calls"]),
-    bookedConv: fi(hdrs, ["app-to-booked"]) >= 0 ? fi(hdrs, ["app-to-booked"]) : fi(hdrs, ["booked conversion"]),
+    bookedConv: fi(hdrs, ["app-to-booked"]) >= 0 ? fi(hdrs, ["app-to-booked"])
+               : fi(hdrs, ["lead-to-booked"]) >= 0 ? fi(hdrs, ["lead-to-booked"])
+               : fi(hdrs, ["lead", "booked"]) >= 0 ? fi(hdrs, ["lead", "booked"])
+               : fi(hdrs, ["booked conversion"]),
     costBooked: fi(hdrs, ["cost per booked"]) >= 0 ? fi(hdrs, ["cost per booked"]) : fi(hdrs, ["cost", "booked"]),
     taken:      fi(hdrs, ["taken calls"]) >= 0 ? fi(hdrs, ["taken calls"]) : fi(hdrs, ["calls taken"]),
     showUp:     fi(hdrs, ["show"]),
@@ -482,13 +485,15 @@ function parseYTD(rows: string[][]): YTDRow[] {
     optIn:     fi(hdrs, ["opt-in"]),
     costLead:  fi(hdrs, ["cost per lead"]),
     booked:    fi(hdrs, ["booked calls"]),
-    leadBooked: fi(hdrs, ["lead-to-booked"]),
+    leadBooked: fi(hdrs, ["lead-to-booked"]) >= 0 ? fi(hdrs, ["lead-to-booked"])
+               : fi(hdrs, ["app-to-booked"]) >= 0 ? fi(hdrs, ["app-to-booked"])
+               : fi(hdrs, ["lead", "booked"]),
     costBooked: fi(hdrs, ["cost per booked"]),
     taken:     fi(hdrs, ["taken calls"]),
     showUp:    fi(hdrs, ["show"]),
-    costTaken: fi(hdrs, ["cost per taken"]),
-    deals:     fi(hdrs, ["deals closed"]),
-    closeRate: fi(hdrs, ["close rate"]),
+    costTaken: fi(hdrs, ["cost per taken"]) >= 0 ? fi(hdrs, ["cost per taken"]) : fi(hdrs, ["cost", "taken"]),
+    deals:     fi(hdrs, ["deals closed"]) >= 0 ? fi(hdrs, ["deals closed"]) : fi(hdrs, ["deals"]),
+    closeRate: fi(hdrs, ["close rate"]) >= 0 ? fi(hdrs, ["close rate"]) : fi(hdrs, ["closing rate"]),
     cash:      hdrs.findIndex((h) => h === "cash"),
     revenue:   hdrs.findIndex((h) => h === "revenue"),
     cashRev:   fi(hdrs, ["cash:revenue"]) >= 0 ? fi(hdrs, ["cash:revenue"]) : fi(hdrs, ["ratio"]),
