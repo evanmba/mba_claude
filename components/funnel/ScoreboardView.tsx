@@ -313,15 +313,15 @@ export function ScoreboardView({ scoreboard, monthly, ytd, monthLabel }: Props) 
         <SparkCard label="Leads" monthName={monthName} curData={dailyRows.map((r) => r.leads)}
           monthIdx={monthIdx} year={year} color="#8b5cf6" formatter={num}
           curTotal={kpi?.leads ?? 0} prv={prev.leads} />
+        <SparkCard label="Booked Calls" monthName={monthName} curData={dailyRows.map((r) => r.bookedCalls)}
+          monthIdx={monthIdx} year={year} color="#22c55e" formatter={num}
+          curTotal={kpi?.bookedCalls ?? 0} prv={prev.bookedCalls} />
         <SparkCard label="Taken Calls" monthName={monthName} curData={dailyRows.map((r) => r.takenCalls)}
           monthIdx={monthIdx} year={year} color="#f59e0b" formatter={num}
           curTotal={kpi?.takenCalls ?? 0} prv={prev.takenCalls} />
         <SparkCard label="Deals Closed" monthName={monthName} curData={dailyRows.map((r) => r.dealsClosed)}
           monthIdx={monthIdx} year={year} color="#ef4444" formatter={num}
           curTotal={kpi?.dealsClosed ?? 0} prv={prev.dealsClosed} />
-        <SparkCard label="Unique Clicks" monthName={monthName} curData={dailyRows.map((r) => r.uniqueClicks)}
-          monthIdx={monthIdx} year={year} color="#3b82f6" formatter={num}
-          curTotal={kpi?.uniqueClicks ?? 0} prv={prev.uniqueClicks} />
       </div>
 
     </div>
