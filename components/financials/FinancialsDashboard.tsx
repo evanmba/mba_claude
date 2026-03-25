@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DollarSign, AlertCircle, Calendar } from "lucide-react";
+import { DollarSign, AlertCircle, Calendar, CreditCard } from "lucide-react";
 import type { FinancialsData } from "@/lib/stripe-financials";
 
 function fmt(cents: number) {
@@ -114,14 +114,21 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
         </p>
       </div>
 
-      {/* Single stat card — updates with toggle */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Two stat cards 50/50 */}
+      <div className="grid grid-cols-2 gap-4">
         <StatCard
           label={`Cash Collected — ${selected.fullLabel}`}
           value={fmt(collectedSelected)}
-          sub="successful transactions this month"
+          sub="successful transactions"
           icon={DollarSign}
           accent="#22c55e"
+        />
+        <StatCard
+          label={`Expected — ${selected.fullLabel}`}
+          value={fmt(dueSelected)}
+          sub={`${filtered.length} installment${filtered.length !== 1 ? "s" : ""} scheduled`}
+          icon={CreditCard}
+          accent="#3b82f6"
         />
       </div>
 
