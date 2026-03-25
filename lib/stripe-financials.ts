@@ -28,10 +28,9 @@ export interface UpcomingPayment {
 }
 
 export interface FinancialsData {
-  totalCollected: number;         // cents — all paid invoices ever
-  dueThisMonth: number;           // cents — sum of upcoming charges in next 30 days
+  totalCollected: number;
   activeSubscriptions: number;
-  upcomingPayments: UpcomingPayment[]; // only those due within 30 days
+  upcomingPayments: UpcomingPayment[]; // next 3 months, filtered client-side by month
   stripeError?: string;
 }
 
@@ -123,7 +122,8 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
     );
 
     const now = Math.floor(Date.now() / 1000);
-    const in30days = now + 30 * 24 * 60 * 60;
+    // Collect next 3 calendar months worth of payments — client filters by selected month
+    const in3Months = now + 92 * 24 * 60 * 60;
 
     const upcomingPayments: UpcomingPayment[] = subscriptions
       .map((sub) => {
@@ -142,15 +142,11 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
           planLabel: planLabel(amountCents),
         };
       })
-      // Only keep payments due within the next 30 days
-      .filter((p) => p.nextPaymentDate >= now && p.nextPaymentDate <= in30days)
+      .filter((p) => p.nextPaymentDate >= now && p.nextPaymentDate <= in3Months)
       .sort((a, b) => a.nextPaymentDate - b.nextPaymentDate);
-
-    const dueThisMonth = upcomingPayments.reduce((sum, p) => sum + p.amount, 0);
 
     return {
       totalCollected,
-      dueThisMonth,
       activeSubscriptions: subscriptions.length,
       upcomingPayments,
     };
@@ -162,7 +158,6 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
 function empty(stripeError: string): FinancialsData {
   return {
     totalCollected: 0,
-    dueThisMonth: 0,
     activeSubscriptions: 0,
     upcomingPayments: [],
     stripeError,

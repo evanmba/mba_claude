@@ -1,30 +1,47 @@
 "use client";
 
+import { useState } from "react";
 import { DollarSign, Users, AlertCircle, Calendar, CreditCard } from "lucide-react";
 import type { FinancialsData } from "@/lib/stripe-financials";
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 function fmt(cents: number) {
   return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 function fmtDate(unix: number) {
-  return new Date(unix * 1000).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return new Date(unix * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 function daysUntil(unix: number) {
   return Math.max(0, Math.ceil((unix * 1000 - Date.now()) / 86400000));
 }
 
+// Build the 3 month tabs: current month + 2 following
+function getMonthTabs() {
+  const now = new Date();
+  return [0, 1, 2].map((offset) => {
+    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    return {
+      label: d.toLocaleDateString("en-US", { month: "short" }),
+      fullLabel: d.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+      year: d.getFullYear(),
+      month: d.getMonth(), // 0-indexed
+    };
+  });
+}
+
+function inMonth(unix: number, year: number, month: number) {
+  const d = new Date(unix * 1000);
+  return d.getFullYear() === year && d.getMonth() === month;
+}
+
 // ---------------------------------------------------------------------------
-// Stat card
+// Sub-components
 // ---------------------------------------------------------------------------
-function StatCard({
-  label, value, sub, icon: Icon, accent,
-}: {
+function StatCard({ label, value, sub, icon: Icon, accent }: {
   label: string; value: string; sub?: string; icon: React.ElementType; accent: string;
 }) {
   return (
@@ -45,48 +62,27 @@ function StatCard({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Upcoming payment row
-// ---------------------------------------------------------------------------
 function PaymentRow({ payment, index }: { payment: FinancialsData["upcomingPayments"][number]; index: number }) {
   const days = daysUntil(payment.nextPaymentDate);
   const badgeColor = days <= 7 ? "#ef4444" : days <= 14 ? "#f59e0b" : "#22c55e";
   const badgeBg   = days <= 7 ? "#ef444415" : days <= 14 ? "#f59e0b15" : "#22c55e15";
 
   return (
-    <div
-      className="flex items-center gap-4 py-3.5"
-      style={{ borderTop: index === 0 ? "none" : "1px solid var(--border)" }}
-    >
-      {/* Avatar */}
-      <div
-        className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0"
-        style={{ background: "#3b82f615", color: "#3b82f6" }}
-      >
+    <div className="flex items-center gap-4 py-3.5" style={{ borderTop: index === 0 ? "none" : "1px solid var(--border)" }}>
+      <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0"
+        style={{ background: "#3b82f615", color: "#3b82f6" }}>
         {payment.customerName.charAt(0).toUpperCase()}
       </div>
-
-      {/* Name + plan */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
-          {payment.customerName}
-        </p>
-        <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
-          {payment.planLabel}
-        </p>
+        <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{payment.customerName}</p>
+        <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{payment.planLabel}</p>
       </div>
-
-      {/* Date + badge */}
       <div className="text-right flex-shrink-0">
-        <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-          {fmtDate(payment.nextPaymentDate)}
-        </p>
+        <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{fmtDate(payment.nextPaymentDate)}</p>
         <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: badgeBg, color: badgeColor }}>
           {days === 0 ? "Today" : `${days}d`}
         </span>
       </div>
-
-      {/* Amount */}
       <div className="text-right flex-shrink-0 w-20">
         <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>{fmt(payment.amount)}</p>
       </div>
@@ -98,6 +94,10 @@ function PaymentRow({ payment, index }: { payment: FinancialsData["upcomingPayme
 // Main dashboard
 // ---------------------------------------------------------------------------
 export function FinancialsDashboard({ data }: { data: FinancialsData }) {
+  const tabs = getMonthTabs();
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const selected = tabs[selectedIdx];
+
   if (data.stripeError) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24">
@@ -110,14 +110,36 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
     );
   }
 
+  const filtered = data.upcomingPayments.filter((p) => inMonth(p.nextPaymentDate, selected.year, selected.month));
+  const dueSelected = filtered.reduce((sum, p) => sum + p.amount, 0);
+
   return (
     <div className="p-6 space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>Financials</h1>
-        <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
-          Live from Stripe · installment revenue &amp; upcoming charges
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>Financials</h1>
+          <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
+            Live from Stripe · installment revenue &amp; upcoming charges
+          </p>
+        </div>
+
+        {/* Month toggle */}
+        <div className="flex items-center gap-1 p-1 rounded-xl flex-shrink-0" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+          {tabs.map((tab, i) => (
+            <button
+              key={tab.label}
+              onClick={() => setSelectedIdx(i)}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all"
+              style={{
+                background: selectedIdx === i ? "#3b82f6" : "transparent",
+                color: selectedIdx === i ? "#fff" : "var(--muted-foreground)",
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Stat cards */}
@@ -130,9 +152,9 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
           accent="#22c55e"
         />
         <StatCard
-          label="Due Next 30 Days"
-          value={fmt(data.dueThisMonth)}
-          sub={`${data.upcomingPayments.length} installment${data.upcomingPayments.length !== 1 ? "s" : ""} scheduled`}
+          label={`Due in ${selected.fullLabel}`}
+          value={fmt(dueSelected)}
+          sub={`${filtered.length} installment${filtered.length !== 1 ? "s" : ""} scheduled`}
           icon={CreditCard}
           accent="#3b82f6"
         />
@@ -145,40 +167,32 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
         />
       </div>
 
-      {/* Upcoming installments */}
+      {/* Upcoming installments table */}
       <div className="rounded-2xl p-6" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
         <div className="flex items-center gap-2 mb-5">
           <Calendar size={18} style={{ color: "#3b82f6" }} />
           <h2 className="text-base font-semibold" style={{ color: "var(--foreground)" }}>
-            Upcoming Installments — Next 30 Days
+            Upcoming Installments — {selected.fullLabel}
           </h2>
-          <span
-            className="ml-auto text-xs px-2 py-0.5 rounded-full"
-            style={{ background: "#3b82f615", color: "#3b82f6" }}
-          >
-            {fmt(data.dueThisMonth)} expected
+          <span className="ml-auto text-xs px-2 py-0.5 rounded-full" style={{ background: "#3b82f615", color: "#3b82f6" }}>
+            {fmt(dueSelected)} expected
           </span>
         </div>
 
-        {/* Column headers */}
-        <div
-          className="grid text-xs font-medium uppercase tracking-wider pb-2 mb-1"
-          style={{ color: "var(--muted-foreground)", gridTemplateColumns: "36px 1fr 110px 80px", gap: "1rem", borderBottom: "1px solid var(--border)" }}
-        >
+        <div className="grid text-xs font-medium uppercase tracking-wider pb-2 mb-1"
+          style={{ color: "var(--muted-foreground)", gridTemplateColumns: "36px 1fr 110px 80px", gap: "1rem", borderBottom: "1px solid var(--border)" }}>
           <span />
           <span>Customer</span>
           <span className="text-right">Charge Date</span>
           <span className="text-right">Amount</span>
         </div>
 
-        {data.upcomingPayments.length === 0 ? (
+        {filtered.length === 0 ? (
           <p className="text-sm py-8 text-center" style={{ color: "var(--muted-foreground)" }}>
-            No installments due in the next 30 days.
+            No installments scheduled for {selected.fullLabel}.
           </p>
         ) : (
-          data.upcomingPayments.map((p, i) => (
-            <PaymentRow key={p.id} payment={p} index={i} />
-          ))
+          filtered.map((p, i) => <PaymentRow key={p.id} payment={p} index={i} />)
         )}
       </div>
     </div>
