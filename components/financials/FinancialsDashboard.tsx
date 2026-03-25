@@ -102,6 +102,7 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
 
   const filtered = data.upcomingPayments.filter((p) => inMonth(p.nextPaymentDate, selected.year, selected.month));
   const dueSelected = filtered.reduce((sum, p) => sum + p.amount, 0);
+  const collectedSelected = data.collectedByMonth[selectedIdx] ?? 0;
 
   return (
     <div className="p-6 space-y-8">
@@ -113,12 +114,12 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
         </p>
       </div>
 
-      {/* Single stat card */}
+      {/* Single stat card — updates with toggle */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatCard
-          label={`Cash Collected — ${data.collectedThisMonthLabel}`}
-          value={fmt(data.collectedThisMonth)}
-          sub="paid invoices this month"
+          label={`Cash Collected — ${selected.fullLabel}`}
+          value={fmt(collectedSelected)}
+          sub="successful transactions this month"
           icon={DollarSign}
           accent="#22c55e"
         />

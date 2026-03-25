@@ -28,10 +28,10 @@ export interface UpcomingPayment {
 }
 
 export interface FinancialsData {
-  collectedThisMonth: number;
-  collectedThisMonthLabel: string;          // e.g. "March 2026"
+  collectedByMonth: number[];   // [month0, month1, month2] in cents — matches toggle tabs
+  monthLabels: string[];        // ["March 2026", "April 2026", "May 2026"]
   activeSubscriptions: number;
-  upcomingPayments: UpcomingPayment[]; // next 3 months, filtered client-side by month
+  upcomingPayments: UpcomingPayment[];
   stripeError?: string;
 }
 
@@ -102,16 +102,31 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
 
   try {
     // -----------------------------------------------------------------------
-    // 1. Cash collected this calendar month
+    // 1. Cash collected — bucketed into 3 month windows (current + 2 ahead)
+    //    Future months will naturally be $0 (no paid invoices yet)
     // -----------------------------------------------------------------------
     const now = new Date();
-    const monthStart = Math.floor(new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000);
-    const collectedThisMonthLabel = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    const monthWindows = [0, 1, 2].map((offset) => {
+      const start = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+      const end   = new Date(now.getFullYear(), now.getMonth() + offset + 1, 1);
+      return {
+        start: Math.floor(start.getTime() / 1000),
+        end:   Math.floor(end.getTime() / 1000),
+        label: start.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+      };
+    });
 
-    const thisMonthInvoices = await listAll<Stripe.Invoice>((p) =>
-      stripe.invoices.list({ ...p, status: "paid", created: { gte: monthStart } })
+    // Only need to query from start of current month — future months have no paid invoices
+    const paidInvoices = await listAll<Stripe.Invoice>((p) =>
+      stripe.invoices.list({ ...p, status: "paid", created: { gte: monthWindows[0].start } })
     );
-    const collectedThisMonth = thisMonthInvoices.reduce((sum, inv) => sum + (inv.amount_paid ?? 0), 0);
+
+    const collectedByMonth = monthWindows.map(({ start, end }) =>
+      paidInvoices
+        .filter((inv) => (inv.created ?? 0) >= start && (inv.created ?? 0) < end)
+        .reduce((sum, inv) => sum + (inv.amount_paid ?? 0), 0)
+    );
+    const monthLabels = monthWindows.map((w) => w.label);
 
     // -----------------------------------------------------------------------
     // 2. Active subscriptions — calculate next charge date from billing_cycle_anchor
@@ -150,8 +165,8 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
       .sort((a, b) => a.nextPaymentDate - b.nextPaymentDate);
 
     return {
-      collectedThisMonth,
-      collectedThisMonthLabel,
+      collectedByMonth,
+      monthLabels,
       activeSubscriptions: subscriptions.length,
       upcomingPayments,
     };
@@ -162,8 +177,8 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
 
 function empty(stripeError: string): FinancialsData {
   return {
-    collectedThisMonth: 0,
-    collectedThisMonthLabel: "",
+    collectedByMonth: [0, 0, 0],
+    monthLabels: ["", "", ""],
     activeSubscriptions: 0,
     upcomingPayments: [],
     stripeError,
