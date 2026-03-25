@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { TrendingUp, Settings } from "lucide-react";
+import { TrendingUp, DollarSign, Settings } from "lucide-react";
 
 const navItems = [
   { label: "Funnel Dashboard", href: "/funnel", icon: TrendingUp, color: "#22c55e" },
+  { label: "Financials", href: "/financials", icon: DollarSign, color: "#3b82f6" },
 ];
 
 const bottomNavItems = [
