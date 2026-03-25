@@ -332,8 +332,8 @@ function parseMonthly(rows: string[][]): { monthly: MonthlyRow[]; salesDashboard
     cash:       hdrs.findIndex((h) => h === "cash"),
     revenue:    hdrs.findIndex((h) => h === "revenue"),
     cashRev:    fi(hdrs, ["cash:revenue"]) >= 0 ? fi(hdrs, ["cash:revenue"]) : fi(hdrs, ["ratio"]),
-    cashROAS:   fi(hdrs, ["cash return"]),
-    revROAS:    fi(hdrs, ["revenue return"]),
+    cashROAS:   fi(hdrs, ["cash", "return"]),
+    revROAS:    fi(hdrs, ["revenue", "return"]),
     cpa:        fi(hdrs, ["cost per acquisition"]),
   };
 
@@ -521,8 +521,8 @@ function parseYTD(rows: string[][]): YTDRow[] {
     cash:      hdrs.findIndex((h) => h === "cash"),
     revenue:   hdrs.findIndex((h) => h === "revenue"),
     cashRev:   fi(hdrs, ["cash:revenue"]) >= 0 ? fi(hdrs, ["cash:revenue"]) : fi(hdrs, ["ratio"]),
-    cashROAS:  fi(hdrs, ["cash return"]),
-    revROAS:   fi(hdrs, ["revenue return"]),
+    cashROAS:  fi(hdrs, ["cash", "return"]),
+    revROAS:   fi(hdrs, ["revenue", "return"]),
     cpa:       fi(hdrs, ["cost per acquisition"]),
     avgCash:   fi(hdrs, ["avg cash"]),
     avgRev:    fi(hdrs, ["avg rev"]),

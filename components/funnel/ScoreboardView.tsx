@@ -417,8 +417,16 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
         <MetricCard label="Cost Per Acquisition" value={kpi ? $$(kpi.cpa)         : "—"} cur={kpi?.cpa          ?? 0} prv={prev.cpa}         hib={false} />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <MetricCard label="Cash ROAS"    value={kpi ? `${kpi.cashROAS.toFixed(2)}x`    : "—"} cur={kpi?.cashROAS    ?? 0} prv={prev.cashROAS}    hib={true} />
-        <MetricCard label="Revenue ROAS" value={kpi ? `${kpi.revenueROAS.toFixed(2)}x` : "—"} cur={kpi?.revenueROAS ?? 0} prv={prev.revenueROAS} hib={true} />
+        {(() => {
+          const cashROAS = kpi && kpi.cashROAS > 0 ? kpi.cashROAS
+            : (kpi && kpi.amountSpent > 0 ? kpi.cash / kpi.amountSpent : 0);
+          const revROAS  = kpi && kpi.revenueROAS > 0 ? kpi.revenueROAS
+            : (kpi && kpi.amountSpent > 0 ? kpi.revenue / kpi.amountSpent : 0);
+          return (<>
+            <MetricCard label="Cash ROAS"    value={cashROAS > 0 ? `${cashROAS.toFixed(2)}x`    : "—"} cur={cashROAS}    prv={prev.cashROAS}    hib={true} />
+            <MetricCard label="Revenue ROAS" value={revROAS  > 0 ? `${revROAS.toFixed(2)}x`     : "—"} cur={revROAS}     prv={prev.revenueROAS} hib={true} />
+          </>);
+        })()}
       </div>
 
       {/* ── Sparklines ── */}
