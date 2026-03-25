@@ -50,6 +50,28 @@ function getCustomerEmail(cust: Stripe.Customer | Stripe.DeletedCustomer | strin
   return (cust as Stripe.Customer).email ?? "";
 }
 
+// Advance billing_cycle_anchor by the subscription interval until it's in the future
+function nextChargeDate(anchorUnix: number, interval: string, intervalCount: number): number {
+  const now = Math.floor(Date.now() / 1000);
+  let next = anchorUnix;
+  while (next <= now) {
+    const d = new Date(next * 1000);
+    if (interval === "month") {
+      d.setMonth(d.getMonth() + intervalCount);
+    } else if (interval === "year") {
+      d.setFullYear(d.getFullYear() + intervalCount);
+    } else if (interval === "week") {
+      next += intervalCount * 7 * 86400;
+      continue;
+    } else {
+      next += intervalCount * 86400;
+      continue;
+    }
+    next = Math.floor(d.getTime() / 1000);
+  }
+  return next;
+}
+
 async function listAll<T extends { id: string }>(
   fn: (p: { limit: number; starting_after?: string }) => Promise<Stripe.ApiList<T>>
 ): Promise<T[]> {
@@ -89,14 +111,14 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
     const totalCollected = invoices.reduce((sum, inv) => sum + (inv.amount_paid ?? 0), 0);
 
     // -----------------------------------------------------------------------
-    // 2. Active subscriptions with latest_invoice expanded
-    //    latest_invoice.period_end = the end of the current period = next charge date
+    // 2. Active subscriptions — calculate next charge date from billing_cycle_anchor
+    //    (latest_invoice.period_end == anchor in clover API, so we advance by interval)
     // -----------------------------------------------------------------------
     const subscriptions = await listAll<Stripe.Subscription>((p) =>
       stripe.subscriptions.list({
         ...p,
         status: "active",
-        expand: ["data.customer", "data.latest_invoice"],
+        expand: ["data.customer"],
       })
     );
 
@@ -107,14 +129,9 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
       .map((sub) => {
         const item = sub.items.data[0];
         const amountCents = item?.price?.unit_amount ?? 0;
-
-        // Use latest_invoice.period_end as the next charge date.
-        // It equals the end of the current period (= when the next charge fires).
-        const latestInvoice = sub.latest_invoice as Stripe.Invoice | string | null;
-        const nextDate =
-          typeof latestInvoice === "object" && latestInvoice !== null
-            ? (latestInvoice.period_end ?? sub.billing_cycle_anchor)
-            : sub.billing_cycle_anchor;
+        const interval = item?.price?.recurring?.interval ?? "month";
+        const intervalCount = item?.price?.recurring?.interval_count ?? 1;
+        const nextDate = nextChargeDate(sub.billing_cycle_anchor, interval, intervalCount);
 
         return {
           id: sub.id,
