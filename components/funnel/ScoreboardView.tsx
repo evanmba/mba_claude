@@ -272,9 +272,11 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
   // projections still work when the sheet only has rollup rows (4/7/14/30 Days).
   const today = new Date();
   const isCurrentMonth = today.getMonth() === monthIdx && today.getFullYear() === year;
-  const daysWithData = dailyRows.length > 0
-    ? dailyRows.length
-    : isCurrentMonth ? today.getDate() : totalDays;
+  // For the current month always use the calendar day so pre-filled future
+  // rows in the sheet don't make daysWithData equal totalDays prematurely.
+  const daysWithData = isCurrentMonth
+    ? today.getDate()
+    : (dailyRows.length > 0 ? dailyRows.length : totalDays);
   const proj = kpi ? {
     spend:        projectCount(kpi.amountSpent,  daysWithData, totalDays),
     impressions:  projectCount(kpi.impressions,  daysWithData, totalDays),
