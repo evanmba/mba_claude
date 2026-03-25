@@ -116,15 +116,15 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
       };
     });
 
-    // Only need to query from start of current month — future months have no paid invoices
-    const paidInvoices = await listAll<Stripe.Invoice>((p) =>
-      stripe.invoices.list({ ...p, status: "paid", created: { gte: monthWindows[0].start } })
+    // Only need to query from start of current month — future months have no charges
+    const charges = await listAll<Stripe.Charge>((p) =>
+      stripe.charges.list({ ...p, created: { gte: monthWindows[0].start } })
     );
 
     const collectedByMonth = monthWindows.map(({ start, end }) =>
-      paidInvoices
-        .filter((inv) => (inv.created ?? 0) >= start && (inv.created ?? 0) < end)
-        .reduce((sum, inv) => sum + (inv.amount_paid ?? 0), 0)
+      charges
+        .filter((c) => c.status === "succeeded" && (c.created ?? 0) >= start && (c.created ?? 0) < end)
+        .reduce((sum, c) => sum + c.amount, 0)
     );
     const monthLabels = monthWindows.map((w) => w.label);
 
