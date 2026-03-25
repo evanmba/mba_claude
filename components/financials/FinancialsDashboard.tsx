@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DollarSign, AlertCircle, Calendar, CreditCard, TrendingUp, ArrowUp, ArrowDown } from "lucide-react";
+import { DollarSign, AlertCircle, Calendar, CreditCard, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import type { FinancialsData } from "@/lib/stripe-financials";
 
 function fmt(cents: number) {
@@ -34,9 +34,13 @@ function inMonth(unix: number, year: number, month: number) {
   return d.getFullYear() === year && d.getMonth() === month;
 }
 
-function StatCard({ label, value, sub, icon: Icon, accent }: {
+function StatCard({ label, value, sub, icon: Icon, accent, momPct, avg }: {
   label: string; value: string; sub?: string; icon: React.ElementType; accent: string;
+  momPct?: number | null; avg?: string;
 }) {
+  const momColor = momPct == null ? "#94a3b8" : momPct >= 0 ? "#86efac" : "#fca5a5";
+  const momBg    = momPct == null ? "#94a3b815" : momPct >= 0 ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)";
+
   return (
     <div className="rounded-2xl p-5 flex flex-col gap-3" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
       <div className="flex items-center justify-between">
@@ -51,6 +55,21 @@ function StatCard({ label, value, sub, icon: Icon, accent }: {
         <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>{value}</p>
         {sub && <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>{sub}</p>}
       </div>
+      {(momPct !== undefined || avg) && (
+        <div className="flex items-center gap-2 pt-1" style={{ borderTop: "1px solid var(--border)" }}>
+          {momPct !== undefined && (
+            <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-lg" style={{ background: momBg, color: momColor }}>
+              {momPct == null ? <Minus size={10} /> : momPct > 0.5 ? <TrendingUp size={10} /> : momPct < -0.5 ? <TrendingDown size={10} /> : <Minus size={10} />}
+              {momPct == null ? "No prior data" : `${momPct >= 0 ? "+" : ""}${momPct.toFixed(1)}% MoM`}
+            </span>
+          )}
+          {avg && (
+            <span className="text-xs ml-auto" style={{ color: "var(--muted-foreground)" }}>
+              2026 avg <span style={{ color: "var(--foreground)", fontWeight: 600 }}>{avg}</span>
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -127,7 +146,7 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
         </p>
       </div>
 
-      {/* Stat cards — 2x2 grid */}
+      {/* Two stat cards 50/50 with inline MoM + avg */}
       <div className="grid grid-cols-2 gap-4">
         <StatCard
           label={`Cash Collected — ${selected.fullLabel}`}
@@ -135,6 +154,8 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
           sub="successful transactions"
           icon={DollarSign}
           accent="#22c55e"
+          momPct={momPct}
+          avg={fmt(avg2026)}
         />
         <StatCard
           label={`Expected — ${selected.fullLabel}`}
@@ -142,20 +163,6 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
           sub={`${filtered.length} installment${filtered.length !== 1 ? "s" : ""} scheduled`}
           icon={CreditCard}
           accent="#3b82f6"
-        />
-        <StatCard
-          label="2026 Monthly Avg"
-          value={fmt(avg2026)}
-          sub={`across ${activeMonths.length} month${activeMonths.length !== 1 ? "s" : ""} with data`}
-          icon={TrendingUp}
-          accent="#d946ef"
-        />
-        <StatCard
-          label="MoM Change"
-          value={momPct !== null ? `${momPct >= 0 ? "+" : ""}${momPct.toFixed(1)}%` : "—"}
-          sub={prevAmount > 0 ? `vs ${fmt(prevAmount)} prior month` : "no prior month data"}
-          icon={momPct !== null && momPct >= 0 ? ArrowUp : ArrowDown}
-          accent={momPct === null ? "#94a3b8" : momPct >= 0 ? "#22c55e" : "#ef4444"}
         />
       </div>
 
