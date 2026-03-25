@@ -220,7 +220,7 @@ export interface FunnelData {
 // In sandboxed environments, googleapis.com is excluded from the system proxy
 // via NO_PROXY, so we explicitly route through HTTPS_PROXY when set.
 
-async function makeProxyFetch(url: string): Promise<Response> {
+async function makeProxyFetch(url: string, opts: RequestInit = {}): Promise<Response> {
   const proxyUrl = process.env.HTTPS_PROXY ?? process.env.https_proxy ?? "";
   if (proxyUrl) {
     try {
@@ -232,7 +232,7 @@ async function makeProxyFetch(url: string): Promise<Response> {
       // fall through to native fetch
     }
   }
-  return fetch(url, { cache: "no-store" } as RequestInit);
+  return fetch(url, opts);
 }
 
 async function fetchSheetValues(
@@ -244,7 +244,7 @@ async function fetchSheetValues(
   const csvUrl = PUBLISHED_CSV[sheetName];
   if (csvUrl) {
     try {
-      const res = await fetch(csvUrl, { cache: "no-store" } as RequestInit);
+      const res = await fetch(csvUrl, { next: { revalidate: 60 } } as RequestInit);
       if (res.ok) {
         const text = await res.text();
         return parseCSV(text);
@@ -258,7 +258,7 @@ async function fetchSheetValues(
   // Fall back to Sheets API v4
   const range = encodeURIComponent(`'${sheetName}'`);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?key=${apiKey}`;
-  const res = await makeProxyFetch(url);
+  const res = await makeProxyFetch(url, { next: { revalidate: 60 } } as RequestInit);
   if (!res.ok) {
     console.warn(`[funnel] Sheet "${sheetName}" failed: ${res.status}`);
     return [];
