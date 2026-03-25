@@ -67,13 +67,13 @@ async function listAll<T extends { id: string }>(
 // ---------------------------------------------------------------------------
 // Main fetch
 // ---------------------------------------------------------------------------
-export async function fetchFinancialsData(): Promise<FinancialsData> {
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) return empty("STRIPE_SECRET_KEY is not set");
+export async function fetchFinancialsData(key?: string): Promise<FinancialsData> {
+  const resolvedKey = key ?? process.env.STRIPE_SECRET_KEY;
+  if (!resolvedKey) return empty("STRIPE_SECRET_KEY is not set");
 
   let stripe: Stripe;
   try {
-    stripe = new Stripe(key);
+    stripe = new Stripe(resolvedKey);
   } catch {
     return empty("Failed to initialize Stripe client");
   }
