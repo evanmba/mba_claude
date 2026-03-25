@@ -321,6 +321,8 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
     dealsClosed:   nz(prevKpi?.dealsClosed)   ?? nz(prevSb?.dealsClosed)    ?? nz(prevYtd?.dealsClosed),
     closeRate:     nz(prevKpi?.closeRate)     ?? nz(prevSb?.closeRate)      ?? nz(prevYtd?.closeRate),
     cpa:           nz(prevKpi?.cpa)           ?? nz(prevYtd?.cpa),
+    cashROAS:      nz(prevKpi?.cashROAS)      ?? nz(prevYtd?.cashROAS),
+    revenueROAS:   nz(prevKpi?.revenueROAS)   ?? nz(prevYtd?.revenueROAS),
   };
 
   void prevMonthLabel; // available for display if needed
@@ -413,6 +415,10 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
           actual={proj?.dealsClosed != null && kpi ? kpi.dealsClosed.toLocaleString("en-US") : undefined} />
         <MetricCard label="Close Rate"          value={kpi ? pct(kpi.closeRate)    : "—"} cur={kpi?.closeRate    ?? 0} prv={prev.closeRate}   hib={true}  />
         <MetricCard label="Cost Per Acquisition" value={kpi ? $$(kpi.cpa)         : "—"} cur={kpi?.cpa          ?? 0} prv={prev.cpa}         hib={false} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <MetricCard label="Cash ROAS"    value={kpi ? `${kpi.cashROAS.toFixed(2)}x`    : "—"} cur={kpi?.cashROAS    ?? 0} prv={prev.cashROAS}    hib={true} />
+        <MetricCard label="Revenue ROAS" value={kpi ? `${kpi.revenueROAS.toFixed(2)}x` : "—"} cur={kpi?.revenueROAS ?? 0} prv={prev.revenueROAS} hib={true} />
       </div>
 
       {/* ── Sparklines ── */}
