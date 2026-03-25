@@ -325,31 +325,8 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
   void prevMonthLabel; // available for display if needed
 
-  // ── DEBUG (remove once projections confirmed working) ─────────────────────
-  const debugLines = [
-    `monthLabel="${monthLabel}" → monthIdx=${monthIdx} year=${year}`,
-    `today: month=${new Date().getMonth()} year=${new Date().getFullYear()} day=${new Date().getDate()}`,
-    `isCurrentMonth=${isCurrentMonth}  daysWithData=${daysWithData}  totalDays=${totalDays}  isPacing=${isPacing}`,
-    `kpi=${kpi ? "FOUND (period=" + kpi.period + ")" : "NULL"}`,
-    kpi ? `kpi.uniqueClicks=${kpi.uniqueClicks}  kpi.leads=${kpi.leads}  kpi.amountSpent=${kpi.amountSpent}` : "",
-    `proj=${proj ? JSON.stringify({ spend: proj.spend, impressions: proj.impressions, uniqueClicks: proj.uniqueClicks, leads: proj.leads }) : "NULL"}`,
-    `monthly rows: ${monthly.length} total, ${dailyRows.length} daily`,
-  ].filter(Boolean);
-
   return (
     <div className="flex flex-col gap-4">
-
-      {/* ── DEBUG PANEL ── remove once confirmed ── */}
-      <details style={{ background: "#0f172a", border: "1px solid #1e293b", borderRadius: 8, padding: "10px 14px" }}>
-        <summary style={{ color: "#64748b", fontSize: 11, cursor: "pointer", userSelect: "none" }}>
-          🔍 Projection debug (click to expand)
-        </summary>
-        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 3 }}>
-          {debugLines.map((l, i) => (
-            <code key={i} style={{ color: "#94a3b8", fontSize: 11, display: "block" }}>{l}</code>
-          ))}
-        </div>
-      </details>
 
       {/* ── Pace banner ── */}
       {isPacing && (
