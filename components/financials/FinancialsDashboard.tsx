@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DollarSign, AlertCircle, Calendar, CreditCard } from "lucide-react";
+import { DollarSign, AlertCircle, Calendar, CreditCard, TrendingUp, ArrowUp, ArrowDown } from "lucide-react";
 import type { FinancialsData } from "@/lib/stripe-financials";
 
 function fmt(cents: number) {
@@ -104,6 +104,19 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
   const dueSelected = filtered.reduce((sum, p) => sum + p.amount, 0);
   const collectedSelected = data.collectedByMonth[selectedIdx] ?? 0;
 
+  // 2026 average — only months that have data (non-zero) up to and including selected
+  const currentMonthIdx = new Date().getMonth();
+  const upToSelected = data.monthly2026.slice(0, currentMonthIdx + selectedIdx + 1);
+  const activeMonths = upToSelected.filter((v) => v > 0);
+  const avg2026 = activeMonths.length > 0
+    ? activeMonths.reduce((a, b) => a + b, 0) / activeMonths.length
+    : 0;
+
+  // MoM % change — selected vs previous month
+  const prevIdx = currentMonthIdx + selectedIdx - 1;
+  const prevAmount = prevIdx >= 0 ? (data.monthly2026[prevIdx] ?? 0) : 0;
+  const momPct = prevAmount > 0 ? ((collectedSelected - prevAmount) / prevAmount) * 100 : null;
+
   return (
     <div className="p-6 space-y-8">
       {/* Header */}
@@ -114,7 +127,7 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
         </p>
       </div>
 
-      {/* Two stat cards 50/50 */}
+      {/* Stat cards — 2x2 grid */}
       <div className="grid grid-cols-2 gap-4">
         <StatCard
           label={`Cash Collected — ${selected.fullLabel}`}
@@ -129,6 +142,20 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
           sub={`${filtered.length} installment${filtered.length !== 1 ? "s" : ""} scheduled`}
           icon={CreditCard}
           accent="#3b82f6"
+        />
+        <StatCard
+          label="2026 Monthly Avg"
+          value={fmt(avg2026)}
+          sub={`across ${activeMonths.length} month${activeMonths.length !== 1 ? "s" : ""} with data`}
+          icon={TrendingUp}
+          accent="#d946ef"
+        />
+        <StatCard
+          label="MoM Change"
+          value={momPct !== null ? `${momPct >= 0 ? "+" : ""}${momPct.toFixed(1)}%` : "—"}
+          sub={prevAmount > 0 ? `vs ${fmt(prevAmount)} prior month` : "no prior month data"}
+          icon={momPct !== null && momPct >= 0 ? ArrowUp : ArrowDown}
+          accent={momPct === null ? "#94a3b8" : momPct >= 0 ? "#22c55e" : "#ef4444"}
         />
       </div>
 

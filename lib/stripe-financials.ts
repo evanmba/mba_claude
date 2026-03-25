@@ -28,7 +28,8 @@ export interface UpcomingPayment {
 }
 
 export interface FinancialsData {
-  collectedByMonth: number[];   // [month0, month1, month2] in cents — matches toggle tabs
+  monthly2026: number[];        // index 0=Jan … 11=Dec, cents, succeeded charges
+  collectedByMonth: number[];   // [month0, month1, month2] — matches toggle tabs
   monthLabels: string[];        // ["March 2026", "April 2026", "May 2026"]
   activeSubscriptions: number;
   upcomingPayments: UpcomingPayment[];
@@ -116,14 +117,23 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
       };
     });
 
-    // Only need to query from start of current month — future months have no charges
+    // Fetch all succeeded charges from Jan 1 2026 — covers full year for avg + MoM
+    const jan2026 = Math.floor(new Date(2026, 0, 1).getTime() / 1000);
     const charges = await listAll<Stripe.Charge>((p) =>
-      stripe.charges.list({ ...p, created: { gte: monthWindows[0].start } })
+      stripe.charges.list({ ...p, created: { gte: jan2026 } })
     );
+    const succeeded = charges.filter((c) => c.status === "succeeded");
+
+    // Bucket by calendar month (index 0=Jan … 11=Dec)
+    const monthly2026 = Array<number>(12).fill(0);
+    for (const c of succeeded) {
+      const m = new Date((c.created ?? 0) * 1000).getMonth();
+      monthly2026[m] += c.amount;
+    }
 
     const collectedByMonth = monthWindows.map(({ start, end }) =>
-      charges
-        .filter((c) => c.status === "succeeded" && (c.created ?? 0) >= start && (c.created ?? 0) < end)
+      succeeded
+        .filter((c) => (c.created ?? 0) >= start && (c.created ?? 0) < end)
         .reduce((sum, c) => sum + c.amount, 0)
     );
     const monthLabels = monthWindows.map((w) => w.label);
@@ -165,6 +175,7 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
       .sort((a, b) => a.nextPaymentDate - b.nextPaymentDate);
 
     return {
+      monthly2026,
       collectedByMonth,
       monthLabels,
       activeSubscriptions: subscriptions.length,
@@ -177,6 +188,7 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
 
 function empty(stripeError: string): FinancialsData {
   return {
+    monthly2026: Array(12).fill(0),
     collectedByMonth: [0, 0, 0],
     monthLabels: ["", "", ""],
     activeSubscriptions: 0,
