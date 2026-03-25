@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 async function FinancialsDataLoader() {
   const key = process.env.STRIPE_SECRET_KEY ?? "";
+  console.log("[financials] STRIPE_SECRET_KEY prefix:", key ? key.slice(0, 10) + "..." : "(empty)");
   const data = await fetchFinancialsData(key);
   return <FinancialsDashboard data={data} />;
 }
