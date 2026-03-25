@@ -23,16 +23,15 @@ export interface UpcomingPayment {
   customerName: string;
   customerEmail: string;
   amount: number;          // cents
-  nextPaymentDate: number; // unix timestamp (current_period_end of first item)
+  nextPaymentDate: number; // unix timestamp
   planLabel: string;
 }
 
 export interface FinancialsData {
-  totalInstallmentCollected: number; // cents — paid invoices from subscriptions
-  totalPayInFull: number;            // cents — paid invoices NOT from subscriptions
-  totalRevenue: number;              // cents — all of the above combined
+  totalCollected: number;         // cents — all paid invoices ever
+  dueThisMonth: number;           // cents — sum of upcoming charges in next 30 days
   activeSubscriptions: number;
-  upcomingPayments: UpcomingPayment[];
+  upcomingPayments: UpcomingPayment[]; // only those due within 30 days
   stripeError?: string;
 }
 
@@ -51,7 +50,6 @@ function getCustomerEmail(cust: Stripe.Customer | Stripe.DeletedCustomer | strin
   return (cust as Stripe.Customer).email ?? "";
 }
 
-// Auto-paginate through all records
 async function listAll<T extends { id: string }>(
   fn: (p: { limit: number; starting_after?: string }) => Promise<Stripe.ApiList<T>>
 ): Promise<T[]> {
@@ -75,7 +73,6 @@ export async function fetchFinancialsData(): Promise<FinancialsData> {
 
   let stripe: Stripe;
   try {
-    // Use the version bundled with the installed package
     stripe = new Stripe(key);
   } catch {
     return empty("Failed to initialize Stripe client");
@@ -83,63 +80,60 @@ export async function fetchFinancialsData(): Promise<FinancialsData> {
 
   try {
     // -----------------------------------------------------------------------
-    // 1. Revenue totals via paid invoices
-    //    Subscription invoices → installment revenue
-    //    Non-subscription invoices → pay-in-full revenue
+    // 1. Total cash collected — sum all paid invoices
     // -----------------------------------------------------------------------
     const invoices = await listAll<Stripe.Invoice>((p) =>
       stripe.invoices.list({ ...p, status: "paid" })
     );
 
-    let totalInstallmentCollected = 0;
-    let totalPayInFull = 0;
-
-    for (const inv of invoices) {
-      const amt = inv.amount_paid ?? 0;
-      // billing_reason starting with "subscription" → installment charge
-      const isSubscriptionInvoice = (inv.billing_reason ?? "").startsWith("subscription");
-      if (isSubscriptionInvoice) {
-        totalInstallmentCollected += amt;
-      } else {
-        totalPayInFull += amt;
-      }
-    }
-
-    const totalRevenue = totalInstallmentCollected + totalPayInFull;
+    const totalCollected = invoices.reduce((sum, inv) => sum + (inv.amount_paid ?? 0), 0);
 
     // -----------------------------------------------------------------------
-    // 2. Active subscriptions — upcoming payments
-    //    current_period_end lives on each SubscriptionItem in the clover API
+    // 2. Active subscriptions with latest_invoice expanded
+    //    latest_invoice.period_end = the end of the current period = next charge date
     // -----------------------------------------------------------------------
     const subscriptions = await listAll<Stripe.Subscription>((p) =>
       stripe.subscriptions.list({
         ...p,
         status: "active",
-        expand: ["data.customer"],
+        expand: ["data.customer", "data.latest_invoice"],
       })
     );
 
-    const upcomingPayments: UpcomingPayment[] = subscriptions.map((sub) => {
-      const item = sub.items.data[0];
-      const amountCents = item?.price?.unit_amount ?? 0;
-      // current_period_end is on SubscriptionItem in the clover API
-      const nextDate = (item as Stripe.SubscriptionItem & { current_period_end?: number }).current_period_end
-        ?? sub.billing_cycle_anchor;
+    const now = Math.floor(Date.now() / 1000);
+    const in30days = now + 30 * 24 * 60 * 60;
 
-      return {
-        id: sub.id,
-        customerName: getCustomerName(sub.customer as Stripe.Customer | Stripe.DeletedCustomer | string | null),
-        customerEmail: getCustomerEmail(sub.customer as Stripe.Customer | Stripe.DeletedCustomer | string | null),
-        amount: amountCents,
-        nextPaymentDate: nextDate,
-        planLabel: planLabel(amountCents),
-      };
-    }).sort((a, b) => a.nextPaymentDate - b.nextPaymentDate);
+    const upcomingPayments: UpcomingPayment[] = subscriptions
+      .map((sub) => {
+        const item = sub.items.data[0];
+        const amountCents = item?.price?.unit_amount ?? 0;
+
+        // Use latest_invoice.period_end as the next charge date.
+        // It equals the end of the current period (= when the next charge fires).
+        const latestInvoice = sub.latest_invoice as Stripe.Invoice | string | null;
+        const nextDate =
+          typeof latestInvoice === "object" && latestInvoice !== null
+            ? (latestInvoice.period_end ?? sub.billing_cycle_anchor)
+            : sub.billing_cycle_anchor;
+
+        return {
+          id: sub.id,
+          customerName: getCustomerName(sub.customer as Stripe.Customer | Stripe.DeletedCustomer | string | null),
+          customerEmail: getCustomerEmail(sub.customer as Stripe.Customer | Stripe.DeletedCustomer | string | null),
+          amount: amountCents,
+          nextPaymentDate: nextDate,
+          planLabel: planLabel(amountCents),
+        };
+      })
+      // Only keep payments due within the next 30 days
+      .filter((p) => p.nextPaymentDate >= now && p.nextPaymentDate <= in30days)
+      .sort((a, b) => a.nextPaymentDate - b.nextPaymentDate);
+
+    const dueThisMonth = upcomingPayments.reduce((sum, p) => sum + p.amount, 0);
 
     return {
-      totalInstallmentCollected,
-      totalPayInFull,
-      totalRevenue,
+      totalCollected,
+      dueThisMonth,
       activeSubscriptions: subscriptions.length,
       upcomingPayments,
     };
@@ -150,9 +144,8 @@ export async function fetchFinancialsData(): Promise<FinancialsData> {
 
 function empty(stripeError: string): FinancialsData {
   return {
-    totalInstallmentCollected: 0,
-    totalPayInFull: 0,
-    totalRevenue: 0,
+    totalCollected: 0,
+    dueThisMonth: 0,
     activeSubscriptions: 0,
     upcomingPayments: [],
     stripeError,
