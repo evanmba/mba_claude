@@ -276,6 +276,8 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
     ? dailyRows.length
     : isCurrentMonth ? today.getDate() : totalDays;
   const proj = kpi ? {
+    spend:        projectCount(kpi.amountSpent,  daysWithData, totalDays),
+    impressions:  projectCount(kpi.impressions,  daysWithData, totalDays),
     uniqueClicks: projectCount(kpi.uniqueClicks, daysWithData, totalDays),
     leads:        projectCount(kpi.leads,        daysWithData, totalDays),
     apps:         projectCount(kpi.apps,         daysWithData, totalDays),
@@ -283,6 +285,8 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
     takenCalls:   projectCount(kpi.takenCalls,   daysWithData, totalDays),
     dealsClosed:  projectCount(kpi.dealsClosed,  daysWithData, totalDays),
   } : null;
+
+  const isPacing = isCurrentMonth && daysWithData > 0 && daysWithData < totalDays && kpi != null;
 
   // Previous month KPI: prefer the actual prev month sheet (full data), fall back to YTD/scoreboard rows
   const prevKpi = prevMonthly.find((r) => r.period === "30 Days") ?? prevMonthly.find((r) => r.isRollup) ?? null;
@@ -295,6 +299,8 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
   // undefined = no data (badge will show "No prev month"); 0 = genuinely zero
   const nz = (n: number | undefined) => (n != null && n !== 0 ? n : undefined);
   const prev = {
+    amountSpent:   nz(prevKpi?.amountSpent)   ?? nz(prevYtd?.amountSpent),
+    impressions:   nz(prevKpi?.impressions)   ?? nz(prevYtd?.impressions),
     uniqueClicks:  nz(prevKpi?.uniqueClicks)  ?? nz(prevYtd?.uniqueClicks),
     ctr:           nz(prevKpi?.ctr)           ?? nz(prevYtd?.ctr),
     costPerClick:  nz(prevKpi?.costPerClick)  ?? nz(prevYtd?.costPerClick),
@@ -320,8 +326,29 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
   return (
     <div className="flex flex-col gap-4">
 
-      {/* ── Row 1: Ad Clicks ── */}
+      {/* ── Pace banner ── */}
+      {isPacing && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 8, background: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.25)" }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#7c3aed", display: "inline-block", flexShrink: 0 }} />
+          <span style={{ color: "#a78bfa", fontSize: 12, fontWeight: 600 }}>
+            Projecting month-end pace · day {daysWithData} of {totalDays}
+          </span>
+        </div>
+      )}
+
+      {/* ── Row 1: Ad Spend / Media ── */}
       <SectionLabel label="Ad Performance" color="#3b82f6" />
+      <div className="grid grid-cols-3 gap-3">
+        <MetricCard label="Spend"
+          value={proj?.spend != null ? $$(proj.spend) : (kpi ? $$(kpi.amountSpent) : "—")}
+          cur={proj?.spend ?? kpi?.amountSpent ?? 0} prv={prev.amountSpent} hib={false}
+          actual={proj?.spend != null && kpi ? $$(kpi.amountSpent) : undefined} />
+        <MetricCard label="Impressions"
+          value={proj?.impressions != null ? proj.impressions.toLocaleString("en-US") : (kpi ? num(kpi.impressions) : "—")}
+          cur={proj?.impressions ?? kpi?.impressions ?? 0} prv={prev.impressions} hib={true}
+          actual={proj?.impressions != null && kpi ? kpi.impressions.toLocaleString("en-US") : undefined} />
+        <MetricCard label="CPM" value={kpi ? $$(kpi.cpm) : "—"} cur={kpi?.cpm ?? 0} prv={undefined} hib={false} />
+      </div>
       <div className="grid grid-cols-3 gap-3">
         <MetricCard label="Unique Clicks"
           value={proj?.uniqueClicks != null ? proj.uniqueClicks.toLocaleString("en-US") : (kpi ? num(kpi.uniqueClicks) : "—")}

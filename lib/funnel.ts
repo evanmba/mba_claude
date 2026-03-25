@@ -307,7 +307,9 @@ function parseMonthly(rows: string[][]): { monthly: MonthlyRow[]; salesDashboard
     reach:      fi(hdrs, ["reach"]),
     impr:       fi(hdrs, ["impression"]),
     cpm:        hdrs.findIndex((h) => h.includes("cpm") || (h.includes("thousand") && h.includes("cost"))),
-    clicks:     fi(hdrs, ["unique", "link", "click"]),
+    clicks:     fi(hdrs, ["unique", "link", "click"]) >= 0
+                  ? fi(hdrs, ["unique", "link", "click"])
+                  : fi(hdrs, ["unique", "click"]),
     ctr:        fi(hdrs, ["click-through"]) >= 0 ? fi(hdrs, ["click-through"]) : fi(hdrs, ["ctr"]),
     costClick:  fi(hdrs, ["cost per unique link"]) >= 0 ? fi(hdrs, ["cost per unique link"]) : fi(hdrs, ["cost", "click"]),
     leads:      fi(hdrs, ["total ageq"]) >= 0 ? fi(hdrs, ["total ageq"]) : fi(hdrs, ["ageq", "lead"]),
