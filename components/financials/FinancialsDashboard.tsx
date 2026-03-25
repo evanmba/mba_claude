@@ -1,12 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { DollarSign, Users, AlertCircle, Calendar, CreditCard } from "lucide-react";
+import { DollarSign, AlertCircle, Calendar } from "lucide-react";
 import type { FinancialsData } from "@/lib/stripe-financials";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 function fmt(cents: number) {
   return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
@@ -19,7 +16,6 @@ function daysUntil(unix: number) {
   return Math.max(0, Math.ceil((unix * 1000 - Date.now()) / 86400000));
 }
 
-// Build the 3 month tabs: current month + 2 following
 function getMonthTabs() {
   const now = new Date();
   return [0, 1, 2].map((offset) => {
@@ -28,7 +24,7 @@ function getMonthTabs() {
       label: d.toLocaleDateString("en-US", { month: "short" }),
       fullLabel: d.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
       year: d.getFullYear(),
-      month: d.getMonth(), // 0-indexed
+      month: d.getMonth(),
     };
   });
 }
@@ -38,9 +34,6 @@ function inMonth(unix: number, year: number, month: number) {
   return d.getFullYear() === year && d.getMonth() === month;
 }
 
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
 function StatCard({ label, value, sub, icon: Icon, accent }: {
   label: string; value: string; sub?: string; icon: React.ElementType; accent: string;
 }) {
@@ -90,9 +83,6 @@ function PaymentRow({ payment, index }: { payment: FinancialsData["upcomingPayme
   );
 }
 
-// ---------------------------------------------------------------------------
-// Main dashboard
-// ---------------------------------------------------------------------------
 export function FinancialsDashboard({ data }: { data: FinancialsData }) {
   const tabs = getMonthTabs();
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -116,69 +106,55 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
   return (
     <div className="p-6 space-y-8">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>Financials</h1>
-          <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
-            Live from Stripe · installment revenue &amp; upcoming charges
-          </p>
-        </div>
-
-        {/* Month toggle */}
-        <div className="flex items-center gap-1 p-1 rounded-xl flex-shrink-0" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-          {tabs.map((tab, i) => (
-            <button
-              key={tab.label}
-              onClick={() => setSelectedIdx(i)}
-              className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all"
-              style={{
-                background: selectedIdx === i ? "#3b82f6" : "transparent",
-                color: selectedIdx === i ? "#fff" : "var(--muted-foreground)",
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>Financials</h1>
+        <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
+          Live from Stripe · installment revenue &amp; upcoming charges
+        </p>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Single stat card */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatCard
-          label="Total Cash Collected"
-          value={fmt(data.totalCollected)}
-          sub="all paid invoices"
+          label={`Cash Collected — ${data.collectedThisMonthLabel}`}
+          value={fmt(data.collectedThisMonth)}
+          sub="paid invoices this month"
           icon={DollarSign}
           accent="#22c55e"
         />
-        <StatCard
-          label={`Due in ${selected.fullLabel}`}
-          value={fmt(dueSelected)}
-          sub={`${filtered.length} installment${filtered.length !== 1 ? "s" : ""} scheduled`}
-          icon={CreditCard}
-          accent="#3b82f6"
-        />
-        <StatCard
-          label="Active Subscriptions"
-          value={String(data.activeSubscriptions)}
-          sub="currently billing"
-          icon={Users}
-          accent="#f59e0b"
-        />
       </div>
 
-      {/* Upcoming installments table */}
+      {/* Upcoming installments with toggle inside */}
       <div className="rounded-2xl p-6" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-        <div className="flex items-center gap-2 mb-5">
+        {/* Card header with toggle */}
+        <div className="flex items-center gap-3 mb-5">
           <Calendar size={18} style={{ color: "#3b82f6" }} />
           <h2 className="text-base font-semibold" style={{ color: "var(--foreground)" }}>
-            Upcoming Installments — {selected.fullLabel}
+            Upcoming Installments
           </h2>
-          <span className="ml-auto text-xs px-2 py-0.5 rounded-full" style={{ background: "#3b82f615", color: "#3b82f6" }}>
+          <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "#3b82f615", color: "#3b82f6" }}>
             {fmt(dueSelected)} expected
           </span>
+
+          {/* Month toggle — top right of card */}
+          <div className="flex items-center gap-1 p-1 rounded-xl ml-auto" style={{ background: "var(--secondary)", border: "1px solid var(--border)" }}>
+            {tabs.map((tab, i) => (
+              <button
+                key={tab.label}
+                onClick={() => setSelectedIdx(i)}
+                className="px-3 py-1 rounded-lg text-xs font-medium transition-all"
+                style={{
+                  background: selectedIdx === i ? "#3b82f6" : "transparent",
+                  color: selectedIdx === i ? "#fff" : "var(--muted-foreground)",
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
+        {/* Column headers */}
         <div className="grid text-xs font-medium uppercase tracking-wider pb-2 mb-1"
           style={{ color: "var(--muted-foreground)", gridTemplateColumns: "36px 1fr 110px 80px", gap: "1rem", borderBottom: "1px solid var(--border)" }}>
           <span />
