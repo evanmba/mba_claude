@@ -9,6 +9,20 @@ const $$ = (n: number) =>
 const num = (n: number) => (n === 0 ? "—" : n.toLocaleString("en-US"));
 const pct = (n: number) => (n === 0 ? "—" : `${n.toFixed(1)}%`);
 
+// Compact formatters for mobile (e.g. 1,543,244 → 1.54M, 16,657 → 16.7K)
+const cnum = (n: number): string => {
+  if (n === 0) return "—";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString("en-US");
+};
+const c$$ = (n: number): string => {
+  if (n === 0) return "—";
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+  return `$${n.toLocaleString("en-US")}`;
+};
+
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
   "July","August","September","October","November","December",
@@ -59,12 +73,16 @@ function MomBadge({ cur, prv, hib = true }: { cur: number | undefined; prv: numb
 const CARD_BG = "#0b1628";
 
 function MetricCard({
-  label, value, cur, prv, hib = true, actual,
+  label, value, cur, prv, hib = true, actual, mv, ma,
 }: {
   label: string; value: string;
   cur: number | undefined; prv: number | undefined; hib?: boolean;
   /** When set, `value` is the projection and `actual` is the real-to-date count. */
   actual?: string;
+  /** Compact value shown on mobile only (e.g. "1.54M"). Falls back to `value` if omitted. */
+  mv?: string;
+  /** Compact actual shown on mobile only. Falls back to `actual` if omitted. */
+  ma?: string;
 }) {
   const isProjected = actual != null;
   return (
@@ -81,15 +99,16 @@ function MetricCard({
         )}
       </div>
 
-      {/* Value */}
+      {/* Value — compact on mobile, full on sm+ */}
       <p className="text-2xl sm:text-4xl" style={{ color: "#ffffff", fontWeight: 800, lineHeight: 1, margin: 0 }}>
-        {value}
+        {mv ? <><span className="sm:hidden">{mv}</span><span className="hidden sm:inline">{value}</span></> : value}
       </p>
 
       {/* Actual to-date (only when projecting) */}
       {isProjected && (
         <p style={{ color: "#94a3b8", fontSize: 11, margin: 0 }}>
-          <span style={{ color: "#64748b" }}>actual </span>{actual}
+          <span style={{ color: "#64748b" }}>actual </span>
+          {ma ? <><span className="sm:hidden">{ma}</span><span className="hidden sm:inline">{actual}</span></> : actual}
         </p>
       )}
 
@@ -347,76 +366,92 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Spend"
           value={proj?.spend != null ? $$(proj.spend) : (kpi ? $$(kpi.amountSpent) : "—")}
+          mv={proj?.spend != null ? c$$(proj.spend) : (kpi ? c$$(kpi.amountSpent) : "—")}
           cur={proj?.spend ?? kpi?.amountSpent ?? 0} prv={prev.amountSpent} hib={false}
-          actual={proj?.spend != null && kpi ? $$(kpi.amountSpent) : undefined} />
+          actual={proj?.spend != null && kpi ? $$(kpi.amountSpent) : undefined}
+          ma={proj?.spend != null && kpi ? c$$(kpi.amountSpent) : undefined} />
         <MetricCard label="Impressions"
-          value={proj?.impressions != null ? proj.impressions.toLocaleString("en-US") : (kpi ? num(kpi.impressions) : "—")}
+          value={proj?.impressions != null ? num(proj.impressions) : (kpi ? num(kpi.impressions) : "—")}
+          mv={proj?.impressions != null ? cnum(proj.impressions) : (kpi ? cnum(kpi.impressions) : "—")}
           cur={proj?.impressions ?? kpi?.impressions ?? 0} prv={prev.impressions} hib={true}
-          actual={proj?.impressions != null && kpi ? kpi.impressions.toLocaleString("en-US") : undefined} />
-        <MetricCard label="CPM" value={kpi ? $$(kpi.cpm) : "—"} cur={kpi?.cpm ?? 0} prv={undefined} hib={false} />
+          actual={proj?.impressions != null && kpi ? num(kpi.impressions) : undefined}
+          ma={proj?.impressions != null && kpi ? cnum(kpi.impressions) : undefined} />
+        <MetricCard label="CPM" value={kpi ? $$(kpi.cpm) : "—"} mv={kpi ? c$$(kpi.cpm) : "—"} cur={kpi?.cpm ?? 0} prv={undefined} hib={false} />
       </div>
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Unique Clicks"
-          value={proj?.uniqueClicks != null ? proj.uniqueClicks.toLocaleString("en-US") : (kpi ? num(kpi.uniqueClicks) : "—")}
+          value={proj?.uniqueClicks != null ? num(proj.uniqueClicks) : (kpi ? num(kpi.uniqueClicks) : "—")}
+          mv={proj?.uniqueClicks != null ? cnum(proj.uniqueClicks) : (kpi ? cnum(kpi.uniqueClicks) : "—")}
           cur={proj?.uniqueClicks ?? kpi?.uniqueClicks ?? 0} prv={prev.uniqueClicks} hib={true}
-          actual={proj?.uniqueClicks != null && kpi ? kpi.uniqueClicks.toLocaleString("en-US") : undefined} />
-        <MetricCard label="Unique CTR"     value={kpi ? pct(kpi.ctr)           : "—"} cur={kpi?.ctr           ?? 0} prv={prev.ctr}           hib={true}  />
-        <MetricCard label="$ Per Click"    value={kpi ? $$(kpi.costPerClick)   : "—"} cur={kpi?.costPerClick  ?? 0} prv={prev.costPerClick}  hib={false} />
+          actual={proj?.uniqueClicks != null && kpi ? num(kpi.uniqueClicks) : undefined}
+          ma={proj?.uniqueClicks != null && kpi ? cnum(kpi.uniqueClicks) : undefined} />
+        <MetricCard label="Unique CTR"  value={kpi ? pct(kpi.ctr)         : "—"} cur={kpi?.ctr          ?? 0} prv={prev.ctr}          hib={true}  />
+        <MetricCard label="$ Per Click" value={kpi ? $$(kpi.costPerClick) : "—"} mv={kpi ? c$$(kpi.costPerClick) : "—"} cur={kpi?.costPerClick ?? 0} prv={prev.costPerClick} hib={false} />
       </div>
 
       {/* ── Row 2: Leads ── */}
       <SectionLabel label="Lead Generation" color="#8b5cf6" />
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Leads"
-          value={proj?.leads != null ? proj.leads.toLocaleString("en-US") : (kpi ? num(kpi.leads) : "—")}
+          value={proj?.leads != null ? num(proj.leads) : (kpi ? num(kpi.leads) : "—")}
+          mv={proj?.leads != null ? cnum(proj.leads) : (kpi ? cnum(kpi.leads) : "—")}
           cur={proj?.leads ?? kpi?.leads ?? 0} prv={prev.leads} hib={true}
-          actual={proj?.leads != null && kpi ? kpi.leads.toLocaleString("en-US") : undefined} />
-        <MetricCard label="Opt-In Conv %"   value={kpi ? pct(kpi.leadConv)      : "—"} cur={kpi?.leadConv      ?? 0} prv={prev.optInConv}     hib={true}  />
-        <MetricCard label="Cost Per Lead"   value={kpi ? $$(kpi.costPerLead)   : "—"} cur={kpi?.costPerLead   ?? 0} prv={prev.costPerLead}   hib={false} />
+          actual={proj?.leads != null && kpi ? num(kpi.leads) : undefined}
+          ma={proj?.leads != null && kpi ? cnum(kpi.leads) : undefined} />
+        <MetricCard label="Opt-In Conv %"  value={kpi ? pct(kpi.leadConv)    : "—"} cur={kpi?.leadConv    ?? 0} prv={prev.optInConv}   hib={true}  />
+        <MetricCard label="Cost Per Lead"  value={kpi ? $$(kpi.costPerLead)  : "—"} mv={kpi ? c$$(kpi.costPerLead) : "—"} cur={kpi?.costPerLead  ?? 0} prv={prev.costPerLead}  hib={false} />
       </div>
 
       {/* ── Row 3: Apps ── */}
       <SectionLabel label="Applications" color="#06b6d4" />
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Total Apps"
-          value={proj?.apps != null ? proj.apps.toLocaleString("en-US") : (kpi ? num(kpi.apps) : "—")}
+          value={proj?.apps != null ? num(proj.apps) : (kpi ? num(kpi.apps) : "—")}
+          mv={proj?.apps != null ? cnum(proj.apps) : (kpi ? cnum(kpi.apps) : "—")}
           cur={proj?.apps ?? kpi?.apps ?? 0} prv={prev.apps} hib={true}
-          actual={proj?.apps != null && kpi ? kpi.apps.toLocaleString("en-US") : undefined} />
-        <MetricCard label="App Conv %"      value={kpi ? pct(kpi.appConv)       : "—"} cur={kpi?.appConv       ?? 0} prv={prev.appConv}       hib={true}  />
-        <MetricCard label="Cost Per App"    value={kpi ? $$(kpi.costPerApp)    : "—"} cur={kpi?.costPerApp    ?? 0} prv={prev.costPerApp}    hib={false} />
+          actual={proj?.apps != null && kpi ? num(kpi.apps) : undefined}
+          ma={proj?.apps != null && kpi ? cnum(kpi.apps) : undefined} />
+        <MetricCard label="App Conv %"   value={kpi ? pct(kpi.appConv)    : "—"} cur={kpi?.appConv    ?? 0} prv={prev.appConv}    hib={true}  />
+        <MetricCard label="Cost Per App" value={kpi ? $$(kpi.costPerApp)  : "—"} mv={kpi ? c$$(kpi.costPerApp) : "—"} cur={kpi?.costPerApp  ?? 0} prv={prev.costPerApp}  hib={false} />
       </div>
 
       {/* ── Row 4: Booked Calls ── */}
       <SectionLabel label="Booked Calls" color="#22c55e" />
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Booked Calls"
-          value={proj?.bookedCalls != null ? proj.bookedCalls.toLocaleString("en-US") : (kpi ? num(kpi.bookedCalls) : "—")}
+          value={proj?.bookedCalls != null ? num(proj.bookedCalls) : (kpi ? num(kpi.bookedCalls) : "—")}
+          mv={proj?.bookedCalls != null ? cnum(proj.bookedCalls) : (kpi ? cnum(kpi.bookedCalls) : "—")}
           cur={proj?.bookedCalls ?? kpi?.bookedCalls ?? 0} prv={prev.bookedCalls} hib={true}
-          actual={proj?.bookedCalls != null && kpi ? kpi.bookedCalls.toLocaleString("en-US") : undefined} />
-        <MetricCard label="Lead-to-Booked Rate"    value={kpi ? pct(kpi.bookedConv)     : "—"} cur={kpi?.bookedConv     ?? 0} prv={prev.leadToBooked}  hib={true}  />
-        <MetricCard label="Cost Per Booked Call"   value={kpi ? $$(kpi.costPerBooked)  : "—"} cur={kpi?.costPerBooked  ?? 0} prv={prev.costPerBooked} hib={false} />
+          actual={proj?.bookedCalls != null && kpi ? num(kpi.bookedCalls) : undefined}
+          ma={proj?.bookedCalls != null && kpi ? cnum(kpi.bookedCalls) : undefined} />
+        <MetricCard label="Lead-to-Booked"      value={kpi ? pct(kpi.bookedConv)    : "—"} cur={kpi?.bookedConv    ?? 0} prv={prev.leadToBooked}  hib={true}  />
+        <MetricCard label="Cost Per Booked"     value={kpi ? $$(kpi.costPerBooked)  : "—"} mv={kpi ? c$$(kpi.costPerBooked) : "—"} cur={kpi?.costPerBooked  ?? 0} prv={prev.costPerBooked} hib={false} />
       </div>
 
       {/* ── Row 5: Taken Calls ── */}
       <SectionLabel label="Taken Calls" color="#f59e0b" />
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Taken Calls"
-          value={proj?.takenCalls != null ? proj.takenCalls.toLocaleString("en-US") : (kpi ? num(kpi.takenCalls) : "—")}
+          value={proj?.takenCalls != null ? num(proj.takenCalls) : (kpi ? num(kpi.takenCalls) : "—")}
+          mv={proj?.takenCalls != null ? cnum(proj.takenCalls) : (kpi ? cnum(kpi.takenCalls) : "—")}
           cur={proj?.takenCalls ?? kpi?.takenCalls ?? 0} prv={prev.takenCalls} hib={true}
-          actual={proj?.takenCalls != null && kpi ? kpi.takenCalls.toLocaleString("en-US") : undefined} />
-        <MetricCard label="Show-Up Rate"        value={kpi ? pct(kpi.showUpRate)    : "—"} cur={kpi?.showUpRate    ?? 0} prv={prev.showUpRate}   hib={true}  />
-        <MetricCard label="Cost Per Taken Call" value={kpi ? $$(kpi.costPerTaken)  : "—"} cur={kpi?.costPerTaken  ?? 0} prv={prev.costPerTaken} hib={false} />
+          actual={proj?.takenCalls != null && kpi ? num(kpi.takenCalls) : undefined}
+          ma={proj?.takenCalls != null && kpi ? cnum(kpi.takenCalls) : undefined} />
+        <MetricCard label="Show-Up Rate"    value={kpi ? pct(kpi.showUpRate)   : "—"} cur={kpi?.showUpRate   ?? 0} prv={prev.showUpRate}   hib={true}  />
+        <MetricCard label="Cost Per Taken"  value={kpi ? $$(kpi.costPerTaken)  : "—"} mv={kpi ? c$$(kpi.costPerTaken) : "—"} cur={kpi?.costPerTaken  ?? 0} prv={prev.costPerTaken} hib={false} />
       </div>
 
       {/* ── Row 6: Deals ── */}
       <SectionLabel label="Deals" color="#ef4444" />
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Deals Closed"
-          value={proj?.dealsClosed != null ? proj.dealsClosed.toLocaleString("en-US") : (kpi ? num(kpi.dealsClosed) : "—")}
+          value={proj?.dealsClosed != null ? num(proj.dealsClosed) : (kpi ? num(kpi.dealsClosed) : "—")}
+          mv={proj?.dealsClosed != null ? cnum(proj.dealsClosed) : (kpi ? cnum(kpi.dealsClosed) : "—")}
           cur={proj?.dealsClosed ?? kpi?.dealsClosed ?? 0} prv={prev.dealsClosed} hib={true}
-          actual={proj?.dealsClosed != null && kpi ? kpi.dealsClosed.toLocaleString("en-US") : undefined} />
-        <MetricCard label="Close Rate"          value={kpi ? pct(kpi.closeRate)    : "—"} cur={kpi?.closeRate    ?? 0} prv={prev.closeRate}   hib={true}  />
-        <MetricCard label="Cost Per Acquisition" value={kpi ? $$(kpi.cpa)         : "—"} cur={kpi?.cpa          ?? 0} prv={prev.cpa}         hib={false} />
+          actual={proj?.dealsClosed != null && kpi ? num(kpi.dealsClosed) : undefined}
+          ma={proj?.dealsClosed != null && kpi ? cnum(kpi.dealsClosed) : undefined} />
+        <MetricCard label="Close Rate"  value={kpi ? pct(kpi.closeRate) : "—"} cur={kpi?.closeRate ?? 0} prv={prev.closeRate} hib={true}  />
+        <MetricCard label="Cost/Acq"    value={kpi ? $$(kpi.cpa)       : "—"} mv={kpi ? c$$(kpi.cpa) : "—"} cur={kpi?.cpa       ?? 0} prv={prev.cpa}       hib={false} />
       </div>
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {(() => {
@@ -424,9 +459,9 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
           const prevCashRevRatio = prev.cash != null && prev.revenue != null && prev.revenue > 0
             ? prev.cash / prev.revenue : undefined;
           return (<>
-            <MetricCard label="Cash"              value={kpi ? $$(kpi.cash)    : "—"} cur={kpi?.cash    ?? 0} prv={prev.cash}    hib={true} />
-            <MetricCard label="Revenue"           value={kpi ? $$(kpi.revenue) : "—"} cur={kpi?.revenue ?? 0} prv={prev.revenue} hib={true} />
-            <MetricCard label="Cash:Revenue Ratio" value={cashRevRatio > 0 ? `${cashRevRatio.toFixed(2)}x` : "—"} cur={cashRevRatio} prv={prevCashRevRatio} hib={true} />
+            <MetricCard label="Cash"    value={kpi ? $$(kpi.cash)    : "—"} mv={kpi ? c$$(kpi.cash)    : "—"} cur={kpi?.cash    ?? 0} prv={prev.cash}    hib={true} />
+            <MetricCard label="Revenue" value={kpi ? $$(kpi.revenue) : "—"} mv={kpi ? c$$(kpi.revenue) : "—"} cur={kpi?.revenue ?? 0} prv={prev.revenue} hib={true} />
+            <MetricCard label="Cash:Rev" value={cashRevRatio > 0 ? `${cashRevRatio.toFixed(2)}x` : "—"} cur={cashRevRatio} prv={prevCashRevRatio} hib={true} />
           </>);
         })()}
       </div>
