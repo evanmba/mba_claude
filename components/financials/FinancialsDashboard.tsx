@@ -80,23 +80,32 @@ function PaymentRow({ payment, index }: { payment: FinancialsData["upcomingPayme
   const badgeBg   = days <= 7 ? "#ef444415" : days <= 14 ? "#f59e0b15" : "#22c55e15";
 
   return (
-    <div className="flex items-center gap-4 py-3.5" style={{ borderTop: index === 0 ? "none" : "1px solid var(--border)" }}>
-      <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0"
+    <div className="flex items-center gap-3 py-3" style={{ borderTop: index === 0 ? "none" : "1px solid var(--border)" }}>
+      <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0"
         style={{ background: "#3b82f615", color: "#3b82f6" }}>
         {payment.customerName.charAt(0).toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{payment.customerName}</p>
-        <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{payment.planLabel}</p>
+        <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
+          {payment.planLabel}
+          {/* Show date inline on mobile */}
+          <span className="sm:hidden"> · {fmtDate(payment.nextPaymentDate)}</span>
+        </p>
       </div>
-      <div className="text-right flex-shrink-0">
-        <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{fmtDate(payment.nextPaymentDate)}</p>
+      {/* Date column — desktop only */}
+      <div className="hidden sm:block text-right flex-shrink-0">
+        <p className="text-sm" style={{ color: "var(--foreground)" }}>{fmtDate(payment.nextPaymentDate)}</p>
         <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: badgeBg, color: badgeColor }}>
           {days === 0 ? "Today" : `${days}d`}
         </span>
       </div>
-      <div className="text-right flex-shrink-0 w-20">
+      <div className="text-right flex-shrink-0">
         <p className="text-sm font-bold" style={{ color: "var(--foreground)" }}>{fmt(payment.amount)}</p>
+        {/* Days badge on mobile */}
+        <span className="sm:hidden text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: badgeBg, color: badgeColor }}>
+          {days === 0 ? "Today" : `${days}d`}
+        </span>
       </div>
     </div>
   );
@@ -137,17 +146,17 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
   const momPct = prevAmount > 0 ? ((collectedSelected - prevAmount) / prevAmount) * 100 : null;
 
   return (
-    <div className="p-6 space-y-8">
+    <div className="p-4 sm:p-6 space-y-5 sm:space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>Financials</h1>
-        <p className="text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
+        <h1 className="text-xl sm:text-2xl font-bold" style={{ color: "var(--foreground)" }}>Financials</h1>
+        <p className="text-xs sm:text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
           Live from Stripe · installment revenue &amp; upcoming charges
         </p>
       </div>
 
-      {/* Two stat cards 50/50 with inline MoM + avg */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Stat cards — stacked on mobile, side-by-side on sm+ */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
         <StatCard
           label={`Cash Collected — ${selected.fullLabel}`}
           value={fmt(collectedSelected)}
@@ -166,25 +175,24 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
         />
       </div>
 
-      {/* Upcoming installments with toggle inside */}
-      <div className="rounded-2xl p-6" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-        {/* Card header with toggle */}
-        <div className="flex items-center gap-3 mb-5">
-          <Calendar size={18} style={{ color: "#3b82f6" }} />
-          <h2 className="text-base font-semibold" style={{ color: "var(--foreground)" }}>
+      {/* Upcoming installments */}
+      <div className="rounded-2xl p-4 sm:p-6" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
+        {/* Card header — wrap on mobile */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-4 sm:mb-5">
+          <Calendar size={16} style={{ color: "#3b82f6" }} />
+          <h2 className="text-sm sm:text-base font-semibold" style={{ color: "var(--foreground)" }}>
             Upcoming Installments
           </h2>
           <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "#3b82f615", color: "#3b82f6" }}>
-            {fmt(dueSelected)} expected
+            {fmt(dueSelected)}
           </span>
-
-          {/* Month toggle — top right of card */}
+          {/* Month toggle */}
           <div className="flex items-center gap-1 p-1 rounded-xl ml-auto" style={{ background: "var(--secondary)", border: "1px solid var(--border)" }}>
             {tabs.map((tab, i) => (
               <button
                 key={tab.label}
                 onClick={() => setSelectedIdx(i)}
-                className="px-3 py-1 rounded-lg text-xs font-medium transition-all"
+                className="px-2.5 sm:px-3 py-1 rounded-lg text-xs font-medium transition-all"
                 style={{
                   background: selectedIdx === i ? "#3b82f6" : "transparent",
                   color: selectedIdx === i ? "#fff" : "var(--muted-foreground)",
@@ -196,9 +204,9 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
           </div>
         </div>
 
-        {/* Column headers */}
-        <div className="grid text-xs font-medium uppercase tracking-wider pb-2 mb-1"
-          style={{ color: "var(--muted-foreground)", gridTemplateColumns: "36px 1fr 110px 80px", gap: "1rem", borderBottom: "1px solid var(--border)" }}>
+        {/* Column headers — desktop only */}
+        <div className="hidden sm:grid text-xs font-medium uppercase tracking-wider pb-2 mb-1"
+          style={{ color: "var(--muted-foreground)", gridTemplateColumns: "32px 1fr 110px 80px", gap: "1rem", borderBottom: "1px solid var(--border)" }}>
           <span />
           <span>Customer</span>
           <span className="text-right">Charge Date</span>

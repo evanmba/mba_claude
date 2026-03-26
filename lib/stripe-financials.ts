@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { unstable_cache } from "next/cache";
 
 // ---------------------------------------------------------------------------
 // Payment plan label mapping (amount in cents → human label)
@@ -88,12 +89,9 @@ async function listAll<T extends { id: string }>(
 }
 
 // ---------------------------------------------------------------------------
-// Main fetch
+// Main fetch (inner — not exported directly)
 // ---------------------------------------------------------------------------
-export async function fetchFinancialsData(key?: string): Promise<FinancialsData> {
-  const resolvedKey = key ?? process.env.STRIPE_SECRET_KEY;
-  if (!resolvedKey) return empty("STRIPE_SECRET_KEY is not set");
-
+async function _fetchFinancialsData(resolvedKey: string): Promise<FinancialsData> {
   let stripe: Stripe;
   try {
     stripe = new Stripe(resolvedKey);
@@ -102,11 +100,28 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
   }
 
   try {
-    // -----------------------------------------------------------------------
-    // 1. Cash collected — bucketed into 3 month windows (current + 2 ahead)
-    //    Future months will naturally be $0 (no paid invoices yet)
-    // -----------------------------------------------------------------------
     const now = new Date();
+    const jan2026 = Math.floor(new Date(2026, 0, 1).getTime() / 1000);
+
+    // Run charges and subscriptions fetches in parallel
+    const [charges, subscriptions] = await Promise.all([
+      listAll<Stripe.Charge>((p) =>
+        stripe.charges.list({ ...p, created: { gte: jan2026 } })
+      ),
+      listAll<Stripe.Subscription>((p) =>
+        stripe.subscriptions.list({ ...p, status: "active", expand: ["data.customer"] })
+      ),
+    ]);
+
+    // ── Cash collected ───────────────────────────────────────────────────────
+    const succeeded = charges.filter((c) => c.status === "succeeded");
+
+    const monthly2026 = Array<number>(12).fill(0);
+    for (const c of succeeded) {
+      const m = new Date((c.created ?? 0) * 1000).getMonth();
+      monthly2026[m] += c.amount;
+    }
+
     const monthWindows = [0, 1, 2].map((offset) => {
       const start = new Date(now.getFullYear(), now.getMonth() + offset, 1);
       const end   = new Date(now.getFullYear(), now.getMonth() + offset + 1, 1);
@@ -117,20 +132,6 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
       };
     });
 
-    // Fetch all succeeded charges from Jan 1 2026 — covers full year for avg + MoM
-    const jan2026 = Math.floor(new Date(2026, 0, 1).getTime() / 1000);
-    const charges = await listAll<Stripe.Charge>((p) =>
-      stripe.charges.list({ ...p, created: { gte: jan2026 } })
-    );
-    const succeeded = charges.filter((c) => c.status === "succeeded");
-
-    // Bucket by calendar month (index 0=Jan … 11=Dec)
-    const monthly2026 = Array<number>(12).fill(0);
-    for (const c of succeeded) {
-      const m = new Date((c.created ?? 0) * 1000).getMonth();
-      monthly2026[m] += c.amount;
-    }
-
     const collectedByMonth = monthWindows.map(({ start, end }) =>
       succeeded
         .filter((c) => (c.created ?? 0) >= start && (c.created ?? 0) < end)
@@ -138,20 +139,8 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
     );
     const monthLabels = monthWindows.map((w) => w.label);
 
-    // -----------------------------------------------------------------------
-    // 2. Active subscriptions — calculate next charge date from billing_cycle_anchor
-    //    (latest_invoice.period_end == anchor in clover API, so we advance by interval)
-    // -----------------------------------------------------------------------
-    const subscriptions = await listAll<Stripe.Subscription>((p) =>
-      stripe.subscriptions.list({
-        ...p,
-        status: "active",
-        expand: ["data.customer"],
-      })
-    );
-
+    // ── Upcoming payments ────────────────────────────────────────────────────
     const nowUnix = Math.floor(Date.now() / 1000);
-    // Collect next 3 calendar months worth of payments — client filters by selected month
     const in3Months = nowUnix + 92 * 24 * 60 * 60;
 
     const upcomingPayments: UpcomingPayment[] = subscriptions
@@ -161,7 +150,6 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
         const interval = item?.price?.recurring?.interval ?? "month";
         const intervalCount = item?.price?.recurring?.interval_count ?? 1;
         const nextDate = nextChargeDate(sub.billing_cycle_anchor, interval, intervalCount);
-
         return {
           id: sub.id,
           customerName: getCustomerName(sub.customer as Stripe.Customer | Stripe.DeletedCustomer | string | null),
@@ -174,16 +162,25 @@ export async function fetchFinancialsData(key?: string): Promise<FinancialsData>
       .filter((p) => p.nextPaymentDate >= nowUnix && p.nextPaymentDate <= in3Months)
       .sort((a, b) => a.nextPaymentDate - b.nextPaymentDate);
 
-    return {
-      monthly2026,
-      collectedByMonth,
-      monthLabels,
-      activeSubscriptions: subscriptions.length,
-      upcomingPayments,
-    };
+    return { monthly2026, collectedByMonth, monthLabels, activeSubscriptions: subscriptions.length, upcomingPayments };
   } catch (err) {
     return empty(err instanceof Error ? err.message : String(err));
   }
+}
+
+// ---------------------------------------------------------------------------
+// Exported — cached for 5 minutes so repeated page visits don't re-hit Stripe
+// ---------------------------------------------------------------------------
+const _cachedFetch = unstable_cache(
+  _fetchFinancialsData,
+  ["financials-stripe"],
+  { revalidate: 300 }
+);
+
+export async function fetchFinancialsData(key?: string): Promise<FinancialsData> {
+  const resolvedKey = key ?? process.env.STRIPE_SECRET_KEY;
+  if (!resolvedKey) return empty("STRIPE_SECRET_KEY is not set");
+  return _cachedFetch(resolvedKey);
 }
 
 function empty(stripeError: string): FinancialsData {

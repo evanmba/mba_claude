@@ -4,7 +4,7 @@ import { FinancialsDashboard } from "@/components/financials/FinancialsDashboard
 import { fetchFinancialsData } from "@/lib/stripe-financials";
 import { DollarSign } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // skeleton shows instantly; data cached 5 min via unstable_cache
 
 async function FinancialsDataLoader() {
   const key = process.env.STRIPE_SECRET_KEY ?? "";
