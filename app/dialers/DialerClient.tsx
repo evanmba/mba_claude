@@ -34,12 +34,6 @@ function pctUnder15Color(p: number): string {
   return p === 0 ? "var(--muted-foreground)" : "#ef4444";
 }
 
-function pctUnder15Bg(p: number): string {
-  if (p >= 85) return "rgba(34,197,94,0.12)";
-  if (p >= 60) return "rgba(245,158,11,0.12)";
-  return p === 0 ? "rgba(148,163,184,0.08)" : "rgba(239,68,68,0.12)";
-}
-
 // ─── Progress Bar ──────────────────────────────────────────────────────────────
 
 function ProgressBar({
@@ -357,16 +351,13 @@ function SpeedToLeadSection({ data }: { data: SpeedToLeadData }) {
                   <td className="px-4 py-2.5 text-xs" style={{ color: "var(--muted-foreground)" }}>{d.date}</td>
                   <td
                     className="px-4 py-2.5 text-right text-xs font-semibold"
-                    style={{
-                      color: timeColor(d.timeMins),
-                      background: d.timeMins > 60 ? "rgba(239,68,68,0.06)" : undefined,
-                    }}
+                    style={{ color: timeColor(d.timeMins) }}
                   >
                     {d.timeToDial}
                   </td>
                   <td
                     className="px-4 py-2.5 text-right text-xs font-semibold"
-                    style={{ color: pctUnder15Color(d.pctUnder15m), background: pctUnder15Bg(d.pctUnder15m) }}
+                    style={{ color: pctUnder15Color(d.pctUnder15m) }}
                   >
                     {d.pctUnder15m.toFixed(2)}%
                   </td>
@@ -395,10 +386,7 @@ function SpeedToLeadSection({ data }: { data: SpeedToLeadData }) {
               {data.rolling.map((r) => {
                 const isBold = r.label === "7d-AVG";
                 return (
-                  <tr key={r.label} style={{
-                    borderBottom: "1px solid var(--border)",
-                    background: isBold ? "rgba(59,130,246,0.06)" : undefined,
-                  }}>
+                  <tr key={r.label} style={{ borderBottom: "1px solid var(--border)" }}>
                     <td
                       className="px-4 py-2.5 text-xs"
                       style={{ color: isBold ? "#3b82f6" : "var(--muted-foreground)", fontWeight: isBold ? 700 : 400 }}
@@ -413,7 +401,7 @@ function SpeedToLeadSection({ data }: { data: SpeedToLeadData }) {
                     </td>
                     <td
                       className="px-4 py-2.5 text-right text-xs font-semibold"
-                      style={{ color: pctUnder15Color(r.pctUnder15m), background: pctUnder15Bg(r.pctUnder15m) }}
+                      style={{ color: pctUnder15Color(r.pctUnder15m) }}
                     >
                       {r.pctUnder15m.toFixed(2)}%
                     </td>
