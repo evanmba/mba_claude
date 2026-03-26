@@ -98,7 +98,7 @@ export const GOALS_DATA: GoalsData = {
       { name: "Daneile Brown",        id: "daneile-brown",        booked: 4 },
       { name: "Gabriana Brown",       id: "gabriana-brown",       booked: 3 },
       { name: "Julio Capellan",       id: "julio-capellan",       booked: 3 },
-      { name: "Allieandra Alexander", id: "allieandra-alexander",  booked: 0 },
+      { name: "Allieandra Alexander", id: "allieandra-alexander",  booked: 2 },
       { name: "Teagan Brown",         id: "teagan-brown",         booked: 0 },
     ],
   },
