@@ -418,18 +418,6 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
         <MetricCard label="Close Rate"          value={kpi ? pct(kpi.closeRate)    : "—"} cur={kpi?.closeRate    ?? 0} prv={prev.closeRate}   hib={true}  />
         <MetricCard label="Cost Per Acquisition" value={kpi ? $$(kpi.cpa)         : "—"} cur={kpi?.cpa          ?? 0} prv={prev.cpa}         hib={false} />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        {(() => {
-          const cashROAS = kpi && kpi.cashROAS > 0 ? kpi.cashROAS
-            : (kpi && kpi.amountSpent > 0 ? kpi.cash / kpi.amountSpent : 0);
-          const revROAS  = kpi && kpi.revenueROAS > 0 ? kpi.revenueROAS
-            : (kpi && kpi.amountSpent > 0 ? kpi.revenue / kpi.amountSpent : 0);
-          return (<>
-            <MetricCard label="Cash ROAS"    value={cashROAS > 0 ? `${cashROAS.toFixed(2)}x`    : "—"} cur={cashROAS}    prv={prev.cashROAS}    hib={true} />
-            <MetricCard label="Revenue ROAS" value={revROAS  > 0 ? `${revROAS.toFixed(2)}x`     : "—"} cur={revROAS}     prv={prev.revenueROAS} hib={true} />
-          </>);
-        })()}
-      </div>
       <div className="grid grid-cols-3 gap-3">
         {(() => {
           const cashRevRatio = kpi && kpi.revenue > 0 ? kpi.cash / kpi.revenue : 0;
@@ -439,6 +427,18 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
             <MetricCard label="Cash"              value={kpi ? $$(kpi.cash)    : "—"} cur={kpi?.cash    ?? 0} prv={prev.cash}    hib={true} />
             <MetricCard label="Revenue"           value={kpi ? $$(kpi.revenue) : "—"} cur={kpi?.revenue ?? 0} prv={prev.revenue} hib={true} />
             <MetricCard label="Cash:Revenue Ratio" value={cashRevRatio > 0 ? `${cashRevRatio.toFixed(2)}x` : "—"} cur={cashRevRatio} prv={prevCashRevRatio} hib={true} />
+          </>);
+        })()}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {(() => {
+          const cashROAS = kpi && kpi.cashROAS > 0 ? kpi.cashROAS
+            : (kpi && kpi.amountSpent > 0 ? kpi.cash / kpi.amountSpent : 0);
+          const revROAS  = kpi && kpi.revenueROAS > 0 ? kpi.revenueROAS
+            : (kpi && kpi.amountSpent > 0 ? kpi.revenue / kpi.amountSpent : 0);
+          return (<>
+            <MetricCard label="Cash ROAS"    value={cashROAS > 0 ? `${cashROAS.toFixed(2)}x`    : "—"} cur={cashROAS}    prv={prev.cashROAS}    hib={true} />
+            <MetricCard label="Revenue ROAS" value={revROAS  > 0 ? `${revROAS.toFixed(2)}x`     : "—"} cur={revROAS}     prv={prev.revenueROAS} hib={true} />
           </>);
         })()}
       </div>
