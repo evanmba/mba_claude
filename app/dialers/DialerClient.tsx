@@ -521,6 +521,12 @@ function IndividualTab({ dialer, metrics }: { dialer: DialerInfo; metrics: Diale
                 prev={prev?.showUpRate}
                 color={pctColor(current.showUpRate, 40)}
               />
+              <MetricCard
+                label="Deals"
+                value={current.deals > 0 ? current.deals : "—"}
+                prev={prev?.deals}
+                color={current.deals > 0 ? "#22c55e" : undefined}
+              />
             </div>
           </div>
 
@@ -556,7 +562,7 @@ function IndividualTab({ dialer, metrics }: { dialer: DialerInfo; metrics: Diale
             <table className="w-full text-sm min-w-max">
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(30,41,59,0.4)" }}>
-                  {["Month", "Dials", "Links Sent", "Dial:Link %", "Booked", "Set %", "Taken", "Show-Up %"].map((h) => (
+                  {["Month", "Dials", "Links Sent", "Dial:Link %", "Booked", "Set %", "Taken", "Show-Up %", "Deals"].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap"
                       style={{ color: "var(--muted-foreground)" }}>
                       {h}
@@ -614,6 +620,14 @@ function IndividualTab({ dialer, metrics }: { dialer: DialerInfo; metrics: Diale
                       <td className="px-4 py-3 font-semibold whitespace-nowrap"
                         style={{ color: m.showUpRate > 0 ? pctColor(m.showUpRate, 40) : "var(--muted-foreground)" }}>
                         {m.showUpRate > 0 ? `${m.showUpRate}%` : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <span style={{ color: m.deals > 0 ? "#22c55e" : "var(--muted-foreground)" }}>
+                            {m.deals > 0 ? m.deals : "—"}
+                          </span>
+                          {p && m.deals > 0 && <MomBadge curr={m.deals} prev={p.deals} />}
+                        </div>
                       </td>
                     </tr>
                   );

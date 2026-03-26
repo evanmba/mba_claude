@@ -34,6 +34,14 @@ const SHEET_ID = process.env.SETTER_DASHBOARD_SHEET_ID;
 const API_KEY  = process.env.SHEETS_API_KEY;
 const MONTHS   = ["JAN 2026", "FEB 2026", "MAR 2026"];
 
+// Maps month label → 0-based month index (Jan=0, Feb=1, …)
+const MONTH_LABEL_TO_IDX: Record<string, number> = {
+  "JAN 2026": 0, "FEB 2026": 1, "MAR 2026": 2,
+  "APR 2026": 3, "MAY 2026": 4, "JUN 2026": 5,
+  "JUL 2026": 6, "AUG 2026": 7, "SEP 2026": 8,
+  "OCT 2026": 9, "NOV 2026": 10, "DEC 2026": 11,
+};
+
 // Month names in row order (row 3 = index 0 = January, etc.)
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -98,7 +106,11 @@ async function fetchTeamData(): Promise<TeamMonthRow[]> {
 //   H4 = Taken Set Calls               (plain number, e.g. "4")
 //   I4 = Show-Up Rate                  (formatted %, e.g. "36.4%")
 
-async function fetchDialerMonthMetrics(setterId: string, month: string): Promise<DialerMonthMetrics | null> {
+async function fetchDialerMonthMetrics(
+  setterId: string,
+  month: string,
+  dialersSheet: string[][],
+): Promise<DialerMonthMetrics | null> {
   const dialer = DIALERS.find((d) => d.id === setterId);
   if (!dialer) return null;
 
@@ -111,6 +123,29 @@ async function fetchDialerMonthMetrics(setterId: string, month: string): Promise
   // data = row index 1 (C4:I4), offset 0 = column C
   const data = rows[1] ?? [];
 
+  // ── Extract individual deals from "2026 - Dialers" sheet ──
+  // Row 1 of A1:AZ17 (index 0) = header row with dialer names.
+  // Each dialer's column group is: Booked(+0), Taken(+1), Sit%(+2), Deals(+3), Close%(+4).
+  // Monthly data starts at row 3 (sheet) = array index 2 (A1: offset 0 = row 1).
+  let deals = 0;
+  if (dialersSheet.length > 0) {
+    const header = dialersSheet[0];
+    const colIdx = header.findIndex(
+      (cell) => cell?.toLowerCase().includes(firstName.toLowerCase())
+    );
+    if (colIdx >= 0) {
+      const monthIdx = MONTH_LABEL_TO_IDX[month] ?? -1;
+      if (monthIdx >= 0) {
+        // array index 2 = January (monthIdx 0), index 3 = February, etc.
+        const rowIdx = monthIdx + 2;
+        const monthRow = dialersSheet[rowIdx];
+        if (monthRow) {
+          deals = toNum(monthRow[colIdx + 3]);
+        }
+      }
+    }
+  }
+
   return {
     month,
     totalDials:  toNum(data[0]),  // C4
@@ -120,7 +155,7 @@ async function fetchDialerMonthMetrics(setterId: string, month: string): Promise
     setPct:      toNum(data[4]),  // G4 — read directly, e.g. "13.3%" → 13.3
     takenCalls:  toNum(data[5]),  // H4
     showUpRate:  toNum(data[6]),  // I4 — read directly, e.g. "36.4%" → 36.4
-    deals:    0,
+    deals,
     closePct: 0,
   };
 }
@@ -135,11 +170,16 @@ export async function GET() {
 
     const dialerMetrics: Record<string, DialerMonthMetrics[]> = {};
 
+    // Fetch full "2026 - Dialers" sheet once for individual deals extraction
+    const dialersSheet = useSheets
+      ? await fetchSheetRange("2026 - Dialers", "A1:AZ17")
+      : [];
+
     if (useSheets) {
       for (const dialer of DIALERS) {
         const months: DialerMonthMetrics[] = [];
         for (const month of MONTHS) {
-          const m = await fetchDialerMonthMetrics(dialer.id, month);
+          const m = await fetchDialerMonthMetrics(dialer.id, month, dialersSheet);
           if (m) months.push(m);
         }
         dialerMetrics[dialer.id] = months.length ? months : (DIALER_METRICS[dialer.id] ?? []);
