@@ -1,16 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard,
-  Settings,
-  Bell,
-  Phone,
-} from "lucide-react";
+import { Settings, Bell, Phone } from "lucide-react";
 
 const mainItems = [
-  { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Setter Dashboard", href: "/dialers", icon: Phone, color: "#3b82f6" },
 ];
 
@@ -76,25 +71,20 @@ export function Sidebar() {
         borderColor: "var(--sidebar-border)",
       }}
     >
-      {/* Brand */}
+      {/* Brand / Logo */}
       <div
-        className="flex items-center gap-3 px-6 py-5 border-b"
+        className="flex items-center justify-center px-6 py-5 border-b"
         style={{ borderColor: "var(--sidebar-border)" }}
       >
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-          style={{ background: "var(--primary)" }}
-        >
-          M
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
-            Mendoza Baseball
-          </p>
-          <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
-            MBA Sales Dashboard
-          </p>
-        </div>
+        <Image
+          src="/logo.png"
+          alt="Mendoza Baseball Academy"
+          width={160}
+          height={48}
+          className="object-contain"
+          style={{ maxHeight: 48 }}
+          priority
+        />
       </div>
 
       {/* Main Navigation */}
@@ -106,11 +96,7 @@ export function Sidebar() {
               href={item.href}
               icon={item.icon}
               label={item.label}
-              isActive={
-                item.href === "/dialers"
-                  ? pathname === item.href || pathname.startsWith("/dialers")
-                  : pathname === item.href
-              }
+              isActive={pathname === item.href || pathname.startsWith("/dialers")}
               accentColor={"color" in item ? item.color : undefined}
             />
           ))}

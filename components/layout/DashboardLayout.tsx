@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { Menu, X } from "lucide-react";
@@ -55,15 +56,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           >
             <Menu size={18} />
           </button>
-          <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-            style={{ background: "var(--primary)" }}
-          >
-            M
-          </div>
-          <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
-            Mendoza Baseball
-          </p>
+          <Image
+            src="/logo.png"
+            alt="Mendoza Baseball Academy"
+            width={120}
+            height={36}
+            className="object-contain"
+            style={{ maxHeight: 36 }}
+            priority
+          />
           {mobileSidebarOpen && (
             <button
               onClick={() => setMobileSidebarOpen(false)}
