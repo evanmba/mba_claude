@@ -64,6 +64,27 @@ body {
   background: #475569;
 }
 
+/* Sidebar responsive drawer */
+.sidebar-drawer {
+  transform: translateX(-100%);
+  transition: transform 0.25s ease;
+}
+.sidebar-drawer[data-open="true"] {
+  transform: translateX(0);
+}
+@media (min-width: 768px) {
+  .sidebar-drawer {
+    transform: translateX(0) !important;
+  }
+}
+
+/* Main content offset on desktop */
+@media (min-width: 768px) {
+  .sidebar-offset {
+    margin-left: var(--sidebar-width);
+  }
+}
+
 /* Table row hover highlight */
 tr.hoverable {
   cursor: default;

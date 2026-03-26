@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   Settings,
   Bell,
+  X,
 } from "lucide-react";
 
 const socialItems = [
@@ -34,12 +35,14 @@ function NavLink({
   label,
   isActive,
   accentColor,
+  onClick,
 }: {
   href: string;
   icon: React.ElementType;
   label: string;
   isActive: boolean;
   accentColor?: string;
+  onClick?: () => void;
 }) {
   const activeColor = accentColor ?? "var(--primary)";
   const activeBg = accentColor ? accentColor + "1a" : "rgba(59, 130, 246, 0.1)";
@@ -47,6 +50,7 @@ function NavLink({
     <li>
       <Link
         href={href}
+        onClick={onClick}
         className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150"
         style={{
           color: isActive ? activeColor : "var(--muted-foreground)",
@@ -73,12 +77,13 @@ function NavLink({
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const pathname = usePathname();
 
   return (
     <aside
-      className="fixed left-0 top-0 h-screen flex flex-col border-r"
+      className="fixed left-0 top-0 h-screen flex flex-col border-r z-30 sidebar-drawer"
+      data-open={isOpen ? "true" : "false"}
       style={{
         width: "var(--sidebar-width)",
         background: "var(--sidebar-bg)",
@@ -87,7 +92,7 @@ export function Sidebar() {
     >
       {/* Brand */}
       <div
-        className="flex items-center gap-3 px-6 py-5 border-b"
+        className="flex items-center gap-3 px-4 md:px-6 py-5 border-b"
         style={{ borderColor: "var(--sidebar-border)" }}
       >
         <div
@@ -96,7 +101,7 @@ export function Sidebar() {
         >
           M
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
             Mendoza Baseball
           </p>
@@ -104,6 +109,14 @@ export function Sidebar() {
             @mendoza.baseball.academy
           </p>
         </div>
+        {/* Close button — mobile only */}
+        <button
+          className="md:hidden flex items-center justify-center w-7 h-7 rounded-md flex-shrink-0"
+          onClick={onClose}
+          style={{ color: "var(--muted-foreground)", background: "var(--secondary)" }}
+        >
+          <X size={15} />
+        </button>
       </div>
 
       {/* Main Navigation */}
@@ -123,6 +136,7 @@ export function Sidebar() {
               label={item.label}
               isActive={pathname === item.href}
               accentColor={"color" in item ? item.color : undefined}
+              onClick={onClose}
             />
           ))}
         </ul>
@@ -141,6 +155,7 @@ export function Sidebar() {
               icon={item.icon}
               label={item.label}
               isActive={pathname === item.href}
+              onClick={onClose}
             />
           ))}
         </ul>
@@ -159,6 +174,7 @@ export function Sidebar() {
               icon={item.icon}
               label={item.label}
               isActive={pathname === item.href}
+              onClick={onClose}
             />
           ))}
         </ul>
