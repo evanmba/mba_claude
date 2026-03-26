@@ -323,6 +323,8 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
     cpa:           nz(prevKpi?.cpa)           ?? nz(prevYtd?.cpa),
     cashROAS:      nz(prevKpi?.cashROAS)      ?? nz(prevYtd?.cashROAS),
     revenueROAS:   nz(prevKpi?.revenueROAS)   ?? nz(prevYtd?.revenueROAS),
+    cash:          nz(prevKpi?.cash)          ?? nz(prevYtd?.cashCollected),
+    revenue:       nz(prevKpi?.revenue)       ?? nz(prevYtd?.revenue),
   };
 
   void prevMonthLabel; // available for display if needed
@@ -425,6 +427,18 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
           return (<>
             <MetricCard label="Cash ROAS"    value={cashROAS > 0 ? `${cashROAS.toFixed(2)}x`    : "—"} cur={cashROAS}    prv={prev.cashROAS}    hib={true} />
             <MetricCard label="Revenue ROAS" value={revROAS  > 0 ? `${revROAS.toFixed(2)}x`     : "—"} cur={revROAS}     prv={prev.revenueROAS} hib={true} />
+          </>);
+        })()}
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        {(() => {
+          const cashRevRatio = kpi && kpi.revenue > 0 ? kpi.cash / kpi.revenue : 0;
+          const prevCashRevRatio = prev.cash != null && prev.revenue != null && prev.revenue > 0
+            ? prev.cash / prev.revenue : undefined;
+          return (<>
+            <MetricCard label="Cash"              value={kpi ? $$(kpi.cash)    : "—"} cur={kpi?.cash    ?? 0} prv={prev.cash}    hib={true} />
+            <MetricCard label="Revenue"           value={kpi ? $$(kpi.revenue) : "—"} cur={kpi?.revenue ?? 0} prv={prev.revenue} hib={true} />
+            <MetricCard label="Cash:Revenue Ratio" value={cashRevRatio > 0 ? `${cashRevRatio.toFixed(2)}x` : "—"} cur={cashRevRatio} prv={prevCashRevRatio} hib={true} />
           </>);
         })()}
       </div>
