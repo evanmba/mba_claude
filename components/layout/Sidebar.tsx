@@ -100,8 +100,8 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           <Image
             src="/logo.png"
             alt="Mendoza Baseball Academy"
-            width={160}
-            height={36}
+            width={200}
+            height={45}
             className="object-contain"
             style={{ filter: "brightness(0) invert(1)" }}
             priority
