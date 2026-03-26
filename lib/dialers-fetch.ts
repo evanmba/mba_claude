@@ -40,10 +40,11 @@ async function fetchSheetRange(
   apiKey: string,
   sheetName: string,
   range: string,
+  noCache = false,
 ): Promise<string[][]> {
   const encodedSheet = encodeURIComponent(`'${sheetName}'!${range}`);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodedSheet}?key=${apiKey}`;
-  const res = await fetch(url, { next: { revalidate: 300 } });
+  const res = await fetch(url, noCache ? { cache: "no-store" } : { next: { revalidate: 300 } });
   if (!res.ok) {
     console.warn(`[dialers] Sheet fetch failed for "${sheetName}" ${range}: ${res.status}`);
     return [];
@@ -54,8 +55,8 @@ async function fetchSheetRange(
 
 // ─── Parse team totals ─────────────────────────────────────────────────────────
 
-async function fetchTeamData(sheetId: string, apiKey: string): Promise<TeamMonthRow[]> {
-  const rows = await fetchSheetRange(sheetId, apiKey, "2026 - Dialers", "AQ3:AU17");
+async function fetchTeamData(sheetId: string, apiKey: string, noCache = false): Promise<TeamMonthRow[]> {
+  const rows = await fetchSheetRange(sheetId, apiKey, "2026 - Dialers", "AQ3:AU17", noCache);
   if (!rows.length) return TEAM_MONTHLY;
 
   const result: TeamMonthRow[] = [];
@@ -84,12 +85,13 @@ async function fetchDialerMonthMetrics(
   setterId: string,
   month: string,
   dialersSheet: string[][],
+  noCache = false,
 ): Promise<DialerMonthMetrics | null> {
   const dialer = DIALERS.find((d) => d.id === setterId);
   if (!dialer) return null;
 
   const [firstName] = dialer.name.split(" ");
-  const rows = await fetchSheetRange(sheetId, apiKey, `${firstName}- ${month}`, "C3:I4");
+  const rows = await fetchSheetRange(sheetId, apiKey, `${firstName}- ${month}`, "C3:I4", noCache);
   if (rows.length < 2) return null;
 
   const data = rows[1] ?? [];
@@ -134,7 +136,7 @@ export interface DialerDashboardPayload {
   dialers: typeof DIALERS;
 }
 
-export async function getDialerDashboardData(): Promise<DialerDashboardPayload> {
+export async function getDialerDashboardData(noCache = false): Promise<DialerDashboardPayload> {
   const sheetId = process.env.SETTER_DASHBOARD_SHEET_ID;
   const apiKey  = process.env.GOOGLE_SHEETS_API_KEY;
   const useSheets = !!(sheetId && apiKey);
@@ -151,14 +153,14 @@ export async function getDialerDashboardData(): Promise<DialerDashboardPayload> 
   if (!useSheets) return mock;
 
   try {
-    const teamMonthly = await fetchTeamData(sheetId, apiKey);
-    const dialersSheet = await fetchSheetRange(sheetId, apiKey, "2026 - Dialers", "A1:AZ17");
+    const teamMonthly = await fetchTeamData(sheetId, apiKey, noCache);
+    const dialersSheet = await fetchSheetRange(sheetId, apiKey, "2026 - Dialers", "A1:AZ17", noCache);
     const dialerMetrics: Record<string, DialerMonthMetrics[]> = {};
 
     for (const dialer of DIALERS) {
       const months: DialerMonthMetrics[] = [];
       for (const month of MONTHS) {
-        const m = await fetchDialerMonthMetrics(sheetId, apiKey, dialer.id, month, dialersSheet);
+        const m = await fetchDialerMonthMetrics(sheetId, apiKey, dialer.id, month, dialersSheet, noCache);
         if (m) months.push(m);
       }
       dialerMetrics[dialer.id] = months.length ? months : (DIALER_METRICS[dialer.id] ?? []);

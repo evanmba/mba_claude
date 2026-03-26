@@ -82,9 +82,7 @@ export const DIALERS: DialerInfo[] = [
 ];
 
 // ─── Goals Data (from GOALS sheet) ───────────────────────────────────────────
-// Image: Monthly 89/130 68%, Weekly 26/35 74%, Daily 4/5 80%
-// Week #13: 3/22/26 – 3/28/26 (work days Mon 3/23 – Fri 3/27, today = Thu 3/26 = day 4 of 5)
-// Daneile 4, Gabriana 3, Julio 3, Allieandra 0, Teagan 0
+// Week #13: Sun 3/22/26 – Sat 3/28/26 (7-day week), today = Thu 3/26 = day 5 of 7
 
 export const GOALS_DATA: GoalsData = {
   monthly: { booked: 89, goal: 130 },
@@ -94,8 +92,8 @@ export const GOALS_DATA: GoalsData = {
     weekNum: 13,
     start: "3/22/26",
     end: "3/28/26",
-    daysElapsed: 4,
-    totalWorkdays: 5,
+    daysElapsed: 5,
+    totalWorkdays: 7,
     setters: [
       { name: "Daneile Brown",        id: "daneile-brown",        booked: 4 },
       { name: "Gabriana Brown",       id: "gabriana-brown",       booked: 3 },

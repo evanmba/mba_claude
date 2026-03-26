@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Phone, Users, TrendingUp, TrendingDown, Minus,
-  Target, ChevronRight, BarChart3, Zap,
+  Target, ChevronRight, BarChart3, Zap, RefreshCw,
 } from "lucide-react";
+import { refreshDialerData } from "./actions";
 import type {
   GoalsData, SpeedToLeadData, TeamMonthRow, DialerMonthMetrics,
   DialerInfo,
@@ -654,6 +656,15 @@ interface DialerDashboardData {
 
 export default function DialerClient({ data }: { data: DialerDashboardData }) {
   const [activeTab, setActiveTab] = useState<string>("team");
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+
+  function handleRefresh() {
+    startTransition(async () => {
+      await refreshDialerData();
+      router.refresh();
+    });
+  }
 
   const tabs = [
     { id: "team", label: "Team", icon: Users, color: "#3b82f6" },
@@ -704,6 +715,23 @@ export default function DialerClient({ data }: { data: DialerDashboardData }) {
             </button>
           );
         })}
+
+        {/* Refresh button — pushes to the right */}
+        <div className="flex-1" />
+        <button
+          onClick={handleRefresh}
+          disabled={isPending}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium flex-shrink-0 transition-all"
+          style={{
+            color: isPending ? "#3b82f6" : "var(--muted-foreground)",
+            background: isPending ? "rgba(59,130,246,0.1)" : "var(--secondary)",
+            marginBottom: 4,
+          }}
+          title="Refresh live data"
+        >
+          <RefreshCw size={12} className={isPending ? "animate-spin" : ""} />
+          {isPending ? "Refreshing…" : "Refresh"}
+        </button>
       </div>
 
       {/* Tab Content */}
