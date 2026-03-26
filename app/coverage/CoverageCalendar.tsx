@@ -1,73 +1,84 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, Clock, Users, RotateCcw, GripVertical } from "lucide-react";
+import { X, Clock, Users, RotateCcw, GripVertical, Ban } from "lucide-react";
 
-// ─── Constants ─────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const SETTERS = [
-  { id: "gabriana-brown",       name: "Gabriana Brown",       short: "Gabriana",  color: "#d946ef" },
-  { id: "daneile-brown",        name: "Daneile Brown",        short: "Daneile",   color: "#3b82f6" },
-  { id: "julio-capellan",       name: "Julio Capellan",       short: "Julio",     color: "#f59e0b" },
-  { id: "allieandra-alexander", name: "Allieandra Alexander", short: "Allie",     color: "#22c55e" },
-  { id: "teagan-brown",         name: "Teagan Brown",         short: "Teagan",    color: "#ef4444" },
+  { id: "gabriana-brown",       name: "Gabriana Brown",       short: "Gabriana", color: "#d946ef" },
+  { id: "daneile-brown",        name: "Daneile Brown",        short: "Daneile",  color: "#3b82f6" },
+  { id: "julio-capellan",       name: "Julio Capellan",       short: "Julio",    color: "#f59e0b" },
+  { id: "allieandra-alexander", name: "Allieandra Alexander", short: "Allie",    color: "#22c55e" },
+  { id: "teagan-brown",         name: "Teagan Brown",         short: "Teagan",   color: "#ef4444" },
 ];
 
-const DAYS = [
-  { label: "Mon", short: "M", weekend: false },
-  { label: "Tue", short: "T", weekend: false },
-  { label: "Wed", short: "W", weekend: false },
-  { label: "Thu", short: "T", weekend: false },
-  { label: "Fri", short: "F", weekend: false },
-  { label: "Sat", short: "S", weekend: true  },
-  { label: "Sun", short: "S", weekend: true  },
-];
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-const SLOTS = [
-  { label: "8am – 11am",  start: 8,  end: 11 },
-  { label: "11am – 2pm",  start: 11, end: 14 },
-  { label: "2pm – 5pm",   start: 14, end: 17 },
-  { label: "5pm – 8pm",   start: 17, end: 20 },
-  { label: "8pm – 11pm",  start: 20, end: 23 },
-];
+const START_HOUR   = 9;   // 9am ET
+const END_HOUR     = 18;  // 6pm ET
+const TOTAL_HOURS  = END_HOUR - START_HOUR; // 9
 
-const STORAGE_KEY = "mba-coverage-blocks-v1";
+// Sunday no-call block: 9am–2pm
+const SUN_IDX        = 6;
+const SUN_BLOCK_END  = 14; // 2pm
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
+const ROW_H        = 64;   // px per hour
+const CAL_HEIGHT   = TOTAL_HOURS * ROW_H;
+
+const STORAGE_KEY = "mba-coverage-v2";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 type Block = {
   id: string;
   setterId: string;
-  day: number;  // 0 = Mon … 6 = Sun
-  slot: number; // 0 = 8–11am … 4 = 8–11pm
+  day: number;       // 0=Mon…6=Sun
+  startHour: number; // 9–17
+  duration: number;  // hours, min 1
 };
 
 type DragPayload =
-  | { type: "new"; setterId: string }
+  | { type: "new";  setterId: string }
   | { type: "move"; blockId: string };
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
+type HoverCell = { day: number; hour: number } | null;
 
-function uid() {
-  return Math.random().toString(36).slice(2, 10);
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function fmtHour(h: number): string {
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+function fmtHour(h: number) {
   if (h === 0)  return "12am";
   if (h === 12) return "12pm";
-  if (h > 12)   return `${h - 12}pm`;
-  return `${h}am`;
+  return h > 12 ? `${h - 12}pm` : `${h}am`;
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+/** For blocks that overlap in the same day column, assign equal fractional widths. */
+function overlap(block: Block, all: Block[]) {
+  const peers = all.filter(
+    b => b.id !== block.id &&
+         b.startHour < block.startHour + block.duration &&
+         block.startHour < b.startHour + b.duration
+  );
+  const total = peers.length + 1;
+  const group = [...peers, block].sort((a, b) => a.id < b.id ? -1 : 1);
+  const idx   = group.findIndex(b => b.id === block.id);
+  return { left: (idx / total) * 100, width: (1 / total) * 100 };
+}
+
+function isSunBlocked(day: number, hour: number) {
+  return day === SUN_IDX && hour >= START_HOUR && hour < SUN_BLOCK_END;
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function CoverageCalendar() {
-  const [blocks, setBlocks]           = useState<Block[]>([]);
-  const [dragOver, setDragOver]       = useState<string | null>(null);
-  const [dragging, setDragging]       = useState<string | null>(null);
-  const [hydrated, setHydrated]       = useState(false);
+  const [blocks,    setBlocks]    = useState<Block[]>([]);
+  const [hover,     setHover]     = useState<HoverCell>(null);
+  const [dragging,  setDragging]  = useState<string | null>(null);
+  const [hydrated,  setHydrated]  = useState(false);
 
-  // Hydrate from localStorage after mount
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -76,102 +87,122 @@ export default function CoverageCalendar() {
     setHydrated(true);
   }, []);
 
-  // Persist to localStorage
   useEffect(() => {
-    if (!hydrated) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(blocks));
+    if (hydrated) localStorage.setItem(STORAGE_KEY, JSON.stringify(blocks));
   }, [blocks, hydrated]);
 
-  const onDragStart = useCallback((e: React.DragEvent, payload: DragPayload) => {
-    e.dataTransfer.setData("text/plain", JSON.stringify(payload));
+  // ── Drag handlers ──────────────────────────────────────────────────────────
+
+  const onPaletteDragStart = useCallback((e: React.DragEvent, setterId: string) => {
+    e.dataTransfer.setData("text/plain", JSON.stringify({ type: "new", setterId } as DragPayload));
     e.dataTransfer.effectAllowed = "move";
-    if (payload.type === "move") setDragging(payload.blockId);
   }, []);
 
-  const onDragOver = useCallback((e: React.DragEvent, key: string) => {
+  const onBlockDragStart = useCallback((e: React.DragEvent, blockId: string) => {
+    e.stopPropagation();
+    e.dataTransfer.setData("text/plain", JSON.stringify({ type: "move", blockId } as DragPayload));
+    e.dataTransfer.effectAllowed = "move";
+    setDragging(blockId);
+  }, []);
+
+  const onColDragOver = useCallback((e: React.DragEvent, day: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    setDragOver(key);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y    = e.clientY - rect.top;
+    const hour = Math.max(START_HOUR, Math.min(START_HOUR + Math.floor(y / ROW_H), END_HOUR - 1));
+    setHover({ day, hour });
   }, []);
 
-  const onDragLeave = useCallback((e: React.DragEvent) => {
-    // Only clear if leaving the cell entirely (not into a child)
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-      setDragOver(null);
-    }
+  const onColDragLeave = useCallback((e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) setHover(null);
   }, []);
 
-  const onDrop = useCallback((e: React.DragEvent, day: number, slot: number) => {
-    e.preventDefault();
-    setDragOver(null);
+  const onDragEnd = useCallback(() => {
     setDragging(null);
+    setHover(null);
+  }, []);
+
+  const onColDrop = useCallback((e: React.DragEvent, day: number) => {
+    e.preventDefault();
+    setHover(null);
+    setDragging(null);
+
+    const rect      = e.currentTarget.getBoundingClientRect();
+    const y         = e.clientY - rect.top;
+    const startHour = Math.max(START_HOUR, Math.min(START_HOUR + Math.floor(y / ROW_H), END_HOUR - 1));
+
+    // Block Sunday 9am–2pm
+    if (isSunBlocked(day, startHour)) return;
+
     try {
       const payload: DragPayload = JSON.parse(e.dataTransfer.getData("text/plain"));
       if (payload.type === "new") {
         setBlocks(prev => {
-          // Prevent duplicate setter in same cell
-          if (prev.some(b => b.setterId === payload.setterId && b.day === day && b.slot === slot)) return prev;
-          return [...prev, { id: uid(), setterId: payload.setterId, day, slot }];
+          const maxDur = END_HOUR - startHour;
+          const dur    = Math.min(3, maxDur);
+          return [...prev, { id: uid(), setterId: payload.setterId, day, startHour, duration: dur }];
         });
       } else {
         setBlocks(prev => {
           const block = prev.find(b => b.id === payload.blockId);
           if (!block) return prev;
-          // If same setter already exists in target cell, just remove original
-          if (prev.some(b => b.id !== payload.blockId && b.setterId === block.setterId && b.day === day && b.slot === slot)) {
-            return prev.filter(b => b.id !== payload.blockId);
-          }
-          return prev.map(b => b.id === payload.blockId ? { ...b, day, slot } : b);
+          const maxDur = END_HOUR - startHour;
+          const dur    = Math.min(block.duration, maxDur);
+          return prev.map(b =>
+            b.id === payload.blockId ? { ...b, day, startHour, duration: dur } : b
+          );
         });
       }
     } catch {}
-  }, []);
-
-  const onDragEnd = useCallback(() => {
-    setDragging(null);
-    setDragOver(null);
   }, []);
 
   const removeBlock = useCallback((id: string) => {
     setBlocks(prev => prev.filter(b => b.id !== id));
   }, []);
 
+  const setDuration = useCallback((id: string, duration: number) => {
+    setBlocks(prev => prev.map(b => b.id === id ? { ...b, duration } : b));
+  }, []);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  const hourLabels = Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => START_HOUR + i);
+
   return (
     <div className="space-y-4">
 
-      {/* ── Top bar ─────────────────────────────────────────────────────── */}
+      {/* ── Top bar ──────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
-            style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.25)" }}>
+          <div
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold"
+            style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.3)" }}
+          >
             <Clock size={12} />
-            All times Eastern (ET)
+            Eastern Time (ET) · 9am – 6pm
           </div>
-          <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            — drag setters onto the grid, drag blocks to move
+          <span className="text-xs hidden sm:block" style={{ color: "var(--muted-foreground)" }}>
+            Drag setters onto the grid · Drag blocks to move · Slider adjusts duration
           </span>
         </div>
         <button
           onClick={() => setBlocks([])}
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition-colors"
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium"
           style={{ color: "var(--muted-foreground)", background: "var(--secondary)" }}
           onMouseEnter={e => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.background = "rgba(239,68,68,0.1)"; }}
           onMouseLeave={e => { e.currentTarget.style.color = "var(--muted-foreground)"; e.currentTarget.style.background = "var(--secondary)"; }}
         >
-          <RotateCcw size={12} />
-          Clear all
+          <RotateCcw size={12} /> Clear all
         </button>
       </div>
 
-      {/* ── Setter Palette ──────────────────────────────────────────────── */}
-      <div
-        className="rounded-xl border p-4"
-        style={{ background: "var(--card)", borderColor: "var(--border)" }}
-      >
+      {/* ── Setter Palette ───────────────────────────────────────────── */}
+      <div className="rounded-xl border p-4" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
         <div className="flex items-center gap-2 mb-3">
           <Users size={14} style={{ color: "var(--muted-foreground)" }} />
           <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
-            Setters
+            Setters — drag onto calendar to schedule
           </span>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -179,14 +210,10 @@ export default function CoverageCalendar() {
             <div
               key={s.id}
               draggable
-              onDragStart={e => onDragStart(e, { type: "new", setterId: s.id })}
+              onDragStart={e => onPaletteDragStart(e, s.id)}
               onDragEnd={onDragEnd}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium cursor-grab active:cursor-grabbing select-none transition-opacity"
-              style={{
-                background: s.color + "20",
-                border: `1px solid ${s.color}50`,
-                color: s.color,
-              }}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium cursor-grab active:cursor-grabbing select-none"
+              style={{ background: s.color + "20", border: `1px solid ${s.color}50`, color: s.color }}
             >
               <GripVertical size={13} className="opacity-50" />
               {s.name}
@@ -195,187 +222,310 @@ export default function CoverageCalendar() {
         </div>
       </div>
 
-      {/* ── Calendar Grid ───────────────────────────────────────────────── */}
-      <div
-        className="rounded-xl border overflow-hidden"
-        style={{ background: "var(--card)", borderColor: "var(--border)" }}
-      >
-        {/* Day headers */}
+      {/* ── Calendar ─────────────────────────────────────────────────── */}
+      <div className="rounded-xl border overflow-hidden" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+
+        {/* Day header row */}
         <div
           className="grid"
           style={{
-            gridTemplateColumns: "72px repeat(7, 1fr)",
+            gridTemplateColumns: `56px repeat(7, 1fr)`,
             borderBottom: "1px solid var(--border)",
-            background: "rgba(15,23,42,0.6)",
+            background: "rgba(10,15,30,0.6)",
           }}
         >
-          {/* Corner */}
           <div
-            className="px-2 py-3 flex items-end justify-center"
-            style={{ borderRight: "1px solid var(--border)" }}
+            className="flex items-end justify-center pb-2 pt-3 text-xs font-bold"
+            style={{ borderRight: "1px solid var(--border)", color: "var(--muted-foreground)" }}
           >
-            <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>ET</span>
+            ET
           </div>
           {DAYS.map((d, i) => (
             <div
-              key={d.label}
+              key={d}
               className="py-3 text-center text-xs font-bold uppercase tracking-widest"
               style={{
                 borderRight: i < 6 ? "1px solid var(--border)" : undefined,
-                color: d.weekend ? "#f59e0b" : "var(--foreground)",
-                background: d.weekend ? "rgba(245,158,11,0.05)" : undefined,
+                color: i >= 5 ? "#f59e0b" : "var(--foreground)",
+                background: i >= 5 ? "rgba(245,158,11,0.04)" : undefined,
               }}
             >
-              {d.label}
-              {d.weekend && (
-                <div className="text-xs font-normal mt-0.5" style={{ color: "#f59e0b", opacity: 0.6 }}>WE</div>
-              )}
+              {d}
             </div>
           ))}
         </div>
 
-        {/* Time slot rows */}
-        {SLOTS.map((slot, slotIdx) => (
-          <div
-            key={slotIdx}
-            className="grid"
-            style={{
-              gridTemplateColumns: "72px repeat(7, 1fr)",
-              borderBottom: slotIdx < SLOTS.length - 1 ? "1px solid var(--border)" : undefined,
-            }}
-          >
-            {/* Time label */}
-            <div
-              className="flex flex-col items-center justify-center py-3 px-1 gap-0.5"
-              style={{
-                borderRight: "1px solid var(--border)",
-                background: "rgba(15,23,42,0.4)",
-                minHeight: 80,
-              }}
-            >
-              <span className="text-xs font-bold" style={{ color: "var(--foreground)" }}>
-                {fmtHour(slot.start)}
-              </span>
-              <span className="text-xs leading-none" style={{ color: "var(--muted-foreground)" }}>–</span>
-              <span className="text-xs font-bold" style={{ color: "var(--foreground)" }}>
-                {fmtHour(slot.end)}
-              </span>
-            </div>
+        {/* Calendar body */}
+        <div className="flex overflow-x-auto">
 
-            {/* Day cells */}
+          {/* Time axis */}
+          <div className="flex-shrink-0 border-r" style={{ width: 56, borderColor: "var(--border)" }}>
+            <div style={{ height: CAL_HEIGHT, position: "relative", background: "rgba(10,15,30,0.4)" }}>
+              {hourLabels.map((h, i) => (
+                <div
+                  key={h}
+                  style={{
+                    position: "absolute",
+                    top: i * ROW_H - 8,
+                    width: "100%",
+                    textAlign: "center",
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: h === 12 ? "#3b82f6" : "var(--muted-foreground)",
+                  }}
+                >
+                  {fmtHour(h)}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Day columns */}
+          <div className="flex flex-1 min-w-0">
             {DAYS.map((day, dayIdx) => {
-              const key = `${dayIdx}-${slotIdx}`;
-              const cellBlocks = blocks.filter(b => b.day === dayIdx && b.slot === slotIdx);
-              const isOver = dragOver === key;
+              const dayBlocks = blocks.filter(b => b.day === dayIdx);
+              const isWeekend = dayIdx >= 5;
+              const hoveringHere = hover?.day === dayIdx;
 
               return (
                 <div
-                  key={dayIdx}
-                  onDragOver={e => onDragOver(e, key)}
-                  onDragLeave={onDragLeave}
-                  onDrop={e => onDrop(e, dayIdx, slotIdx)}
-                  className="p-1.5 transition-all"
+                  key={day}
+                  className="flex-1 relative"
                   style={{
                     borderRight: dayIdx < 6 ? "1px solid var(--border)" : undefined,
-                    minHeight: 80,
-                    background: isOver
-                      ? "rgba(59,130,246,0.18)"
-                      : day.weekend
-                        ? "rgba(245,158,11,0.03)"
-                        : undefined,
-                    outline: isOver ? "2px solid #3b82f6" : undefined,
-                    outlineOffset: "-2px",
-                    borderRadius: isOver ? 6 : undefined,
+                    background: isWeekend ? "rgba(245,158,11,0.025)" : undefined,
+                    minWidth: 80,
                   }}
+                  onDragOver={e => onColDragOver(e, dayIdx)}
+                  onDragLeave={onColDragLeave}
+                  onDrop={e => onColDrop(e, dayIdx)}
                 >
-                  <div className="flex flex-col gap-1 h-full">
-                    {cellBlocks.map(block => {
-                      const setter = SETTERS.find(s => s.id === block.setterId);
+                  {/* Hour grid lines */}
+                  <div style={{ height: CAL_HEIGHT, position: "relative" }}>
+                    {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          position: "absolute",
+                          top: i * ROW_H,
+                          left: 0,
+                          right: 0,
+                          height: ROW_H,
+                          borderBottom: "1px solid var(--border)",
+                          opacity: 0.5,
+                        }}
+                      />
+                    ))}
+
+                    {/* Half-hour tick marks */}
+                    {Array.from({ length: TOTAL_HOURS }, (_, i) => (
+                      <div
+                        key={`half-${i}`}
+                        style={{
+                          position: "absolute",
+                          top: i * ROW_H + ROW_H / 2,
+                          left: 0,
+                          right: 0,
+                          borderBottom: "1px dashed rgba(255,255,255,0.06)",
+                        }}
+                      />
+                    ))}
+
+                    {/* Drop hover highlight */}
+                    {hoveringHere && hover && !isSunBlocked(dayIdx, hover.hour) && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: (hover.hour - START_HOUR) * ROW_H,
+                          left: 0,
+                          right: 0,
+                          height: ROW_H,
+                          background: "rgba(59,130,246,0.18)",
+                          borderTop: "2px solid #3b82f6",
+                          pointerEvents: "none",
+                          zIndex: 2,
+                        }}
+                      />
+                    )}
+
+                    {/* Sunday 9am–2pm blocked zone */}
+                    {dayIdx === SUN_IDX && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: (SUN_BLOCK_END - START_HOUR) * ROW_H,
+                          background:
+                            "repeating-linear-gradient(135deg, rgba(239,68,68,0.07) 0px, rgba(239,68,68,0.07) 8px, rgba(239,68,68,0.02) 8px, rgba(239,68,68,0.02) 16px)",
+                          borderBottom: "2px solid rgba(239,68,68,0.5)",
+                          zIndex: 3,
+                          pointerEvents: "none",
+                        }}
+                      >
+                        {/* Big X */}
+                        <div style={{
+                          position: "absolute",
+                          top: "50%",
+                          left: "50%",
+                          transform: "translate(-50%, -50%)",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: 4,
+                        }}>
+                          <Ban size={28} style={{ color: "rgba(239,68,68,0.55)", strokeWidth: 2.5 }} />
+                          <span style={{
+                            fontSize: 9,
+                            fontWeight: 800,
+                            letterSpacing: "0.12em",
+                            color: "rgba(239,68,68,0.7)",
+                            textTransform: "uppercase",
+                            whiteSpace: "nowrap",
+                          }}>
+                            No Calls
+                          </span>
+                          <span style={{ fontSize: 9, color: "rgba(239,68,68,0.5)", whiteSpace: "nowrap" }}>
+                            9am – 2pm
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Blocks */}
+                    {dayBlocks.map(block => {
+                      const setter  = SETTERS.find(s => s.id === block.setterId);
                       if (!setter) return null;
+                      const { left, width } = overlap(block, dayBlocks);
+                      const top    = (block.startHour - START_HOUR) * ROW_H;
+                      const height = block.duration * ROW_H - 3;
+                      const maxDur = END_HOUR - block.startHour;
                       const isDragging = dragging === block.id;
+                      const endHour = block.startHour + block.duration;
+
                       return (
                         <div
                           key={block.id}
                           draggable
-                          onDragStart={e => onDragStart(e, { type: "move", blockId: block.id })}
+                          onDragStart={e => onBlockDragStart(e, block.id)}
                           onDragEnd={onDragEnd}
-                          className="flex items-center justify-between gap-1 px-2 py-1.5 rounded-lg text-xs font-semibold cursor-grab active:cursor-grabbing select-none group"
                           style={{
-                            background: setter.color + "25",
-                            border: `1px solid ${setter.color}60`,
-                            color: setter.color,
-                            opacity: isDragging ? 0.35 : 1,
-                            transition: "opacity 0.15s, transform 0.1s",
-                            boxShadow: `0 1px 4px ${setter.color}20`,
+                            position: "absolute",
+                            top,
+                            left:   `calc(${left}% + 2px)`,
+                            width:  `calc(${width}% - 4px)`,
+                            height,
+                            background: setter.color + "22",
+                            border:     `1px solid ${setter.color}60`,
+                            borderLeft: `3px solid ${setter.color}`,
+                            borderRadius: 6,
+                            overflow: "hidden",
+                            zIndex: isDragging ? 0 : 4,
+                            opacity: isDragging ? 0.3 : 1,
+                            cursor: "grab",
+                            display: "flex",
+                            flexDirection: "column",
+                            transition: "opacity 0.15s",
+                            boxShadow: `0 2px 8px ${setter.color}18`,
                           }}
-                          onMouseEnter={e => { if (!isDragging) e.currentTarget.style.transform = "scale(1.02)"; }}
-                          onMouseLeave={e => { e.currentTarget.style.transform = ""; }}
                         >
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <div
-                              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                              style={{ background: setter.color }}
-                            />
-                            <span className="truncate">{setter.short}</span>
-                          </div>
-                          <button
-                            onClick={e => { e.stopPropagation(); removeBlock(block.id); }}
-                            className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity rounded"
-                            style={{ color: setter.color }}
-                            title="Remove"
+                          {/* Block header */}
+                          <div
+                            style={{
+                              padding: "3px 5px 2px",
+                              display: "flex",
+                              alignItems: "flex-start",
+                              justifyContent: "space-between",
+                              gap: 2,
+                              flex: "0 0 auto",
+                            }}
                           >
-                            <X size={11} />
-                          </button>
+                            <div>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: setter.color, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                {setter.short}
+                              </div>
+                              {height >= 50 && (
+                                <div style={{ fontSize: 9, color: setter.color, opacity: 0.75, whiteSpace: "nowrap" }}>
+                                  {fmtHour(block.startHour)}–{fmtHour(endHour)}
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={e => { e.stopPropagation(); removeBlock(block.id); }}
+                              style={{ color: setter.color, opacity: 0.7, flexShrink: 0, lineHeight: 1, marginTop: 1 }}
+                              onMouseEnter={e => { e.currentTarget.style.opacity = "1"; }}
+                              onMouseLeave={e => { e.currentTarget.style.opacity = "0.7"; }}
+                            >
+                              <X size={10} />
+                            </button>
+                          </div>
+
+                          {/* Spacer */}
+                          <div style={{ flex: 1 }} />
+
+                          {/* Duration slider */}
+                          <div
+                            style={{ padding: "2px 5px 4px", flex: "0 0 auto" }}
+                            onClick={e => e.stopPropagation()}
+                            onMouseDown={e => e.stopPropagation()}
+                          >
+                            <input
+                              type="range"
+                              min={1}
+                              max={maxDur}
+                              value={block.duration}
+                              onChange={e => {
+                                e.stopPropagation();
+                                setDuration(block.id, Number(e.target.value));
+                              }}
+                              onDragStart={e => e.stopPropagation()}
+                              style={{
+                                width: "100%",
+                                accentColor: setter.color,
+                                cursor: "ew-resize",
+                                height: 12,
+                                display: "block",
+                              }}
+                              title={`${block.duration}h shift`}
+                            />
+                            {height >= 80 && (
+                              <div style={{ textAlign: "center", fontSize: 9, color: setter.color, opacity: 0.8, marginTop: 1 }}>
+                                {block.duration}h shift
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
-
-                    {/* Drop hint when empty + hovering */}
-                    {isOver && cellBlocks.length === 0 && (
-                      <div
-                        className="flex items-center justify-center h-full rounded-lg text-xs font-medium"
-                        style={{
-                          border: "1.5px dashed rgba(59,130,246,0.6)",
-                          color: "rgba(59,130,246,0.7)",
-                          minHeight: 44,
-                        }}
-                      >
-                        Drop here
-                      </div>
-                    )}
                   </div>
                 </div>
               );
             })}
           </div>
-        ))}
+        </div>
       </div>
 
-      {/* ── Summary ─────────────────────────────────────────────────────── */}
+      {/* ── Coverage Summary ─────────────────────────────────────────── */}
       {blocks.length > 0 && (
-        <div
-          className="rounded-xl border p-4"
-          style={{ background: "var(--card)", borderColor: "var(--border)" }}
-        >
+        <div className="rounded-xl border p-4" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
           <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--muted-foreground)" }}>
             Coverage Summary
           </p>
-          <div className="flex gap-4 flex-wrap">
+          <div className="flex gap-5 flex-wrap">
             {SETTERS.map(setter => {
-              const count = blocks.filter(b => b.setterId === setter.id).length;
-              if (!count) return null;
+              const setterBlocks = blocks.filter(b => b.setterId === setter.id);
+              if (!setterBlocks.length) return null;
+              const totalHours = setterBlocks.reduce((s, b) => s + b.duration, 0);
               return (
                 <div key={setter.id} className="flex items-center gap-2 text-sm">
                   <div className="w-2.5 h-2.5 rounded-full" style={{ background: setter.color }} />
                   <span style={{ color: "var(--foreground)" }}>{setter.short}</span>
-                  <span
-                    className="text-xs font-bold px-1.5 py-0.5 rounded"
-                    style={{ background: setter.color + "20", color: setter.color }}
-                  >
-                    {count} {count === 1 ? "block" : "blocks"}
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded" style={{ background: setter.color + "20", color: setter.color }}>
+                    {setterBlocks.length} shift{setterBlocks.length !== 1 ? "s" : ""}
                   </span>
                   <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                    ({count * 3}h / wk)
+                    {totalHours}h / wk
                   </span>
                 </div>
               );
