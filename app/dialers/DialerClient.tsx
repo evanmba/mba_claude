@@ -524,49 +524,6 @@ function IndividualTab({ dialer, metrics }: { dialer: DialerInfo; metrics: Diale
             </div>
           </div>
 
-          {/* Funnel visual */}
-          <div
-            className="rounded-xl border p-5"
-            style={{ background: "var(--card)", borderColor: "var(--border)" }}
-          >
-            <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--foreground)" }}>
-              Funnel Overview — {selectedMonth}
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between mb-1.5 text-xs">
-                  <span style={{ color: "var(--muted-foreground)" }}>Dials → Links</span>
-                  <span style={{ color: dialer.color }}>
-                    {current.linksSent} / {current.totalDials.toLocaleString()} dials ({current.dialLinkPct}%)
-                  </span>
-                </div>
-                <ProgressBar value={current.linksSent} max={current.totalDials} color={dialer.color} height={8} />
-              </div>
-              <div>
-                <div className="flex justify-between mb-1.5 text-xs">
-                  <span style={{ color: "var(--muted-foreground)" }}>Links → Booked</span>
-                  <span style={{ color: "#3b82f6" }}>
-                    {current.bookedCalls} / {current.linksSent} links ({current.setPct}%)
-                  </span>
-                </div>
-                <ProgressBar value={current.bookedCalls} max={current.linksSent} color="#3b82f6" height={8} />
-              </div>
-              <div>
-                <div className="flex justify-between mb-1.5 text-xs">
-                  <span style={{ color: "var(--muted-foreground)" }}>Booked → Taken (Show-Up)</span>
-                  <span style={{ color: pctColor(current.showUpRate, 40) }}>
-                    {current.takenCalls} / {current.bookedCalls} booked ({current.showUpRate}%)
-                  </span>
-                </div>
-                <ProgressBar
-                  value={current.takenCalls}
-                  max={current.bookedCalls}
-                  color={pctColor(current.showUpRate, 40)}
-                  height={8}
-                />
-              </div>
-            </div>
-          </div>
         </>
       ) : (
         <div
