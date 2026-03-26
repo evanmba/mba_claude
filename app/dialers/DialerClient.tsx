@@ -673,7 +673,7 @@ export default function DialerClient({ data }: { data: DialerDashboardData }) {
             Showing mock data. Set{" "}
             <code className="font-mono bg-black/20 px-1 py-0.5 rounded">SETTER_DASHBOARD_SHEET_ID</code>
             {" "}+{" "}
-            <code className="font-mono bg-black/20 px-1 py-0.5 rounded">SHEETS_API_KEY</code>
+            <code className="font-mono bg-black/20 px-1 py-0.5 rounded">GOOGLE_SHEETS_API_KEY</code>
             {" "}in <code className="font-mono bg-black/20 px-1 py-0.5 rounded">.env.local</code> to connect live data.
           </span>
         </div>

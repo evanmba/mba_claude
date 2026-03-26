@@ -6,7 +6,7 @@
  *
  * Required env vars:
  *   SETTER_DASHBOARD_SHEET_ID   — the spreadsheet ID from the URL
- *   SHEETS_API_KEY              — Google Sheets API v4 key
+ *   GOOGLE_SHEETS_API_KEY       — Google Sheets API v4 key
  *
  * Sheet names expected:
  *   "2026 - Dialers"              — team totals in columns AQ:AU
@@ -31,7 +31,7 @@ import {
 import { toNum } from "@/lib/sheets";
 
 const SHEET_ID = process.env.SETTER_DASHBOARD_SHEET_ID;
-const API_KEY  = process.env.SHEETS_API_KEY;
+const API_KEY  = process.env.GOOGLE_SHEETS_API_KEY;
 const MONTHS   = ["JAN 2026", "FEB 2026", "MAR 2026"];
 
 // Maps month label → 0-based month index (Jan=0, Feb=1, …)
