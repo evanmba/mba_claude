@@ -77,6 +77,82 @@ async function fetchTeamData(sheetId: string, apiKey: string, noCache = false): 
   return result.length ? result : TEAM_MONTHLY;
 }
 
+// ─── Parse GOALS sheet ────────────────────────────────────────────────────────
+
+async function fetchGoalsData(sheetId: string, apiKey: string, noCache = false): Promise<typeof GOALS_DATA> {
+  try {
+    const [summaryRows, weekMetaRows, setterRows] = await Promise.all([
+      fetchSheetRange(sheetId, apiKey, "GOALS", "A2:H4", noCache),
+      fetchSheetRange(sheetId, apiKey, "GOALS", "C6:E7", noCache),
+      fetchSheetRange(sheetId, apiKey, "GOALS", "C8:F20", noCache),
+    ]);
+
+    // A2:H4 → row 0 = monthly, row 1 = weekly, row 2 = daily
+    // Columns: A=label, B=booked, C=goal
+    const monthlyRow = summaryRows[0] ?? [];
+    const weeklyRow  = summaryRows[1] ?? [];
+    const dailyRow   = summaryRows[2] ?? [];
+    const monthly = { booked: toNum(monthlyRow[1]), goal: toNum(monthlyRow[2]) };
+    const weekly  = { booked: toNum(weeklyRow[1]),  goal: toNum(weeklyRow[2])  };
+    const daily   = { booked: toNum(dailyRow[1]),   goal: toNum(dailyRow[2])   };
+
+    // C6:E7 → row 0 = headers, row 1 = values (weekNum, startDate, endDate)
+    const weekVals = weekMetaRows[1] ?? [];
+    const weekNum  = Math.round(toNum(weekVals[0]));
+    const startStr = (weekVals[1] ?? "").trim();
+    const endStr   = (weekVals[2] ?? "").trim();
+
+    // Calculate daysElapsed from start date to today (1-indexed, capped at 7)
+    let daysElapsed = GOALS_DATA.currentWeek.daysElapsed;
+    if (startStr) {
+      const parts = startStr.split("/");
+      if (parts.length >= 3) {
+        const fullYear = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+        const weekStart = new Date(parseInt(fullYear), parseInt(parts[0]) - 1, parseInt(parts[1]));
+        const today = new Date();
+        const diffDays = Math.floor((today.getTime() - weekStart.getTime()) / 86_400_000);
+        daysElapsed = Math.max(1, Math.min(diffDays + 1, 7));
+      }
+    }
+
+    // C8:F20 → row 0 = headers, rows 1+ = setter name (col 0) + booked (col 1)
+    const setters: { name: string; id: string; booked: number }[] = [];
+    for (let i = 1; i < setterRows.length; i++) {
+      const row = setterRows[i];
+      if (!row?.[0]) continue;
+      const name = row[0].trim();
+      const booked = toNum(row[1]);
+      const dialer = DIALERS.find(
+        (d) =>
+          d.name.toLowerCase() === name.toLowerCase() ||
+          d.name.toLowerCase().startsWith(name.toLowerCase().split(" ")[0].toLowerCase())
+      );
+      if (dialer) {
+        setters.push({ name: dialer.name, id: dialer.id, booked });
+      } else {
+        setters.push({ name, id: name.toLowerCase().replace(/\s+/g, "-"), booked });
+      }
+    }
+
+    return {
+      monthly: monthly.goal > 0 ? monthly : GOALS_DATA.monthly,
+      weekly:  weekly.goal  > 0 ? weekly  : GOALS_DATA.weekly,
+      daily:   daily.goal   > 0 ? daily   : GOALS_DATA.daily,
+      currentWeek: {
+        weekNum:      weekNum || GOALS_DATA.currentWeek.weekNum,
+        start:        startStr || GOALS_DATA.currentWeek.start,
+        end:          endStr   || GOALS_DATA.currentWeek.end,
+        daysElapsed,
+        totalWorkdays: 7,
+        setters:      setters.length > 0 ? setters : GOALS_DATA.currentWeek.setters,
+      },
+    };
+  } catch (err) {
+    console.warn("[dialers] Failed to fetch goals data:", err);
+    return GOALS_DATA;
+  }
+}
+
 // ─── Parse individual dialer sheet ────────────────────────────────────────────
 
 async function fetchDialerMonthMetrics(
@@ -153,8 +229,11 @@ export async function getDialerDashboardData(noCache = false): Promise<DialerDas
   if (!useSheets) return mock;
 
   try {
-    const teamMonthly = await fetchTeamData(sheetId, apiKey, noCache);
-    const dialersSheet = await fetchSheetRange(sheetId, apiKey, "2026 - Dialers", "A1:AZ17", noCache);
+    const [teamMonthly, goals, dialersSheet] = await Promise.all([
+      fetchTeamData(sheetId, apiKey, noCache),
+      fetchGoalsData(sheetId, apiKey, noCache),
+      fetchSheetRange(sheetId, apiKey, "2026 - Dialers", "A1:AZ17", noCache),
+    ]);
     const dialerMetrics: Record<string, DialerMonthMetrics[]> = {};
 
     for (const dialer of DIALERS) {
@@ -168,7 +247,7 @@ export async function getDialerDashboardData(noCache = false): Promise<DialerDas
 
     return {
       source: "google-sheets",
-      goals: GOALS_DATA,
+      goals,
       speedToLead: SPEED_TO_LEAD,
       teamMonthly,
       dialerMetrics,
