@@ -9,12 +9,17 @@ import {
   LayoutDashboard,
   Settings,
   Bell,
+  Phone,
 } from "lucide-react";
 
 const socialItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
   { label: "Instagram", href: "/instagram", icon: Instagram, color: "#d946ef" },
   { label: "YouTube", href: "/youtube", icon: Youtube, color: "#ef4444" },
+];
+
+const salesItems = [
+  { label: "Setter Dashboard", href: "/dialers", icon: Phone, color: "#3b82f6" },
 ];
 
 const toolsItems = [
@@ -120,6 +125,25 @@ export function Sidebar() {
               icon={item.icon}
               label={item.label}
               isActive={pathname === item.href}
+              accentColor={"color" in item ? item.color : undefined}
+            />
+          ))}
+        </ul>
+
+        <p
+          className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          Sales
+        </p>
+        <ul className="space-y-1 mb-5">
+          {salesItems.map((item) => (
+            <NavLink
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+              isActive={pathname === item.href || pathname.startsWith("/dialers")}
               accentColor={"color" in item ? item.color : undefined}
             />
           ))}

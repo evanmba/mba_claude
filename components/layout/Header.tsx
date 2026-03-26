@@ -15,6 +15,7 @@ const pageTitles: Record<string, { title: string; description: string }> = {
   "/news": { title: "News Consolidator", description: "Aggregated news and industry updates" },
   "/notifications": { title: "Notifications", description: "Your latest alerts and updates" },
   "/settings": { title: "Settings", description: "Connect and manage your social media accounts" },
+  "/dialers": { title: "Setter Dashboard", description: "Team dialing performance · [MBA] Setter Dashboard" },
 };
 
 export function Header() {
