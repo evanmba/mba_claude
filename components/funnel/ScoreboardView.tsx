@@ -344,7 +344,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
       {/* ── Row 1: Ad Spend / Media ── */}
       <SectionLabel label="Ad Performance" color="#3b82f6" />
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Spend"
           value={proj?.spend != null ? $$(proj.spend) : (kpi ? $$(kpi.amountSpent) : "—")}
           cur={proj?.spend ?? kpi?.amountSpent ?? 0} prv={prev.amountSpent} hib={false}
@@ -355,7 +355,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
           actual={proj?.impressions != null && kpi ? kpi.impressions.toLocaleString("en-US") : undefined} />
         <MetricCard label="CPM" value={kpi ? $$(kpi.cpm) : "—"} cur={kpi?.cpm ?? 0} prv={undefined} hib={false} />
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Unique Clicks"
           value={proj?.uniqueClicks != null ? proj.uniqueClicks.toLocaleString("en-US") : (kpi ? num(kpi.uniqueClicks) : "—")}
           cur={proj?.uniqueClicks ?? kpi?.uniqueClicks ?? 0} prv={prev.uniqueClicks} hib={true}
@@ -366,7 +366,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
       {/* ── Row 2: Leads ── */}
       <SectionLabel label="Lead Generation" color="#8b5cf6" />
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Leads"
           value={proj?.leads != null ? proj.leads.toLocaleString("en-US") : (kpi ? num(kpi.leads) : "—")}
           cur={proj?.leads ?? kpi?.leads ?? 0} prv={prev.leads} hib={true}
@@ -377,7 +377,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
       {/* ── Row 3: Apps ── */}
       <SectionLabel label="Applications" color="#06b6d4" />
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Total Apps"
           value={proj?.apps != null ? proj.apps.toLocaleString("en-US") : (kpi ? num(kpi.apps) : "—")}
           cur={proj?.apps ?? kpi?.apps ?? 0} prv={prev.apps} hib={true}
@@ -388,7 +388,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
       {/* ── Row 4: Booked Calls ── */}
       <SectionLabel label="Booked Calls" color="#22c55e" />
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Booked Calls"
           value={proj?.bookedCalls != null ? proj.bookedCalls.toLocaleString("en-US") : (kpi ? num(kpi.bookedCalls) : "—")}
           cur={proj?.bookedCalls ?? kpi?.bookedCalls ?? 0} prv={prev.bookedCalls} hib={true}
@@ -399,7 +399,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
       {/* ── Row 5: Taken Calls ── */}
       <SectionLabel label="Taken Calls" color="#f59e0b" />
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Taken Calls"
           value={proj?.takenCalls != null ? proj.takenCalls.toLocaleString("en-US") : (kpi ? num(kpi.takenCalls) : "—")}
           cur={proj?.takenCalls ?? kpi?.takenCalls ?? 0} prv={prev.takenCalls} hib={true}
@@ -410,7 +410,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
       {/* ── Row 6: Deals ── */}
       <SectionLabel label="Deals" color="#ef4444" />
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Deals Closed"
           value={proj?.dealsClosed != null ? proj.dealsClosed.toLocaleString("en-US") : (kpi ? num(kpi.dealsClosed) : "—")}
           cur={proj?.dealsClosed ?? kpi?.dealsClosed ?? 0} prv={prev.dealsClosed} hib={true}
@@ -418,7 +418,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
         <MetricCard label="Close Rate"          value={kpi ? pct(kpi.closeRate)    : "—"} cur={kpi?.closeRate    ?? 0} prv={prev.closeRate}   hib={true}  />
         <MetricCard label="Cost Per Acquisition" value={kpi ? $$(kpi.cpa)         : "—"} cur={kpi?.cpa          ?? 0} prv={prev.cpa}         hib={false} />
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {(() => {
           const cashRevRatio = kpi && kpi.revenue > 0 ? kpi.cash / kpi.revenue : 0;
           const prevCashRevRatio = prev.cash != null && prev.revenue != null && prev.revenue > 0

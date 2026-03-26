@@ -39,7 +39,7 @@ export function Header() {
         </p>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="hidden sm:flex items-center gap-3">
         {/* Search */}
         <div
           className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
