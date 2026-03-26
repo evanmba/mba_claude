@@ -35,7 +35,7 @@ function projectCount(actual: number, daysWithData: number, totalDays: number): 
 // ─── MoM badge ────────────────────────────────────────────────────────────────
 function MomBadge({ cur, prv, hib = true }: { cur: number | undefined; prv: number | undefined; hib?: boolean }) {
   if (prv == null || cur == null) {
-    return <span style={{ color: "#334155", fontSize: 12 }}>No prev month</span>;
+    return <span style={{ color: "#334155", fontSize: 11 }}>No prev data</span>;
   }
   if (prv === 0 && cur === 0) {
     return <span style={{ color: "#334155", fontSize: 12 }}>—</span>;
@@ -68,27 +68,27 @@ function MetricCard({
 }) {
   const isProjected = actual != null;
   return (
-    <div className="rounded-xl p-5 flex flex-col gap-2" style={{ background: CARD_BG }}>
+    <div className="rounded-xl p-3 sm:p-5 flex flex-col gap-1.5 sm:gap-2" style={{ background: CARD_BG }}>
       {/* Label row */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <p style={{ color: "#64748b", fontSize: 12, fontWeight: 500, margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        <p className="text-[10px] sm:text-xs" style={{ color: "#64748b", fontWeight: 500, margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>
           {label}
         </p>
         {isProjected && (
           <span style={{ fontSize: 9, fontWeight: 700, color: "#7c3aed", background: "rgba(124,58,237,0.15)", border: "1px solid rgba(124,58,237,0.3)", borderRadius: 4, padding: "1px 5px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            Projected
+            Proj
           </span>
         )}
       </div>
 
       {/* Value */}
-      <p style={{ color: "#ffffff", fontSize: 36, fontWeight: 800, lineHeight: 1, margin: 0 }}>
+      <p className="text-2xl sm:text-4xl" style={{ color: "#ffffff", fontWeight: 800, lineHeight: 1, margin: 0 }}>
         {value}
       </p>
 
       {/* Actual to-date (only when projecting) */}
       {isProjected && (
-        <p style={{ color: "#94a3b8", fontSize: 13, margin: 0 }}>
+        <p style={{ color: "#94a3b8", fontSize: 11, margin: 0 }}>
           <span style={{ color: "#64748b" }}>actual </span>{actual}
         </p>
       )}
@@ -233,11 +233,11 @@ function SparkCard({
   curTotal: number; prv: number | undefined; hib?: boolean;
 }) {
   return (
-    <div className="rounded-xl p-5 flex flex-col gap-2" style={{ background: CARD_BG }}>
-      <p style={{ color: "#64748b", fontSize: 12, fontWeight: 500, margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+    <div className="rounded-xl p-4 sm:p-5 flex flex-col gap-2" style={{ background: CARD_BG }}>
+      <p className="text-[10px] sm:text-xs" style={{ color: "#64748b", fontWeight: 500, margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>
         {label} · {monthName}
       </p>
-      <p style={{ color: "#ffffff", fontSize: 32, fontWeight: 800, lineHeight: 1, margin: 0 }}>
+      <p className="text-2xl sm:text-3xl" style={{ color: "#ffffff", fontWeight: 800, lineHeight: 1, margin: 0 }}>
         {formatter(curTotal)}
       </p>
       <MomBadge cur={curTotal} prv={prv} hib={hib} />
@@ -334,7 +334,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
       {/* ── Pace banner ── */}
       {isPacing && (
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 8, background: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.25)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderRadius: 8, background: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.25)", flexWrap: "wrap" }}>
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#7c3aed", display: "inline-block", flexShrink: 0 }} />
           <span style={{ color: "#a78bfa", fontSize: 12, fontWeight: 600 }}>
             Projecting month-end pace · day {daysWithData} of {totalDays}
@@ -344,7 +344,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
       {/* ── Row 1: Ad Spend / Media ── */}
       <SectionLabel label="Ad Performance" color="#3b82f6" />
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <MetricCard label="Spend"
           value={proj?.spend != null ? $$(proj.spend) : (kpi ? $$(kpi.amountSpent) : "—")}
           cur={proj?.spend ?? kpi?.amountSpent ?? 0} prv={prev.amountSpent} hib={false}
@@ -355,7 +355,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
           actual={proj?.impressions != null && kpi ? kpi.impressions.toLocaleString("en-US") : undefined} />
         <MetricCard label="CPM" value={kpi ? $$(kpi.cpm) : "—"} cur={kpi?.cpm ?? 0} prv={undefined} hib={false} />
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <MetricCard label="Unique Clicks"
           value={proj?.uniqueClicks != null ? proj.uniqueClicks.toLocaleString("en-US") : (kpi ? num(kpi.uniqueClicks) : "—")}
           cur={proj?.uniqueClicks ?? kpi?.uniqueClicks ?? 0} prv={prev.uniqueClicks} hib={true}
@@ -366,7 +366,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
       {/* ── Row 2: Leads ── */}
       <SectionLabel label="Lead Generation" color="#8b5cf6" />
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <MetricCard label="Leads"
           value={proj?.leads != null ? proj.leads.toLocaleString("en-US") : (kpi ? num(kpi.leads) : "—")}
           cur={proj?.leads ?? kpi?.leads ?? 0} prv={prev.leads} hib={true}
@@ -377,7 +377,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
       {/* ── Row 3: Apps ── */}
       <SectionLabel label="Applications" color="#06b6d4" />
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <MetricCard label="Total Apps"
           value={proj?.apps != null ? proj.apps.toLocaleString("en-US") : (kpi ? num(kpi.apps) : "—")}
           cur={proj?.apps ?? kpi?.apps ?? 0} prv={prev.apps} hib={true}
@@ -388,7 +388,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
       {/* ── Row 4: Booked Calls ── */}
       <SectionLabel label="Booked Calls" color="#22c55e" />
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <MetricCard label="Booked Calls"
           value={proj?.bookedCalls != null ? proj.bookedCalls.toLocaleString("en-US") : (kpi ? num(kpi.bookedCalls) : "—")}
           cur={proj?.bookedCalls ?? kpi?.bookedCalls ?? 0} prv={prev.bookedCalls} hib={true}
@@ -399,7 +399,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
       {/* ── Row 5: Taken Calls ── */}
       <SectionLabel label="Taken Calls" color="#f59e0b" />
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <MetricCard label="Taken Calls"
           value={proj?.takenCalls != null ? proj.takenCalls.toLocaleString("en-US") : (kpi ? num(kpi.takenCalls) : "—")}
           cur={proj?.takenCalls ?? kpi?.takenCalls ?? 0} prv={prev.takenCalls} hib={true}
@@ -410,7 +410,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
       {/* ── Row 6: Deals ── */}
       <SectionLabel label="Deals" color="#ef4444" />
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <MetricCard label="Deals Closed"
           value={proj?.dealsClosed != null ? proj.dealsClosed.toLocaleString("en-US") : (kpi ? num(kpi.dealsClosed) : "—")}
           cur={proj?.dealsClosed ?? kpi?.dealsClosed ?? 0} prv={prev.dealsClosed} hib={true}
@@ -418,7 +418,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
         <MetricCard label="Close Rate"          value={kpi ? pct(kpi.closeRate)    : "—"} cur={kpi?.closeRate    ?? 0} prv={prev.closeRate}   hib={true}  />
         <MetricCard label="Cost Per Acquisition" value={kpi ? $$(kpi.cpa)         : "—"} cur={kpi?.cpa          ?? 0} prv={prev.cpa}         hib={false} />
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {(() => {
           const cashRevRatio = kpi && kpi.revenue > 0 ? kpi.cash / kpi.revenue : 0;
           const prevCashRevRatio = prev.cash != null && prev.revenue != null && prev.revenue > 0
@@ -447,7 +447,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
       <div style={{ marginTop: 8 }}>
         <SectionLabel label="Daily Trends" color="#3b82f6" />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <SparkCard label="Leads" monthName={monthName} curData={dailyRows.map((r) => r.leads)}
           monthIdx={monthIdx} year={year} color="#8b5cf6" formatter={num}
           curTotal={kpi?.leads ?? 0} prv={prev.leads} />
