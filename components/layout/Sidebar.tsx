@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Instagram,
@@ -92,26 +93,23 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
     >
       {/* Brand */}
       <div
-        className="flex items-center gap-3 px-4 md:px-6 py-5 border-b"
+        className="flex items-center justify-between px-4 py-4 border-b"
         style={{ borderColor: "var(--sidebar-border)" }}
       >
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-          style={{ background: "var(--primary)" }}
-        >
-          M
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
-            Mendoza Baseball
-          </p>
-          <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
-            @mendoza.baseball.academy
-          </p>
-        </div>
+        <Link href="/" className="flex-1 min-w-0" onClick={onClose}>
+          <Image
+            src="/logo.png"
+            alt="Mendoza Baseball Academy"
+            width={160}
+            height={36}
+            className="object-contain"
+            style={{ filter: "brightness(0) invert(1)" }}
+            priority
+          />
+        </Link>
         {/* Close button — mobile only */}
         <button
-          className="md:hidden flex items-center justify-center w-7 h-7 rounded-md flex-shrink-0"
+          className="md:hidden flex items-center justify-center w-7 h-7 rounded-md flex-shrink-0 ml-2"
           onClick={onClose}
           style={{ color: "var(--muted-foreground)", background: "var(--secondary)" }}
         >
