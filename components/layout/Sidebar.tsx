@@ -72,23 +72,15 @@ export function Sidebar() {
     >
       {/* Brand */}
       <div
-        className="flex items-center gap-3 px-6 py-5 border-b"
+        className="flex items-center px-5 py-4 border-b"
         style={{ borderColor: "var(--sidebar-border)" }}
       >
-        <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
-          style={{ background: "var(--primary)" }}
-        >
-          M
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
-            Mendoza Baseball
-          </p>
-          <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
-            @mendoza.baseball.academy
-          </p>
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo.png"
+          alt="Mendoza Baseball Academy"
+          style={{ height: 36, width: "auto", objectFit: "contain" }}
+        />
       </div>
 
       {/* Main Navigation */}

@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation";
 
 const pageTitles: Record<string, { title: string; description: string }> = {
   "/": { title: "Dashboard", description: "Overview of @mendoza.baseball.academy" },
+  "/funnel": { title: "Funnel Dashboard", description: "" },
+  "/financials": { title: "Financials", description: "" },
   "/instagram": { title: "Instagram", description: "@mendoza.baseball.academy · Instagram" },
   "/youtube": { title: "YouTube", description: "Mendoza Baseball Academy · YouTube Channel" },
   "/facebook": { title: "Facebook", description: "Mendoza Baseball Academy · Facebook Page" },
@@ -18,7 +20,7 @@ const pageTitles: Record<string, { title: string; description: string }> = {
 
 export function Header() {
   const pathname = usePathname();
-  const page = pageTitles[pathname] ?? { title: "Page", description: "" };
+  const page = pageTitles[pathname] ?? { title: pathname.replace("/", "").replace(/-/g, " "), description: "" };
 
   return (
     <header
@@ -30,12 +32,14 @@ export function Header() {
       }}
     >
       <div>
-        <h1 className="text-base sm:text-lg font-semibold" style={{ color: "var(--foreground)" }}>
+        <h1 className="text-base sm:text-lg font-semibold capitalize" style={{ color: "var(--foreground)" }}>
           {page.title}
         </h1>
-        <p className="text-xs sm:text-sm" style={{ color: "var(--muted-foreground)" }}>
-          {page.description}
-        </p>
+        {page.description && (
+          <p className="text-xs sm:text-sm" style={{ color: "var(--muted-foreground)" }}>
+            {page.description}
+          </p>
+        )}
       </div>
     </header>
   );
