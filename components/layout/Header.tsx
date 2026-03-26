@@ -10,6 +10,7 @@ const pageTitles: Record<string, string> = {
   "/settings": "Settings",
   "/notifications": "Notifications",
   "/dialers": "Setter Dashboard",
+  "/coverage": "Coverage Planner",
 };
 
 export function Header() {

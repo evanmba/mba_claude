@@ -3,10 +3,11 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Settings, Bell, Phone } from "lucide-react";
+import { Settings, Bell, Phone, CalendarDays } from "lucide-react";
 
 const mainItems = [
-  { label: "Setter Dashboard", href: "/dialers", icon: Phone, color: "#3b82f6" },
+  { label: "Setter Dashboard", href: "/dialers",  icon: Phone,        color: "#3b82f6" },
+  { label: "Coverage",         href: "/coverage", icon: CalendarDays, color: "#22c55e" },
 ];
 
 const bottomNavItems = [
@@ -96,7 +97,7 @@ export function Sidebar() {
               href={item.href}
               icon={item.icon}
               label={item.label}
-              isActive={pathname === item.href || pathname.startsWith("/dialers")}
+              isActive={pathname === item.href || pathname.startsWith(item.href)}
               accentColor={"color" in item ? item.color : undefined}
             />
           ))}
