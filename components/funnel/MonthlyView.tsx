@@ -209,7 +209,7 @@ export function MonthlyView({ monthly, salesDashboard, monthLabel, ytd }: Props)
   return (
     <div>
       {/* Big KPI cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <BigCard
           label="Taken Calls"
           value={kpi ? num(kpi.takenCalls) : "—"}
@@ -251,7 +251,7 @@ export function MonthlyView({ monthly, salesDashboard, monthLabel, ytd }: Props)
       {/* Sales Dashboard callout (if available) */}
       {salesDashboard && (
         <div
-          className="rounded-xl p-5 mb-6 grid grid-cols-4 gap-4"
+          className="rounded-xl p-5 mb-6 grid grid-cols-2 lg:grid-cols-4 gap-4"
           style={{ background: "var(--card)", border: "1px solid var(--border)" }}
         >
           <div>
@@ -300,7 +300,7 @@ export function MonthlyView({ monthly, salesDashboard, monthLabel, ytd }: Props)
       )}
 
       {/* Bottom stat cards with sparklines + MoM */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <SmallCard label="Amount Spent" value={kpi ? $$(kpi.amountSpent) : "—"} color="#ef4444" values={dailySpend}  curVal={kpi?.amountSpent} prev={prevYTD?.amountSpent} higherIsBetter={false} />
         <SmallCard label="AgeQ Leads"   value={kpi ? num(kpi.leads) : "—"}       color="#3b82f6" values={dailyLeads}  curVal={kpi?.leads}       prev={prevYTD?.leads} />
         <SmallCard label="Booked Calls" value={kpi ? num(kpi.bookedCalls) : "—"} color="#06b6d4" values={dailyBooked} curVal={kpi?.bookedCalls} prev={prevYTD?.bookedCalls} />
@@ -308,6 +308,15 @@ export function MonthlyView({ monthly, salesDashboard, monthLabel, ytd }: Props)
         <SmallCard label="Close Rate"   value={kpi ? pct(kpi.closeRate) : "—"}   color="#f59e0b" curVal={kpi?.closeRate}    prev={prevYTD?.closeRate}    higherIsBetter />
         <SmallCard label="Cash ROAS"    value={kpi ? ratio(kpi.cashROAS) : "—"}   color="#10b981" curVal={kpi?.cashROAS}     prev={prevYTD?.cashROAS} />
         <SmallCard label="Rev ROAS"     value={kpi ? ratio(kpi.revenueROAS) : "—"} color="#a78bfa" curVal={kpi?.revenueROAS}  prev={prevYTD?.revenueROAS} />
+        <SmallCard label="Cash"         value={kpi ? $$(kpi.cash) : "—"}           color="#22c55e" curVal={kpi?.cash}         prev={prevYTD?.cash} />
+        <SmallCard label="Revenue"      value={kpi ? $$(kpi.revenue) : "—"}        color="#3b82f6" curVal={kpi?.revenue}      prev={prevYTD?.revenue} />
+        <SmallCard
+          label="Cash:Revenue Ratio"
+          value={kpi && kpi.revenue > 0 ? ratio(kpi.cash / kpi.revenue) : "—"}
+          color="#d946ef"
+          curVal={kpi && kpi.revenue > 0 ? kpi.cash / kpi.revenue : undefined}
+          prev={prevYTD && prevYTD.revenue > 0 ? prevYTD.cash / prevYTD.revenue : null}
+        />
       </div>
 
     </div>
