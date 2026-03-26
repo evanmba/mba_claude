@@ -1,31 +1,10 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Phone } from "lucide-react";
-import {
-  GOALS_DATA, SPEED_TO_LEAD, TEAM_MONTHLY, DIALER_METRICS, DIALERS,
-} from "@/lib/dialer-data";
+import { getDialerDashboardData } from "@/lib/dialers-fetch";
 import DialerClient from "./DialerClient";
 
-// Attempt to fetch from Google Sheets API; fall back to mock data.
-async function getDialerData() {
-  const base = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
-  try {
-    const res = await fetch(`${base}/api/dialers`, { next: { revalidate: 300 } });
-    if (res.ok) return res.json();
-  } catch {
-    // fall through to mock
-  }
-  return {
-    source: "mock",
-    goals: GOALS_DATA,
-    speedToLead: SPEED_TO_LEAD,
-    teamMonthly: TEAM_MONTHLY,
-    dialerMetrics: DIALER_METRICS,
-    dialers: DIALERS,
-  };
-}
-
 export default async function DialersPage() {
-  const data = await getDialerData();
+  const data = await getDialerDashboardData();
 
   return (
     <DashboardLayout>
