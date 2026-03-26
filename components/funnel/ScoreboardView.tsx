@@ -323,7 +323,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
     cpa:           nz(prevKpi?.cpa)           ?? nz(prevYtd?.cpa),
     cashROAS:      nz(prevKpi?.cashROAS)      ?? nz(prevYtd?.cashROAS),
     revenueROAS:   nz(prevKpi?.revenueROAS)   ?? nz(prevYtd?.revenueROAS),
-    cash:          nz(prevKpi?.cash)          ?? nz(prevYtd?.cashCollected),
+    cash:          nz(prevKpi?.cash)          ?? nz(prevYtd?.cash),
     revenue:       nz(prevKpi?.revenue)       ?? nz(prevYtd?.revenue),
   };
 
