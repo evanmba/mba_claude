@@ -90,18 +90,19 @@ async function fetchDialerMonthMetrics(setterId: string, month: string): Promise
   // Row 0 = headers (we trust the order matches our expected layout)
   const data = rows[1] ?? [];
 
+  // C4=totalDials, D4=linksSent, E4=dialLinkPct, F4=bookedCalls, G4=setPct, H4=takenCalls, I4=showUpRate
   const totalDials    = toNum(data[0]);
-  const vslSent       = toNum(data[1]);
+  const linksSent     = toNum(data[1]);
   const bookedCalls   = toNum(data[3]);
   const takenCalls    = toNum(data[5]);
 
   return {
     month,
     totalDials,
-    vslSent,
-    dialVslRatio: vslSent > 0 ? Math.round((totalDials / vslSent) * 10) / 10 : 0,
+    linksSent,
+    dialLinkPct: totalDials > 0 ? Math.round((linksSent / totalDials) * 1000) / 10 : 0,
     bookedCalls,
-    setPct: totalDials > 0 ? Math.round((bookedCalls / totalDials) * 1000) / 10 : 0,
+    setPct: linksSent > 0 ? Math.round((bookedCalls / linksSent) * 1000) / 10 : 0,
     takenCalls,
     showUpRate: bookedCalls > 0 ? Math.round((takenCalls / bookedCalls) * 1000) / 10 : 0,
     deals: 0,

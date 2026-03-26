@@ -3,27 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Instagram,
-  Youtube,
-  Users,
   LayoutDashboard,
   Settings,
   Bell,
   Phone,
 } from "lucide-react";
 
-const socialItems = [
+const mainItems = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Instagram", href: "/instagram", icon: Instagram, color: "#d946ef" },
-  { label: "YouTube", href: "/youtube", icon: Youtube, color: "#ef4444" },
-];
-
-const salesItems = [
   { label: "Setter Dashboard", href: "/dialers", icon: Phone, color: "#3b82f6" },
-];
-
-const toolsItems = [
-  { label: "Competitor Tracker", href: "/competitors", icon: Users },
 ];
 
 const bottomNavItems = [
@@ -104,65 +92,26 @@ export function Sidebar() {
             Mendoza Baseball
           </p>
           <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
-            @mendoza.baseball.academy
+            MBA Sales Dashboard
           </p>
         </div>
       </div>
 
       {/* Main Navigation */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
-        <p
-          className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider"
-          style={{ color: "var(--muted-foreground)" }}
-        >
-          Social Platforms
-        </p>
-        <ul className="space-y-1 mb-5">
-          {socialItems.map((item) => (
-            <NavLink
-              key={item.href}
-              href={item.href}
-              icon={item.icon}
-              label={item.label}
-              isActive={pathname === item.href}
-              accentColor={"color" in item ? item.color : undefined}
-            />
-          ))}
-        </ul>
-
-        <p
-          className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider"
-          style={{ color: "var(--muted-foreground)" }}
-        >
-          Sales
-        </p>
-        <ul className="space-y-1 mb-5">
-          {salesItems.map((item) => (
-            <NavLink
-              key={item.href}
-              href={item.href}
-              icon={item.icon}
-              label={item.label}
-              isActive={pathname === item.href || pathname.startsWith("/dialers")}
-              accentColor={"color" in item ? item.color : undefined}
-            />
-          ))}
-        </ul>
-
-        <p
-          className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider"
-          style={{ color: "var(--muted-foreground)" }}
-        >
-          Tools
-        </p>
         <ul className="space-y-1">
-          {toolsItems.map((item) => (
+          {mainItems.map((item) => (
             <NavLink
               key={item.href}
               href={item.href}
               icon={item.icon}
               label={item.label}
-              isActive={pathname === item.href}
+              isActive={
+                item.href === "/dialers"
+                  ? pathname === item.href || pathname.startsWith("/dialers")
+                  : pathname === item.href
+              }
+              accentColor={"color" in item ? item.color : undefined}
             />
           ))}
         </ul>

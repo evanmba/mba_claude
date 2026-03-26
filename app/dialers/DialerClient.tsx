@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   Phone, Users, TrendingUp, TrendingDown, Minus,
-  Target, Clock, ChevronRight, BarChart3, Zap,
+  Target, ChevronRight, BarChart3, Zap,
 } from "lucide-react";
 import type {
   GoalsData, SpeedToLeadData, TeamMonthRow, DialerMonthMetrics,
@@ -45,10 +45,7 @@ function ProgressBar({
 }: { value: number; max: number; color: string; height?: number }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
-    <div
-      className="rounded-full overflow-hidden"
-      style={{ height, background: "var(--secondary)" }}
-    >
+    <div className="rounded-full overflow-hidden" style={{ height, background: "var(--secondary)" }}>
       <div
         className="h-full rounded-full transition-all duration-500"
         style={{ width: `${pct}%`, background: color }}
@@ -80,13 +77,13 @@ function MetricCard({
 }: {
   label: string; value: string | number; sub?: string; prev?: number; color?: string;
 }) {
-  const numVal = typeof value === "number" ? value : parseFloat(value as string) || 0;
+  const numVal = typeof value === "number" ? value : parseFloat(String(value)) || 0;
   return (
     <div
       className="rounded-xl border p-4 flex flex-col gap-1"
       style={{ background: "var(--card)", borderColor: "var(--border)" }}
     >
-      <p className="text-xs font-medium" style={{ color: "var(--muted-foreground)" }}>
+      <p className="text-xs font-medium leading-snug" style={{ color: "var(--muted-foreground)" }}>
         {label}
       </p>
       <p className="text-2xl font-bold" style={{ color: color ?? "var(--foreground)" }}>
@@ -113,12 +110,17 @@ function TeamTab({
   const { monthly, weekly, daily, currentWeek } = goals;
 
   const progBars = [
-    { label: "Monthly", ...monthly, color: "#3b82f6", goal_label: `${monthly.goal}` },
-    { label: "Weekly",  ...weekly,  color: "#22c55e", goal_label: `${weekly.goal}` },
-    { label: "Daily",   ...daily,   color: "#d946ef", goal_label: `${daily.goal}` },
+    { label: "Monthly", ...monthly, color: "#3b82f6" },
+    { label: "Weekly",  ...weekly,  color: "#22c55e" },
+    { label: "Daily",   ...daily,   color: "#d946ef" },
   ];
 
-  // Only show months with data
+  // Projection for current week
+  const totalBooked = currentWeek.setters.reduce((sum, s) => sum + s.booked, 0);
+  const projected = currentWeek.daysElapsed > 0
+    ? Math.round(totalBooked * currentWeek.totalWorkdays / currentWeek.daysElapsed)
+    : totalBooked;
+
   const activeMonths = teamMonthly.filter((m) => m.booked > 0);
 
   return (
@@ -153,12 +155,7 @@ function TeamTab({
                     </span>
                     <span
                       className="text-xs font-semibold px-2 py-0.5 rounded"
-                      style={{
-                        background: bar.color + "22",
-                        color: bar.color,
-                        minWidth: 42,
-                        textAlign: "center",
-                      }}
+                      style={{ background: bar.color + "22", color: bar.color, minWidth: 42, textAlign: "center" }}
                     >
                       {pct}%
                     </span>
@@ -171,7 +168,7 @@ function TeamTab({
         </div>
       </div>
 
-      {/* ── Current Week Breakdown ───────────────────────────────────────── */}
+      {/* ── Current Week — Projection ────────────────────────────────────── */}
       <div
         className="rounded-xl border overflow-hidden"
         style={{ background: "var(--card)", borderColor: "var(--border)" }}
@@ -184,15 +181,27 @@ function TeamTab({
               Week #{currentWeek.weekNum} · {currentWeek.start} – {currentWeek.end}
             </h2>
           </div>
-          <span className="text-xs px-2 py-1 rounded" style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e" }}>
-            Current Week
-          </span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span
+              className="text-xs px-2 py-1 rounded font-medium"
+              style={{ background: "rgba(59,130,246,0.12)", color: "#3b82f6" }}
+            >
+              {totalBooked} booked so far
+            </span>
+            <span
+              className="text-xs px-2 py-1 rounded font-medium"
+              style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e" }}
+            >
+              ~{projected} projected by EOW
+            </span>
+          </div>
         </div>
         <div className="divide-y" style={{ borderColor: "var(--border)" }}>
           {currentWeek.setters.map((s) => {
             const dialer = dialers.find((d) => d.id === s.id);
             const color = dialer?.color ?? "#3b82f6";
-            const pct = s.goal > 0 ? Math.round((s.booked / s.goal) * 100) : 0;
+            // Progress bar shows each setter relative to projected total
+            const barPct = projected > 0 ? (s.booked / projected) * 100 : 0;
             return (
               <div key={s.id} className="px-5 py-3 flex items-center gap-4">
                 <div
@@ -206,23 +215,20 @@ function TeamTab({
                     <span className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
                       {s.name}
                     </span>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-sm font-semibold" style={{ color }}>
-                        {s.booked}
-                        <span className="text-xs font-normal" style={{ color: "var(--muted-foreground)" }}>
-                          /{s.goal}
-                        </span>
-                      </span>
-                      <span className="text-xs font-semibold" style={{ color: pctColor(pct) }}>
-                        {pct}%
-                      </span>
-                    </div>
+                    <span className="text-sm font-bold flex-shrink-0 ml-2" style={{ color: s.booked > 0 ? color : "var(--muted-foreground)" }}>
+                      {s.booked} booked
+                    </span>
                   </div>
-                  <ProgressBar value={s.booked} max={s.goal} color={color} height={6} />
+                  <ProgressBar value={barPct} max={100} color={color} height={5} />
                 </div>
               </div>
             );
           })}
+        </div>
+        <div className="px-5 py-3 border-t" style={{ borderColor: "var(--border)", background: "rgba(30,41,59,0.3)" }}>
+          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+            Day {currentWeek.daysElapsed} of {currentWeek.totalWorkdays} work days · projection based on current pace
+          </p>
         </div>
       </div>
 
@@ -232,8 +238,7 @@ function TeamTab({
           className="rounded-xl border overflow-hidden"
           style={{ background: "var(--card)", borderColor: "var(--border)" }}
         >
-          <div className="px-5 py-4 border-b flex items-center gap-2"
-            style={{ borderColor: "var(--border)" }}>
+          <div className="px-5 py-4 border-b flex items-center gap-2" style={{ borderColor: "var(--border)" }}>
             <TrendingUp size={16} style={{ color: "#3b82f6" }} />
             <h2 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
               Team Monthly Performance
@@ -243,7 +248,7 @@ function TeamTab({
             <table className="w-full text-sm min-w-max">
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(30,41,59,0.4)" }}>
-                  {["Month", "Booked", "Taken", "Sit %", "Deals", "Close %", "MoM Booked"].map((h) => (
+                  {["Month", "Booked", "Taken", "Sit %", "Deals", "Close %"].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
                       style={{ color: "var(--muted-foreground)" }}>
                       {h}
@@ -259,26 +264,32 @@ function TeamTab({
                       <td className="px-4 py-3 font-medium" style={{ color: "var(--foreground)" }}>
                         {row.month}
                       </td>
-                      <td className="px-4 py-3 font-semibold" style={{ color: "#3b82f6" }}>
-                        {row.booked}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold" style={{ color: "#3b82f6" }}>{row.booked}</span>
+                          {prev && <MomBadge curr={row.booked} prev={prev.booked} />}
+                        </div>
                       </td>
-                      <td className="px-4 py-3" style={{ color: "var(--foreground)" }}>
-                        {row.taken}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span style={{ color: "var(--foreground)" }}>{row.taken}</span>
+                          {prev && <MomBadge curr={row.taken} prev={prev.taken} />}
+                        </div>
                       </td>
                       <td className="px-4 py-3 font-semibold" style={{ color: pctColor(row.sitPct) }}>
                         {row.sitPct}%
                       </td>
-                      <td className="px-4 py-3" style={{ color: row.deals > 0 ? "#22c55e" : "var(--muted-foreground)" }}>
-                        {row.deals || "—"}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span style={{ color: row.deals > 0 ? "#22c55e" : "var(--muted-foreground)" }}>
+                            {row.deals || "—"}
+                          </span>
+                          {prev && row.deals > 0 && <MomBadge curr={row.deals} prev={prev.deals} />}
+                        </div>
                       </td>
                       <td className="px-4 py-3 font-semibold"
                         style={{ color: row.closePct > 0 ? pctColor(row.closePct) : "var(--muted-foreground)" }}>
                         {row.closePct > 0 ? `${row.closePct}%` : "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        {prev ? <MomBadge curr={row.booked} prev={prev.booked} /> : (
-                          <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>—</span>
-                        )}
                       </td>
                     </tr>
                   );
@@ -298,30 +309,36 @@ function TeamTab({
 // ─── Speed to Lead Section ────────────────────────────────────────────────────
 
 function SpeedToLeadSection({ data }: { data: SpeedToLeadData }) {
+  // Show only the last 5 days
+  const recentDays = data.days.slice(-5);
+
   return (
     <div
       className="rounded-xl border overflow-hidden"
       style={{ background: "var(--card)", borderColor: "var(--border)" }}
     >
-      <div className="px-5 py-4 border-b flex items-center gap-2"
+      <div className="px-5 py-4 border-b flex items-center gap-2 flex-wrap"
         style={{ borderColor: "var(--border)", background: "rgba(251,191,36,0.06)" }}>
         <Zap size={16} style={{ color: "#f59e0b" }} />
         <h2 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-          Speed to Lead · Dialing Performance <span className="font-normal text-xs" style={{ color: "var(--muted-foreground)" }}>[11am–6pm EST]</span>
+          Speed to Lead
+          <span className="font-normal text-xs ml-1.5" style={{ color: "var(--muted-foreground)" }}>
+            [11am–6pm EST]
+          </span>
         </h2>
         <div className="ml-auto flex items-center gap-3 text-xs" style={{ color: "var(--muted-foreground)" }}>
           <span>Target: <strong style={{ color: "#22c55e" }}>&lt;15 mins</strong></span>
-          <span>85%+</span>
+          <span>/ <strong style={{ color: "#22c55e" }}>85%+</strong></span>
         </div>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x"
         style={{ borderColor: "var(--border)" }}>
 
-        {/* Daily rows */}
+        {/* Daily — last 5 days */}
         <div>
           <div className="px-4 py-2 border-b" style={{ borderColor: "var(--border)" }}>
             <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
-              Daily
+              Daily (last 5 days)
             </p>
           </div>
           <table className="w-full text-sm">
@@ -333,16 +350,20 @@ function SpeedToLeadSection({ data }: { data: SpeedToLeadData }) {
               </tr>
             </thead>
             <tbody>
-              {data.days.map((d) => (
+              {recentDays.map((d) => (
                 <tr key={d.date} style={{ borderBottom: "1px solid var(--border)" }}>
                   <td className="px-4 py-2.5 text-xs" style={{ color: "var(--muted-foreground)" }}>{d.date}</td>
                   <td
                     className="px-4 py-2.5 text-right text-xs font-semibold"
-                    style={{ color: timeColor(d.timeMins), background: d.timeMins > 60 ? "rgba(239,68,68,0.06)" : undefined }}
+                    style={{
+                      color: timeColor(d.timeMins),
+                      background: d.timeMins > 60 ? "rgba(239,68,68,0.06)" : undefined,
+                    }}
                   >
                     {d.timeToDial}
                   </td>
-                  <td className="px-4 py-2.5 text-right text-xs font-semibold"
+                  <td
+                    className="px-4 py-2.5 text-right text-xs font-semibold"
                     style={{ color: pctUnder15Color(d.pctUnder15m), background: pctUnder15Bg(d.pctUnder15m) }}
                   >
                     {d.pctUnder15m.toFixed(2)}%
@@ -388,7 +409,8 @@ function SpeedToLeadSection({ data }: { data: SpeedToLeadData }) {
                     >
                       {r.timeToDial}
                     </td>
-                    <td className="px-4 py-2.5 text-right text-xs font-semibold"
+                    <td
+                      className="px-4 py-2.5 text-right text-xs font-semibold"
                       style={{ color: pctUnder15Color(r.pctUnder15m), background: pctUnder15Bg(r.pctUnder15m) }}
                     >
                       {r.pctUnder15m.toFixed(2)}%
@@ -408,12 +430,7 @@ function SpeedToLeadSection({ data }: { data: SpeedToLeadData }) {
 
 const MONTH_LABELS = ["JAN 2026", "FEB 2026", "MAR 2026"];
 
-function IndividualTab({
-  dialer, metrics,
-}: {
-  dialer: DialerInfo;
-  metrics: DialerMonthMetrics[];
-}) {
+function IndividualTab({ dialer, metrics }: { dialer: DialerInfo; metrics: DialerMonthMetrics[] }) {
   const [selectedMonth, setSelectedMonth] = useState(
     metrics.length ? metrics[metrics.length - 1].month : MONTH_LABELS[0]
   );
@@ -432,7 +449,7 @@ function IndividualTab({
           Month
         </span>
         {MONTH_LABELS.map((m) => {
-          const hasData = metrics.find((x) => x.month === m)?.totalDials ?? 0;
+          const hasData = (metrics.find((x) => x.month === m)?.totalDials ?? 0) > 0;
           const isActive = m === selectedMonth;
           return (
             <button
@@ -443,7 +460,7 @@ function IndividualTab({
                 background: isActive ? dialer.color + "22" : "var(--secondary)",
                 color: isActive ? dialer.color : "var(--muted-foreground)",
                 border: `1px solid ${isActive ? dialer.color + "55" : "transparent"}`,
-                opacity: hasData === 0 && !isActive ? 0.5 : 1,
+                opacity: !hasData && !isActive ? 0.5 : 1,
               }}
             >
               {m}
@@ -452,7 +469,7 @@ function IndividualTab({
         })}
       </div>
 
-      {/* Dialing Performance Metrics */}
+      {/* Metric Cards */}
       {hasDialData ? (
         <>
           <div>
@@ -470,27 +487,27 @@ function IndividualTab({
                 color={dialer.color}
               />
               <MetricCard
-                label="# of VSL Sent"
-                value={current.vslSent}
-                prev={prev?.vslSent}
+                label="# of Links Sent"
+                value={current.linksSent}
+                prev={prev?.linksSent}
               />
               <MetricCard
-                label="Dial : VSL Ratio"
-                value={current.dialVslRatio > 0 ? `${current.dialVslRatio}:1` : "—"}
-                sub="dials per VSL sent"
+                label="Dial : Link %"
+                value={current.dialLinkPct > 0 ? `${current.dialLinkPct}%` : "—"}
+                sub="links / dials"
               />
               <MetricCard
                 label="# Qualified Set Booked Calls"
                 value={current.bookedCalls}
                 prev={prev?.bookedCalls}
-                color={pctColor(current.setPct, 3)}
+                color={pctColor(current.setPct, 10)}
               />
               <MetricCard
                 label="Set %"
                 value={current.setPct > 0 ? `${current.setPct}%` : "—"}
-                sub="booked / total dials"
+                sub="booked / links sent"
                 prev={prev?.setPct}
-                color={pctColor(current.setPct, 3)}
+                color={pctColor(current.setPct, 10)}
               />
               <MetricCard
                 label="Taken Set Calls"
@@ -507,53 +524,38 @@ function IndividualTab({
             </div>
           </div>
 
-          {/* Set % Progress Visual */}
+          {/* Funnel visual */}
           <div
             className="rounded-xl border p-5"
             style={{ background: "var(--card)", borderColor: "var(--border)" }}
           >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                Funnel Overview — {selectedMonth}
-              </h3>
-            </div>
+            <h3 className="text-sm font-semibold mb-4" style={{ color: "var(--foreground)" }}>
+              Funnel Overview — {selectedMonth}
+            </h3>
             <div className="space-y-4">
               <div>
                 <div className="flex justify-between mb-1.5 text-xs">
-                  <span style={{ color: "var(--muted-foreground)" }}>Dials → VSL</span>
+                  <span style={{ color: "var(--muted-foreground)" }}>Dials → Links</span>
                   <span style={{ color: dialer.color }}>
-                    {current.vslSent} / {current.totalDials} dials
-                    {" "}({current.totalDials > 0 ? ((current.vslSent / current.totalDials) * 100).toFixed(1) : 0}%)
+                    {current.linksSent} / {current.totalDials.toLocaleString()} dials ({current.dialLinkPct}%)
                   </span>
                 </div>
-                <ProgressBar
-                  value={current.vslSent}
-                  max={current.totalDials}
-                  color={dialer.color}
-                  height={8}
-                />
+                <ProgressBar value={current.linksSent} max={current.totalDials} color={dialer.color} height={8} />
               </div>
               <div>
                 <div className="flex justify-between mb-1.5 text-xs">
-                  <span style={{ color: "var(--muted-foreground)" }}>VSL → Booked</span>
+                  <span style={{ color: "var(--muted-foreground)" }}>Links → Booked</span>
                   <span style={{ color: "#3b82f6" }}>
-                    {current.bookedCalls} / {current.vslSent} VSLs
-                    {" "}({current.vslSent > 0 ? ((current.bookedCalls / current.vslSent) * 100).toFixed(1) : 0}%)
+                    {current.bookedCalls} / {current.linksSent} links ({current.setPct}%)
                   </span>
                 </div>
-                <ProgressBar
-                  value={current.bookedCalls}
-                  max={current.vslSent}
-                  color="#3b82f6"
-                  height={8}
-                />
+                <ProgressBar value={current.bookedCalls} max={current.linksSent} color="#3b82f6" height={8} />
               </div>
               <div>
                 <div className="flex justify-between mb-1.5 text-xs">
                   <span style={{ color: "var(--muted-foreground)" }}>Booked → Taken (Show-Up)</span>
                   <span style={{ color: pctColor(current.showUpRate, 40) }}>
-                    {current.takenCalls} / {current.bookedCalls} booked
-                    {" "}({current.showUpRate}%)
+                    {current.takenCalls} / {current.bookedCalls} booked ({current.showUpRate}%)
                   </span>
                 </div>
                 <ProgressBar
@@ -587,8 +589,7 @@ function IndividualTab({
           className="rounded-xl border overflow-hidden"
           style={{ background: "var(--card)", borderColor: "var(--border)" }}
         >
-          <div className="px-5 py-4 border-b flex items-center gap-2"
-            style={{ borderColor: "var(--border)" }}>
+          <div className="px-5 py-4 border-b flex items-center gap-2" style={{ borderColor: "var(--border)" }}>
             <TrendingUp size={15} style={{ color: dialer.color }} />
             <h3 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
               Month-over-Month Comparison
@@ -598,7 +599,7 @@ function IndividualTab({
             <table className="w-full text-sm min-w-max">
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(30,41,59,0.4)" }}>
-                  {["Month", "Dials", "VSL Sent", "Dial:VSL", "Booked", "Set %", "Taken", "Show-Up %"].map((h) => (
+                  {["Month", "Dials", "Links Sent", "Dial:Link %", "Booked", "Set %", "Taken", "Show-Up %"].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap"
                       style={{ color: "var(--muted-foreground)" }}>
                       {h}
@@ -627,18 +628,18 @@ function IndividualTab({
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
-                          <span style={{ color: "var(--foreground)" }}>{m.totalDials || "—"}</span>
+                          <span style={{ color: "var(--foreground)" }}>{m.totalDials ? m.totalDials.toLocaleString() : "—"}</span>
                           {p && m.totalDials > 0 && <MomBadge curr={m.totalDials} prev={p.totalDials} />}
                         </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
-                          <span style={{ color: "var(--foreground)" }}>{m.vslSent || "—"}</span>
-                          {p && m.vslSent > 0 && <MomBadge curr={m.vslSent} prev={p.vslSent} />}
+                          <span style={{ color: "var(--foreground)" }}>{m.linksSent || "—"}</span>
+                          {p && m.linksSent > 0 && <MomBadge curr={m.linksSent} prev={p.linksSent} />}
                         </div>
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap" style={{ color: "var(--muted-foreground)" }}>
-                        {m.dialVslRatio > 0 ? `${m.dialVslRatio}:1` : "—"}
+                        {m.dialLinkPct > 0 ? `${m.dialLinkPct}%` : "—"}
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
@@ -647,7 +648,7 @@ function IndividualTab({
                         </div>
                       </td>
                       <td className="px-4 py-3 font-semibold whitespace-nowrap"
-                        style={{ color: m.setPct > 0 ? pctColor(m.setPct, 3) : "var(--muted-foreground)" }}>
+                        style={{ color: m.setPct > 0 ? pctColor(m.setPct, 10) : "var(--muted-foreground)" }}>
                         {m.setPct > 0 ? `${m.setPct}%` : "—"}
                       </td>
                       <td className="px-4 py-3" style={{ color: "var(--foreground)" }}>
@@ -690,16 +691,19 @@ export default function DialerClient({ data }: { data: DialerDashboardData }) {
 
   return (
     <div>
-      {/* Source badge */}
+      {/* Source banner */}
       {data.source === "mock" && (
         <div
-          className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs"
+          className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs flex-wrap"
           style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)", color: "#f59e0b" }}
         >
-          <Zap size={13} />
+          <Zap size={13} className="flex-shrink-0" />
           <span>
-            Showing mock data. To connect live data, set <code className="font-mono bg-black/20 px-1 py-0.5 rounded">SETTER_DASHBOARD_SHEET_ID</code> and{" "}
-            <code className="font-mono bg-black/20 px-1 py-0.5 rounded">SHEETS_API_KEY</code> in your <code className="font-mono bg-black/20 px-1 py-0.5 rounded">.env.local</code>.
+            Showing mock data. Set{" "}
+            <code className="font-mono bg-black/20 px-1 py-0.5 rounded">SETTER_DASHBOARD_SHEET_ID</code>
+            {" "}+{" "}
+            <code className="font-mono bg-black/20 px-1 py-0.5 rounded">SHEETS_API_KEY</code>
+            {" "}in <code className="font-mono bg-black/20 px-1 py-0.5 rounded">.env.local</code> to connect live data.
           </span>
         </div>
       )}
@@ -743,8 +747,7 @@ export default function DialerClient({ data }: { data: DialerDashboardData }) {
         (() => {
           const dialer = data.dialers.find((d) => d.id === activeTab);
           if (!dialer) return null;
-          const metrics = data.dialerMetrics[dialer.id] ?? [];
-          return <IndividualTab dialer={dialer} metrics={metrics} />;
+          return <IndividualTab dialer={dialer} metrics={data.dialerMetrics[dialer.id] ?? []} />;
         })()
       )}
     </div>

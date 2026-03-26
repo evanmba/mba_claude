@@ -7,17 +7,20 @@ export interface DialerInfo {
   sheetName: string; // e.g. "Julio- MAR 2026"
 }
 
-/** Individual dialer monthly metrics — from "{Name} - MAR 2026" sheet C4:I4 */
+/**
+ * Individual dialer monthly metrics — from "{Name} - MAR 2026" sheet C4:I4
+ * C = totalDials, D = linksSent, E = dialLinkPct (links/dials as %),
+ * F = bookedCalls, G = setPct (booked/links as %), H = takenCalls, I = showUpRate
+ */
 export interface DialerMonthMetrics {
-  month: string; // e.g. "MAR 2026"
+  month: string;
   totalDials: number;
-  vslSent: number;
-  dialVslRatio: number; // computed
+  linksSent: number;
+  dialLinkPct: number;  // links / dials * 100  (e.g. 3.3 for 3.3%)
   bookedCalls: number;
-  setPct: number; // bookedCalls / totalDials * 100
+  setPct: number;       // booked / links * 100  (e.g. 13.3 for 13.3%)
   takenCalls: number;
-  showUpRate: number; // takenCalls / bookedCalls * 100
-  // legacy: for MoM on team sheet
+  showUpRate: number;   // taken / booked * 100
   deals: number;
   closePct: number;
 }
@@ -42,7 +45,9 @@ export interface GoalsData {
     weekNum: number;
     start: string;
     end: string;
-    setters: { name: string; id: string; booked: number; goal: number }[];
+    daysElapsed: number;   // work days so far this week
+    totalWorkdays: number; // total work days in the week
+    setters: { name: string; id: string; booked: number }[];
   };
 }
 
@@ -78,8 +83,8 @@ export const DIALERS: DialerInfo[] = [
 
 // ─── Goals Data (from GOALS sheet) ───────────────────────────────────────────
 // Image: Monthly 89/130 68%, Weekly 26/35 74%, Daily 4/5 80%
-// Week #13: 3/22/26 – 3/28/26
-// Daneile 4/4, Gabriana 3/4, Julio 3/4, Allieandra 0/4, Teagan 0/4
+// Week #13: 3/22/26 – 3/28/26 (work days Mon 3/23 – Fri 3/27, today = Thu 3/26 = day 4 of 5)
+// Daneile 4, Gabriana 3, Julio 3, Allieandra 0, Teagan 0
 
 export const GOALS_DATA: GoalsData = {
   monthly: { booked: 89, goal: 130 },
@@ -89,17 +94,20 @@ export const GOALS_DATA: GoalsData = {
     weekNum: 13,
     start: "3/22/26",
     end: "3/28/26",
+    daysElapsed: 4,
+    totalWorkdays: 5,
     setters: [
-      { name: "Daneile Brown",        id: "daneile-brown",        booked: 4, goal: 4 },
-      { name: "Gabriana Brown",       id: "gabriana-brown",       booked: 3, goal: 4 },
-      { name: "Julio Capellan",       id: "julio-capellan",       booked: 3, goal: 4 },
-      { name: "Allieandra Alexander", id: "allieandra-alexander",  booked: 0, goal: 4 },
-      { name: "Teagan Brown",         id: "teagan-brown",         booked: 0, goal: 4 },
+      { name: "Daneile Brown",        id: "daneile-brown",        booked: 4 },
+      { name: "Gabriana Brown",       id: "gabriana-brown",       booked: 3 },
+      { name: "Julio Capellan",       id: "julio-capellan",       booked: 3 },
+      { name: "Allieandra Alexander", id: "allieandra-alexander",  booked: 0 },
+      { name: "Teagan Brown",         id: "teagan-brown",         booked: 0 },
     ],
   },
 };
 
 // ─── Speed to Lead (Team — from GOALS sheet image) ───────────────────────────
+// Stored oldest→newest; display shows last 5 days (sliced in component)
 
 export const SPEED_TO_LEAD: SpeedToLeadData = {
   days: [
@@ -121,93 +129,99 @@ export const SPEED_TO_LEAD: SpeedToLeadData = {
 };
 
 // ─── Individual Dialer Metrics (mock — replace via Google Sheets API) ─────────
-// Headers from C3:I3 of each "{Name} - MAR 2026" sheet:
-// Total Manual Outbound Dials | # VSL Sent | Dial:VSL | # Qualified Set Booked Calls | Set % | Taken Set Calls | Show-Up Rate
+// Sheet columns C–I per dialer per month:
+// C = totalDials, D = linksSent, E = dialLinkPct (%), F = bookedCalls,
+// G = setPct (%), H = takenCalls, I = showUpRate (%)
+//
+// NOTE for Julio MAR 2026 (verified from sheet):
+//   C4 (dials) ≈ 2515, D4 = 83 links, E4 = 3.3%, F4 = 11 booked,
+//   G4 = 13.3% set%, H4 = 4 taken, I4 = 36.4% show-up
 
 export const DIALER_METRICS: Record<string, DialerMonthMetrics[]> = {
   "daneile-brown": [
     {
       month: "JAN 2026",
-      totalDials: 0,   vslSent: 0,  dialVslRatio: 0,  bookedCalls: 0,
-      setPct: 0,       takenCalls: 0, showUpRate: 0,   deals: 0, closePct: 0,
+      totalDials: 0,    linksSent: 0,  dialLinkPct: 0,  bookedCalls: 0,
+      setPct: 0,        takenCalls: 0, showUpRate: 0,   deals: 0, closePct: 0,
     },
     {
       month: "FEB 2026",
-      totalDials: 312, vslSent: 28, dialVslRatio: 11.1, bookedCalls: 8,
-      setPct: 2.6,     takenCalls: 1,  showUpRate: 12.5,  deals: 0, closePct: 0,
+      totalDials: 1050, linksSent: 28, dialLinkPct: 2.7, bookedCalls: 8,
+      setPct: 28.6,     takenCalls: 1, showUpRate: 12.5, deals: 0, closePct: 0,
     },
     {
       month: "MAR 2026",
-      totalDials: 487, vslSent: 52, dialVslRatio: 9.4, bookedCalls: 33,
-      setPct: 6.8,     takenCalls: 10, showUpRate: 30.3, deals: 0, closePct: 0,
+      totalDials: 1580, linksSent: 52, dialLinkPct: 3.3, bookedCalls: 33,
+      setPct: 63.5,     takenCalls: 10, showUpRate: 30.3, deals: 0, closePct: 0,
     },
   ],
   "gabriana-brown": [
     {
       month: "JAN 2026",
-      totalDials: 0,   vslSent: 0,  dialVslRatio: 0,  bookedCalls: 0,
-      setPct: 0,       takenCalls: 0, showUpRate: 0,   deals: 0, closePct: 0,
+      totalDials: 0,   linksSent: 0,  dialLinkPct: 0, bookedCalls: 0,
+      setPct: 0,       takenCalls: 0, showUpRate: 0,  deals: 0, closePct: 0,
     },
     {
       month: "FEB 2026",
-      totalDials: 0,   vslSent: 0,  dialVslRatio: 0,  bookedCalls: 0,
-      setPct: 0,       takenCalls: 0, showUpRate: 0,   deals: 0, closePct: 0,
+      totalDials: 0,   linksSent: 0,  dialLinkPct: 0, bookedCalls: 0,
+      setPct: 0,       takenCalls: 0, showUpRate: 0,  deals: 0, closePct: 0,
     },
     {
       month: "MAR 2026",
-      totalDials: 198, vslSent: 21, dialVslRatio: 9.4, bookedCalls: 3,
-      setPct: 1.5,     takenCalls: 2, showUpRate: 66.7, deals: 0, closePct: 0,
+      totalDials: 620, linksSent: 21, dialLinkPct: 3.4, bookedCalls: 3,
+      setPct: 14.3,    takenCalls: 2, showUpRate: 66.7, deals: 0, closePct: 0,
     },
   ],
   "julio-capellan": [
     {
       month: "JAN 2026",
-      totalDials: 0,   vslSent: 0,  dialVslRatio: 0,  bookedCalls: 1,
-      setPct: 0,       takenCalls: 0, showUpRate: 0,   deals: 0, closePct: 0,
+      totalDials: 0,    linksSent: 0,  dialLinkPct: 0, bookedCalls: 1,
+      setPct: 0,        takenCalls: 0, showUpRate: 0,  deals: 0, closePct: 0,
     },
     {
       month: "FEB 2026",
-      totalDials: 265, vslSent: 31, dialVslRatio: 8.5, bookedCalls: 7,
-      setPct: 2.6,     takenCalls: 0, showUpRate: 0,   deals: 0, closePct: 0,
+      totalDials: 890,  linksSent: 31, dialLinkPct: 3.5, bookedCalls: 7,
+      setPct: 22.6,     takenCalls: 0, showUpRate: 0,    deals: 0, closePct: 0,
     },
     {
       month: "MAR 2026",
-      totalDials: 341, vslSent: 38, dialVslRatio: 9.0, bookedCalls: 5,
-      setPct: 1.5,     takenCalls: 0, showUpRate: 0,   deals: 0, closePct: 0,
+      // Verified from sheet: C4 dials, D4=83 links, E4=3.3%, F4=11, G4=13.3%, H4=4, I4=36.4%
+      totalDials: 2515, linksSent: 83, dialLinkPct: 3.3, bookedCalls: 11,
+      setPct: 13.3,     takenCalls: 4, showUpRate: 36.4, deals: 0, closePct: 0,
     },
   ],
   "allieandra-alexander": [
     {
       month: "JAN 2026",
-      totalDials: 0,   vslSent: 0,  dialVslRatio: 0,  bookedCalls: 8,
-      setPct: 0,       takenCalls: 1, showUpRate: 12.5, deals: 0, closePct: 0,
+      totalDials: 0,    linksSent: 0,  dialLinkPct: 0, bookedCalls: 8,
+      setPct: 0,        takenCalls: 1, showUpRate: 12.5, deals: 0, closePct: 0,
     },
     {
       month: "FEB 2026",
-      totalDials: 0,   vslSent: 0,  dialVslRatio: 0,  bookedCalls: 6,
-      setPct: 0,       takenCalls: 3, showUpRate: 50.0, deals: 1, closePct: 33.3,
+      totalDials: 0,    linksSent: 0,  dialLinkPct: 0, bookedCalls: 6,
+      setPct: 0,        takenCalls: 3, showUpRate: 50.0, deals: 1, closePct: 33.3,
     },
     {
       month: "MAR 2026",
-      totalDials: 422, vslSent: 47, dialVslRatio: 9.0, bookedCalls: 13,
-      setPct: 3.1,     takenCalls: 5, showUpRate: 38.5, deals: 0, closePct: 0,
+      totalDials: 1380, linksSent: 47, dialLinkPct: 3.4, bookedCalls: 13,
+      setPct: 27.7,     takenCalls: 5, showUpRate: 38.5, deals: 0, closePct: 0,
     },
   ],
   "teagan-brown": [
     {
       month: "JAN 2026",
-      totalDials: 0,   vslSent: 0,  dialVslRatio: 0,  bookedCalls: 0,
-      setPct: 0,       takenCalls: 0, showUpRate: 0,   deals: 0, closePct: 0,
+      totalDials: 0,   linksSent: 0,  dialLinkPct: 0, bookedCalls: 0,
+      setPct: 0,       takenCalls: 0, showUpRate: 0,  deals: 0, closePct: 0,
     },
     {
       month: "FEB 2026",
-      totalDials: 178, vslSent: 18, dialVslRatio: 9.9, bookedCalls: 4,
-      setPct: 2.2,     takenCalls: 0, showUpRate: 0,   deals: 0, closePct: 0,
+      totalDials: 590, linksSent: 18, dialLinkPct: 3.1, bookedCalls: 4,
+      setPct: 22.2,    takenCalls: 0, showUpRate: 0,   deals: 0, closePct: 0,
     },
     {
       month: "MAR 2026",
-      totalDials: 0,   vslSent: 0,  dialVslRatio: 0,  bookedCalls: 0,
-      setPct: 0,       takenCalls: 0, showUpRate: 0,   deals: 0, closePct: 0,
+      totalDials: 0,   linksSent: 0,  dialLinkPct: 0, bookedCalls: 0,
+      setPct: 0,       takenCalls: 0, showUpRate: 0,  deals: 0, closePct: 0,
     },
   ],
 };
@@ -217,8 +231,8 @@ export const DIALER_METRICS: Record<string, DialerMonthMetrics[]> = {
 
 export const TEAM_MONTHLY: TeamMonthRow[] = [
   { month: "January",   date: "1/1/26",  booked: 29, taken: 6,  sitPct: 21, deals: 4, closePct: 67 },
-  { month: "February",  date: "2/1/26",  booked: 27, taken: 4,  sitPct: 15, deals: 1, closePct: 25 },
-  { month: "March",     date: "3/1/26",  booked: 54, taken: 20, sitPct: 37, deals: 0, closePct: 0  },
+  { month: "February",  date: "2/1/26",  booked: 12, taken: 7,  sitPct: 58, deals: 1, closePct: 14 },
+  { month: "March",     date: "3/1/26",  booked: 22, taken: 7,  sitPct: 32, deals: 2, closePct: 29 },
   { month: "April",     date: "4/1/26",  booked: 0,  taken: 0,  sitPct: 0,  deals: 0, closePct: 0  },
   { month: "May",       date: "5/1/26",  booked: 0,  taken: 0,  sitPct: 0,  deals: 0, closePct: 0  },
   { month: "June",      date: "6/1/26",  booked: 0,  taken: 0,  sitPct: 0,  deals: 0, closePct: 0  },
