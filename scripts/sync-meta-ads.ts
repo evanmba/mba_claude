@@ -6,22 +6,23 @@
  *
  * Sheet structure (tab named e.g. "MAR 2026"):
  *   Row 1   – Headers
- *   Row 2+  – One row per calendar day (Column A = day number, 1–31)
+ *   Row 2+  – One row per calendar day
  *
  * Columns written by this script:
- *   B  Amount Spent
- *   C  Frequency
- *   D  Reach
- *   E  Impressions
- *   F  CPM
- *   G  Unique Link Clicks
- *   H  Unique Link Click-Through Rate
- *   I  Cost Per Unique Link Click
+ *   B  Date (yesterday's date, e.g. 3/26/2026)
+ *   C  Amount Spent
+ *   D  Frequency
+ *   E  Reach
+ *   F  Impressions
+ *   G  CPM
+ *   H  Unique Link Clicks
+ *   I  Unique Link Click-Through Rate
+ *   J  Cost Per Unique Link Click
  *
  * Formula propagation:
- *   Before writing Meta data the script copies C:AD from the row immediately
- *   above the target row. This propagates relative-reference formulas (ratios,
- *   costs, ROAS, etc.) down to the new day automatically.
+ *   Before writing Meta data the script copies C:AD from the previous row.
+ *   This propagates relative-reference formulas (ratios, costs, ROAS, etc.)
+ *   down to the new day automatically.
  *
  * ──────────────────────────────────────────────────────────────────────────────
  * Required env vars:
@@ -32,15 +33,15 @@
  *   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY – Service account private key
  *
  * Optional:
- *   META_ADS_SHEET_TAB  – Override tab name (e.g. "MAR 2026"). If omitted,
- *                         computed automatically from yesterday's date.
+ *   META_ADS_SHEET_TAB           – Override tab name (e.g. "MAR 2026")
+ *   META_ADS_YESTERDAY_OVERRIDE  – Override date (YYYY-MM-DD) for backfills
  *
  * ──────────────────────────────────────────────────────────────────────────────
  * Running manually:
  *   npx tsx scripts/sync-meta-ads.ts
  *
- * Cron (see .github/workflows/sync-meta-ads.yml for the automated version):
- *   0 10 * * *  npx tsx /path/to/scripts/sync-meta-ads.ts >> /var/log/meta-ads.log 2>&1
+ * Cron (see .github/workflows/sync-meta-ads.yml):
+ *   0 10 * * *  npx tsx /path/to/scripts/sync-meta-ads.ts
  */
 
 // ─── Load .env.local for local development ───────────────────────────────────
@@ -72,18 +73,18 @@ const SPREADSHEET_ID = process.env.MASTER_TRACKER_SHEET_ID ?? "";
 const SA_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? "";
 const SA_KEY = (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY ?? "").replace(/\\n/g, "\n");
 
-// Column index constants (0-based)
-const COL_B = 1;   // Amount Spent (first Meta API column)
-const COL_C = 2;   // Frequency (start of copyPaste range)
-const COL_AD = 29; // Sales Call Recordings (end of copyPaste range, inclusive → endIndex = 30)
+// Column indices (0-based)
+const COL_B  = 1;  // Date written by this script
+const COL_C  = 2;  // Amount Spent — first Meta API column, also start of copyPaste range
+const COL_J  = 9;  // Cost Per Unique Link Click — last Meta API column
+const COL_AD = 29; // Sales Call Recordings — last column to copy formulas into (endIndex = 30)
 
 // ─── Google service-account JWT ──────────────────────────────────────────────
 
 async function getGoogleAccessToken(): Promise<string> {
   if (!SA_EMAIL || !SA_KEY) {
     throw new Error(
-      "Missing GOOGLE_SERVICE_ACCOUNT_EMAIL or GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY.\n" +
-      "See README for Google Cloud setup instructions."
+      "Missing GOOGLE_SERVICE_ACCOUNT_EMAIL or GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY."
     );
   }
 
@@ -120,7 +121,6 @@ async function getGoogleAccessToken(): Promise<string> {
 
 // ─── Sheets API helpers ───────────────────────────────────────────────────────
 
-/** GET /spreadsheets/{id} – returns metadata including per-sheet numeric IDs. */
 async function getSpreadsheetMeta(token: string): Promise<{
   sheets: Array<{ properties: { sheetId: number; title: string } }>;
 }> {
@@ -133,7 +133,7 @@ async function getSpreadsheetMeta(token: string): Promise<{
   return json;
 }
 
-/** Read a single column's values (returns 0-based array of cell strings). */
+/** Read a column's values as a flat string array (0-indexed, includes header). */
 async function readColumn(token: string, sheetName: string, col: string): Promise<string[]> {
   const range = encodeURIComponent(`'${sheetName}'!${col}:${col}`);
   const res = await fetch(
@@ -141,19 +141,19 @@ async function readColumn(token: string, sheetName: string, col: string): Promis
     { headers: { Authorization: `Bearer ${token}` } }
   );
   const json = await res.json();
-  if (!res.ok) throw new Error(`Sheets read error: ${JSON.stringify(json)}`);
+  if (!res.ok) throw new Error(`Sheets read error (col ${col}): ${JSON.stringify(json)}`);
   return ((json.values ?? []) as string[][]).map((row) => row[0] ?? "");
 }
 
 /**
- * Copy a row's C:AD range to the row immediately below using Sheets copyPaste.
- * PASTE_NORMAL propagates formulas (relative refs update) and copies values.
+ * Copy C:AD from sourceRowIndex → destRowIndex using Sheets copyPaste.
+ * PASTE_NORMAL copies both values and formulas; relative refs auto-update.
  */
 async function copyPasteRow(
   token: string,
   sheetId: number,
-  sourceRowIndex: number,   // 0-based
-  destRowIndex: number      // 0-based
+  sourceRowIndex: number, // 0-based
+  destRowIndex: number    // 0-based
 ): Promise<void> {
   const body = {
     requests: [
@@ -184,10 +184,7 @@ async function copyPasteRow(
     `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`,
     {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     }
   );
@@ -196,24 +193,21 @@ async function copyPasteRow(
 }
 
 /**
- * Write Meta API values to columns B:I in a specific row.
- * Uses USER_ENTERED so numbers remain numbers (not strings).
+ * Write the date + Meta API values to columns B:J in a specific row.
+ * Uses USER_ENTERED so numbers stay numeric and dates are recognised.
  */
-async function writeMetaValues(
+async function writeDateAndMetaValues(
   token: string,
   sheetName: string,
-  rowNumber: number, // 1-based sheet row
+  rowNumber: number, // 1-based
   values: (number | string)[]
 ): Promise<void> {
-  const range = encodeURIComponent(`'${sheetName}'!B${rowNumber}:I${rowNumber}`);
+  const range = encodeURIComponent(`'${sheetName}'!B${rowNumber}:J${rowNumber}`);
   const res = await fetch(
     `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?valueInputOption=USER_ENTERED`,
     {
       method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ values: [values] }),
     }
   );
@@ -224,97 +218,101 @@ async function writeMetaValues(
 // ─── Row finder ───────────────────────────────────────────────────────────────
 
 /**
- * Find the 1-based sheet row number whose column A value matches the day number.
- * Handles formats: "26", "26 ", "Mar 26", "3/26", etc.
- * Returns -1 if not found.
+ * Determine the target row (1-based) to write to.
+ *
+ * Strategy:
+ *   1. If column B already contains a cell matching the target date string,
+ *      reuse that row (idempotent re-runs).
+ *   2. Otherwise use the first completely empty row after the header
+ *      (i.e. last non-empty row in column B + 1).
  */
-function findDayRow(colA: string[], dayNum: number): number {
-  const dayStr = String(dayNum);
-  for (let i = 0; i < colA.length; i++) {
-    const cell = colA[i].trim();
-    // Exact match (just the number)
-    if (cell === dayStr) return i + 1; // convert to 1-based
-    // Cell starts with the day number followed by non-digit (e.g. "26 Mar", "26th")
-    if (/^\d+/.test(cell) && cell.match(/^\d+/)?.[0] === dayStr) return i + 1;
+function findTargetRow(colB: string[], dateStr: string): number {
+  // Check for existing entry matching this date
+  for (let i = 1; i < colB.length; i++) { // start at 1 to skip header
+    if (colB[i].trim() === dateStr) return i + 1; // 1-based
   }
-  return -1;
+  // Find last non-empty row and use the next one
+  let lastFilled = 1; // at minimum the header row
+  for (let i = 1; i < colB.length; i++) {
+    if (colB[i].trim() !== "") lastFilled = i + 1; // 1-based
+  }
+  return lastFilled + 1;
+}
+
+/** Format YYYY-MM-DD → M/D/YYYY for Google Sheets (e.g. 2026-03-26 → 3/26/2026). */
+function toSheetDate(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${parseInt(m)}/${parseInt(d)}/${y}`;
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  if (!SPREADSHEET_ID) {
-    throw new Error("MASTER_TRACKER_SHEET_ID is not set.");
-  }
+  if (!SPREADSHEET_ID) throw new Error("MASTER_TRACKER_SHEET_ID is not set.");
 
   const yesterday = process.env.META_ADS_YESTERDAY_OVERRIDE || getYesterdayDate();
-  const dayNum = parseInt(yesterday.split("-")[2], 10);
-  const sheetTab = process.env.META_ADS_SHEET_TAB || getSheetTabName(yesterday);
+  const sheetTab  = process.env.META_ADS_SHEET_TAB || getSheetTabName(yesterday);
+  const dateStr   = toSheetDate(yesterday); // e.g. "3/26/2026"
 
-  console.log(`[meta-ads-sync] Date: ${yesterday} | Sheet tab: "${sheetTab}" | Day: ${dayNum}`);
+  console.log(`[meta-ads-sync] Date: ${yesterday} (${dateStr}) | Sheet: "${sheetTab}"`);
 
   // 1. Authenticate
   console.log("[meta-ads-sync] Authenticating with Google…");
   const token = await getGoogleAccessToken();
 
-  // 2. Get sheet metadata (need numeric sheetId for copyPaste)
+  // 2. Get numeric sheetId (required for copyPaste batchUpdate)
   const meta = await getSpreadsheetMeta(token);
   const sheetMeta = meta.sheets.find((s) => s.properties.title === sheetTab);
   if (!sheetMeta) {
     throw new Error(
-      `Sheet tab "${sheetTab}" not found in spreadsheet. ` +
-      `Available tabs: ${meta.sheets.map((s) => `"${s.properties.title}"`).join(", ")}`
+      `Sheet tab "${sheetTab}" not found. ` +
+      `Available: ${meta.sheets.map((s) => `"${s.properties.title}"`).join(", ")}`
     );
   }
   const sheetId = sheetMeta.properties.sheetId;
-  console.log(`[meta-ads-sync] Found sheet "${sheetTab}" (id=${sheetId})`);
+  console.log(`[meta-ads-sync] Found sheet "${sheetTab}" (sheetId=${sheetId})`);
 
-  // 3. Find the target row (column A = day number)
-  const colA = await readColumn(token, sheetTab, "A");
-  const targetRow = findDayRow(colA, dayNum); // 1-based
-  if (targetRow < 0) {
-    throw new Error(
-      `Could not find a row for day ${dayNum} in column A of "${sheetTab}". ` +
-      `Column A values found: [${colA.slice(0, 5).join(", ")}…]`
-    );
-  }
-  console.log(`[meta-ads-sync] Target row: ${targetRow} (day ${dayNum})`);
+  // 3. Find target row by scanning column B
+  const colB = await readColumn(token, sheetTab, "B");
+  const targetRow = findTargetRow(colB, dateStr); // 1-based
+  console.log(`[meta-ads-sync] Target row: ${targetRow}`);
 
-  // 4. Copy previous row's C:AD → target row (formula propagation)
+  // 4. Copy C:AD from previous row → target row (propagates formulas)
   if (targetRow > 2) {
-    const sourceRow = targetRow - 1; // 1-based → 0-based: sourceRow-1
-    console.log(`[meta-ads-sync] Copying C:AD from row ${sourceRow} → row ${targetRow}…`);
-    await copyPasteRow(token, sheetId, sourceRow - 1, targetRow - 1);
+    const prevRow = targetRow - 1;
+    console.log(`[meta-ads-sync] Copying C:AD from row ${prevRow} → row ${targetRow}…`);
+    await copyPasteRow(token, sheetId, prevRow - 1, targetRow - 1); // convert to 0-based
     console.log("[meta-ads-sync] Formula propagation complete.");
   } else {
-    console.log("[meta-ads-sync] Row 2 (first data row) — skipping copyPaste.");
+    console.log("[meta-ads-sync] First data row — skipping copyPaste.");
   }
 
   // 5. Fetch Meta Ads insights
   console.log(`[meta-ads-sync] Fetching Meta Ads insights for ${yesterday}…`);
   const insights = await fetchMetaAdsInsights(yesterday);
   console.log(
-    `[meta-ads-sync] Fetched: spend=$${insights.spend} reach=${insights.reach} ` +
-    `impressions=${insights.impressions} unique_clicks=${insights.unique_link_clicks}`
+    `[meta-ads-sync] Fetched: spend=$${insights.spend} | reach=${insights.reach} | ` +
+    `impressions=${insights.impressions} | unique_clicks=${insights.unique_link_clicks}`
   );
 
-  // 6. Write B:I (Amount Spent → Cost Per Unique Link Click)
-  const metaValues: (number | string)[] = [
-    insights.spend,                    // B – Amount Spent
-    insights.frequency,                // C – Frequency
-    insights.reach,                    // D – Reach
-    insights.impressions,              // E – Impressions
-    insights.cpm,                      // F – CPM
-    insights.unique_link_clicks,       // G – Unique Link Clicks
-    insights.unique_link_clicks_ctr,   // H – Unique Link CTR (%)
-    insights.cost_per_unique_link_click, // I – Cost Per Unique Link Click
+  // 6. Write B:J  (date + 8 Meta API metrics)
+  const row: (string | number)[] = [
+    dateStr,                               // B – Date
+    insights.spend,                        // C – Amount Spent
+    insights.frequency,                    // D – Frequency
+    insights.reach,                        // E – Reach
+    insights.impressions,                  // F – Impressions
+    insights.cpm,                          // G – CPM
+    insights.unique_link_clicks,           // H – Unique Link Clicks
+    insights.unique_link_clicks_ctr,       // I – Unique Link CTR (%)
+    insights.cost_per_unique_link_click,   // J – Cost Per Unique Link Click
   ];
 
-  console.log(`[meta-ads-sync] Writing to '${sheetTab}'!B${targetRow}:I${targetRow}…`);
-  await writeMetaValues(token, sheetTab, targetRow, metaValues);
+  console.log(`[meta-ads-sync] Writing to '${sheetTab}'!B${targetRow}:J${targetRow}…`);
+  await writeDateAndMetaValues(token, sheetTab, targetRow, row);
 
-  console.log(`[meta-ads-sync] ✓ Done. Row ${targetRow} updated for ${yesterday}.`);
-  console.log(`[meta-ads-sync] Values written:`, metaValues);
+  console.log(`[meta-ads-sync] ✓ Done. Row ${targetRow} written for ${yesterday}.`);
+  console.log("[meta-ads-sync] Values:", row);
 }
 
 main().catch((err) => {
