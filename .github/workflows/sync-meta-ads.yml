@@ -1,0 +1,53 @@
+name: Sync Meta Ads → Master Tracker
+
+on:
+  # 6 AM Eastern time daily.
+  # EDT (Mar–Nov) = UTC-4  →  10:00 UTC
+  # EST (Nov–Mar) = UTC-5  →  11:00 UTC
+  # Running at 10:00 UTC covers the majority of the year (EDT).
+  # Adjust to 11:00 during winter months if needed.
+  schedule:
+    - cron: "0 10 * * *"
+
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Override date (YYYY-MM-DD). Defaults to yesterday."
+        required: false
+        default: ""
+      sheet_tab:
+        description: "Override sheet tab name (e.g. APR 2026). Auto-computed if blank."
+        required: false
+        default: ""
+
+jobs:
+  sync:
+    name: Fetch Meta Ads & Write to Sheets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run sync script
+        env:
+          META_ADS_ACCESS_TOKEN: ${{ secrets.META_ADS_ACCESS_TOKEN }}
+          META_ADS_ACCOUNT_ID: ${{ secrets.META_ADS_ACCOUNT_ID }}
+          MASTER_TRACKER_SHEET_ID: ${{ secrets.MASTER_TRACKER_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+          # Optional overrides from manual trigger
+          META_ADS_YESTERDAY_OVERRIDE: ${{ github.event.inputs.date }}
+          META_ADS_SHEET_TAB: ${{ github.event.inputs.sheet_tab }}
+        run: npx tsx scripts/sync-meta-ads.ts
