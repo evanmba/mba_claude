@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  TrendingUp, DollarSign, RefreshCw, BarChart3, Users, Percent, AlertCircle,
+  TrendingUp, DollarSign, RefreshCw, BarChart3, Percent, AlertCircle,
 } from "lucide-react";
 import { refreshSalesData } from "./actions";
 import type { SalesDashboardPayload, CloserData } from "@/lib/sales-fetch";
@@ -44,23 +44,13 @@ function MoMBadge({ delta }: { delta: number | null }) {
   );
 }
 
-// ─── Aggregation ──────────────────────────────────────────────────────────────
+// ─── Aggregation (YTD) ────────────────────────────────────────────────────────
 
-function emptyCloser(name = ""): CloserData {
-  return {
-    name, frontEndRevenue: 0, backEndRevenue: 0, totalRevenue: 0,
-    newCash: 0, backEndCash: 0, totalCash: 0,
-    showRate: 0, offerPct: 0, closePct: 0,
-    cashPerCall: 0, revenuePerCall: 0, takenToFUPct: 0, fuShowRate: 0, fuCloseRate: 0,
-    totalBooked: 0, totalCancels: 0, totalTaken: 0, totalOffers: 0,
-    totalFUBooked: 0, totalFUTaken: 0, totalFUCloses: 0, totalCloses: 0,
-  };
-}
+type Period = "monthly" | "ytd";
 
-function aggregateClosers(closers: (CloserData | null)[], name = ""): CloserData {
-  const valid = closers.filter((c): c is CloserData => c !== null);
-  if (!valid.length) return emptyCloser(name);
-  const s = valid.reduce((acc, c) => ({
+function aggregateMonths(months: CloserData[], name: string): CloserData {
+  if (!months.length) return { name, frontEndRevenue: 0, backEndRevenue: 0, totalRevenue: 0, newCash: 0, backEndCash: 0, totalCash: 0, showRate: 0, offerPct: 0, closePct: 0, cashPerCall: 0, revenuePerCall: 0, takenToFUPct: 0, fuShowRate: 0, fuCloseRate: 0, totalBooked: 0, totalCancels: 0, totalTaken: 0, totalOffers: 0, totalFUBooked: 0, totalFUTaken: 0, totalFUCloses: 0, totalCloses: 0 };
+  const s = months.reduce((acc, c) => ({
     ...acc,
     frontEndRevenue: acc.frontEndRevenue + c.frontEndRevenue,
     backEndRevenue:  acc.backEndRevenue  + c.backEndRevenue,
@@ -76,14 +66,14 @@ function aggregateClosers(closers: (CloserData | null)[], name = ""): CloserData
     totalFUTaken:    acc.totalFUTaken    + c.totalFUTaken,
     totalFUCloses:   acc.totalFUCloses   + c.totalFUCloses,
     totalCloses:     acc.totalCloses     + c.totalCloses,
-  }), emptyCloser(name || valid[0].name));
+  }), months[0]);
   const b = s.totalBooked, k = s.totalTaken, o = s.totalOffers;
   const fu = s.totalFUBooked, fut = s.totalFUTaken;
   return {
-    ...s,
-    showRate:       b  > 0 ? (k  / b)  * 100 : 0,
-    offerPct:       k  > 0 ? (o  / k)  * 100 : 0,
-    closePct:       o  > 0 ? (s.totalCloses / o)  * 100 : 0,
+    ...s, name,
+    showRate:       b  > 0 ? (k / b)  * 100 : 0,
+    offerPct:       k  > 0 ? (o / k)  * 100 : 0,
+    closePct:       o  > 0 ? (s.totalCloses / o) * 100 : 0,
     cashPerCall:    k  > 0 ? s.totalCash    / k : 0,
     revenuePerCall: k  > 0 ? s.totalRevenue / k : 0,
     takenToFUPct:   k  > 0 ? (fu  / k)  * 100 : 0,
@@ -92,26 +82,12 @@ function aggregateClosers(closers: (CloserData | null)[], name = ""): CloserData
   };
 }
 
-type CloserKey = "team" | "c1" | "c2";
-type Period = "monthly" | "ytd";
-
-function getDisplayData(
-  data: SalesDashboardPayload, period: Period, activeMonth: string, closer: CloserKey
-): CloserData | null {
-  if (period === "ytd") {
-    const all = data.monthlyData;
-    if (closer === "c1") return aggregateClosers(all.map(m => m.closer1), data.closer1Name);
-    if (closer === "c2") return aggregateClosers(all.map(m => m.closer2));
-    return aggregateClosers(all.flatMap(m => [m.closer1, m.closer2]), "All Team");
-  }
-  const m = data.monthlyData.find(x => x.month === activeMonth);
-  if (!m) return null;
-  if (closer === "c1") return m.closer1;
-  if (closer === "c2") return m.closer2;
-  return aggregateClosers([m.closer1, m.closer2], "All Team");
+function getDisplayData(data: SalesDashboardPayload, period: Period, activeMonth: string): CloserData | null {
+  if (period === "ytd") return aggregateMonths(data.monthlyData.map(m => m.closer1), data.closer1Name);
+  return data.monthlyData.find(m => m.month === activeMonth)?.closer1 ?? null;
 }
 
-// Rich MoM row computed from monthlyData (not the 2026 sheet) so closer filter works
+// MoM row computed from monthlyData
 interface MoMRow {
   month: string;
   booked: number; taken: number; showPct: number;
@@ -120,11 +96,9 @@ interface MoMRow {
   takenToFU: number; fuShow: number; fuClose: number;
 }
 
-function computeMoMRows(data: SalesDashboardPayload, closer: CloserKey): MoMRow[] {
+function computeMoMRows(data: SalesDashboardPayload): MoMRow[] {
   return data.monthlyData.map(m => {
-    const d = closer === "c1" ? m.closer1 :
-              closer === "c2" ? m.closer2 :
-              aggregateClosers([m.closer1, m.closer2]);
+    const d = m.closer1;
     if (!d) return null;
     return {
       month:      m.month.split(" ")[0],
@@ -451,28 +425,16 @@ function Pills<T extends string>({
 
 export default function SalesClient({ data }: { data: SalesDashboardPayload }) {
   const lastMonth = data.monthlyData[data.monthlyData.length - 1]?.month ?? "";
-  const [period,       setPeriod]       = useState<Period>("monthly");
-  const [activeMonth,  setActiveMonth]  = useState(data.currentMonth?.month ?? lastMonth);
-  const [activeCloser, setActiveCloser] = useState<CloserKey>("c1");
-  const [isPending,    startTransition] = useTransition();
+  const [period,      setPeriod]      = useState<Period>("monthly");
+  const [activeMonth, setActiveMonth] = useState(data.currentMonth?.month ?? lastMonth);
+  const [isPending,   startTransition] = useTransition();
   const router = useRouter();
 
-  const hasCloser2  = data.monthlyData.some(m => m.closer2 !== null);
-  const closer2Name = data.monthlyData.find(m => m.closer2)?.closer2?.name ?? "Closer 2";
+  const periodLabel  = period === "ytd" ? "Year to Date" : activeMonth;
+  const contextLabel = `${data.closer1Name} · ${periodLabel}`;
 
-  const closerOptions: { id: CloserKey; label: string }[] = [
-    { id: "team", label: "All Team" },
-    { id: "c1",   label: data.closer1Name.split(" ")[0] },
-    ...(hasCloser2 ? [{ id: "c2" as CloserKey, label: closer2Name.split(" ")[0] }] : []),
-  ];
-
-  const periodLabel = period === "ytd" ? "Year to Date" : activeMonth;
-  const closerLabel = activeCloser === "team" ? "All Team" :
-                      activeCloser === "c1"   ? data.closer1Name : closer2Name;
-  const contextLabel = `${closerLabel} · ${periodLabel}`;
-
-  const d = getDisplayData(data, period, activeMonth, activeCloser);
-  const momRows = computeMoMRows(data, activeCloser);
+  const d       = getDisplayData(data, period, activeMonth);
+  const momRows = computeMoMRows(data);
   const ytdRow  = computeYTDRow(momRows);
 
   const ACCENT = "#10b981";
@@ -525,11 +487,6 @@ export default function SalesClient({ data }: { data: SalesDashboardPayload }) {
           />
         )}
 
-        {/* Closer selector */}
-        <Pills<CloserKey>
-          options={closerOptions} value={activeCloser} onChange={setActiveCloser} accent="#a855f7"
-        />
-
         {/* Spacer */}
         <div className="flex-1" />
 
@@ -571,36 +528,6 @@ export default function SalesClient({ data }: { data: SalesDashboardPayload }) {
           {/* Rate Metrics */}
           <RateMetricsCard d={d} label={contextLabel} />
 
-          {/* Closer #2 summary (if team view and c2 has data) */}
-          {activeCloser === "team" && hasCloser2 && (() => {
-            const c2d = getDisplayData(data, period, activeMonth, "c2");
-            if (!c2d || c2d.totalBooked === 0) return null;
-            return (
-              <div className="rounded-xl border" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-                <div className="flex items-center gap-2 px-5 py-3 border-b" style={{ borderColor: "var(--border)", background: "rgba(168,85,247,0.05)" }}>
-                  <Users size={15} style={{ color: "#a855f7" }} />
-                  <h2 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{c2d.name} · Closer #2</h2>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-px" style={{ background: "var(--border)" }}>
-                  {[
-                    { label: "Booked",    value: String(c2d.totalBooked) },
-                    { label: "Taken",     value: String(c2d.totalTaken) },
-                    { label: "Offers",    value: String(c2d.totalOffers) },
-                    { label: "Closes",    value: String(c2d.totalCloses) },
-                    { label: "Show %",    value: fmtPct(c2d.showRate) },
-                    { label: "Close %",   value: fmtPct(c2d.closePct) },
-                    { label: "Cash/Call", value: fmtDollar(c2d.cashPerCall) },
-                    { label: "Total Cash", value: fmtDollar(c2d.totalCash, true) },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="p-3 text-center" style={{ background: "var(--card)" }}>
-                      <p className="text-base font-bold" style={{ color: "var(--foreground)" }}>{value}</p>
-                      <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{label}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
         </>
       )}
 

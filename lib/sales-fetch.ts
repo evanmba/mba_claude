@@ -71,7 +71,6 @@ export interface CloserData {
 export interface MonthSalesData {
   month: string;      // e.g. "MAR 2026"
   closer1: CloserData;
-  closer2: CloserData | null;
 }
 
 export interface YearRow {
@@ -140,9 +139,9 @@ const MOCK_MAR: CloserData = {
 };
 
 const MOCK_MONTHLY_DATA: MonthSalesData[] = [
-  { month: "JAN 2026", closer1: MOCK_JAN, closer2: null },
-  { month: "FEB 2026", closer1: MOCK_FEB, closer2: null },
-  { month: "MAR 2026", closer1: MOCK_MAR, closer2: null },
+  { month: "JAN 2026", closer1: MOCK_JAN },
+  { month: "FEB 2026", closer1: MOCK_FEB },
+  { month: "MAR 2026", closer1: MOCK_MAR },
 ];
 
 const MOCK_YEAR: YearRow[] = [
@@ -238,15 +237,8 @@ async function fetchMonthData(
   if (!rows.length) return null;
 
   const c1 = parseCloser(rows, 1, 4, "Closer 1");
-  // Only include if there's some actual data
   if (c1.totalBooked === 0 && c1.totalRevenue === 0 && c1.totalCash === 0) return null;
-
-  // Closer 2: value col H=7, count col K=10
-  const c2Raw = parseCloser(rows, 7, 10, "");
-  const c2 = (c2Raw.name && c2Raw.name !== "Closer 1" && (c2Raw.totalBooked > 0 || c2Raw.totalRevenue > 0))
-    ? c2Raw : null;
-
-  return { month, closer1: c1, closer2: c2 };
+  return { month, closer1: c1 };
 }
 
 // ─── Parse year overview sheet ────────────────────────────────────────────────
