@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowUp, ArrowDown, ArrowUpDown, CheckCircle2, AlertCircle } from "lucide-react";
 import type { SourceRow, AttributionData } from "@/lib/attribution";
+import type { MetaLevel } from "@/lib/meta";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 const $$ = (n: number) => n === 0 ? "—" : `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
@@ -19,12 +21,18 @@ interface ColDef {
   fmt: (v: number) => string;
   hib: boolean;          // higher is better
   requiresSpend?: boolean;
-  group: "source" | "volume" | "cost" | "results" | "roas";
+  requiresMeta?: boolean;
+  group: "source" | "meta" | "volume" | "cost" | "results" | "roas";
 }
 
 const COLS: ColDef[] = [
+  // Meta delivery (only when Meta connected)
+  { key: "impressions",   label: "Impressions",    fmt: num,   hib: true,  requiresMeta: true, group: "meta" },
+  { key: "clicks",        label: "Clicks",         fmt: num,   hib: true,  requiresMeta: true, group: "meta" },
+  { key: "ctr",           label: "CTR",            fmt: pct,   hib: true,  requiresMeta: true, group: "meta" },
+  { key: "cpm",           label: "CPM",            fmt: $$,    hib: false, requiresMeta: true, group: "meta" },
   // Volume
-  { key: "leads",         label: "Leads",         fmt: num,   hib: true,  group: "volume" },
+  { key: "leads",         label: "Leads",          fmt: num,   hib: true,  group: "volume" },
   { key: "bookedCalls",   label: "Booked",         fmt: num,   hib: true,  group: "volume" },
   { key: "takenCalls",    label: "Taken",          fmt: num,   hib: true,  group: "volume" },
   { key: "showUpRate",    label: "Show %",         fmt: pct,   hib: true,  group: "volume" },
@@ -44,17 +52,35 @@ const COLS: ColDef[] = [
   { key: "revenueRoas",   label: "Rev ROAS",       fmt: ratio, hib: true,  requiresSpend: true, group: "roas" },
 ];
 
-const GROUP_LABEL: Record<string, string> = { volume: "Volume", cost: "Cost", results: "Results", roas: "ROAS" };
+const GROUP_LABEL: Record<string, string> = { meta: "Meta Delivery", volume: "Volume", cost: "Cost", results: "Results", roas: "ROAS" };
 const GROUP_COLOR: Record<string, string> = {
+  meta:    "#3b82f6",
   volume:  "#8b5cf6",
   cost:    "#3b82f6",
   results: "#22c55e",
   roas:    "#f59e0b",
 };
 
+const LEVELS: { value: MetaLevel; label: string }[] = [
+  { value: "campaign", label: "Campaign" },
+  { value: "adset",    label: "Ad Set" },
+  { value: "ad",       label: "Ad" },
+];
+
+const DATE_PRESETS = [
+  { value: "today",          label: "Today" },
+  { value: "yesterday",      label: "Yesterday" },
+  { value: "this_week_mon_today", label: "This Week" },
+  { value: "last_week_mon_sun",   label: "Last Week" },
+  { value: "this_month",     label: "This Month" },
+  { value: "last_month",     label: "Last Month" },
+  { value: "this_quarter",   label: "This Quarter" },
+  { value: "last_quarter",   label: "Last Quarter" },
+];
+
 // ─── Totals ───────────────────────────────────────────────────────────────────
 function calcTotals(rows: SourceRow[]): SourceRow {
-  const s = (k: keyof SourceRow) => rows.reduce((a, r) => a + (r[k] as number), 0);
+  const s = (k: keyof SourceRow) => rows.reduce((a, r) => a + ((r[k] as number) || 0), 0);
   const spend   = s("spend");
   const leads   = s("leads");
   const booked  = s("bookedCalls");
@@ -79,6 +105,10 @@ function calcTotals(rows: SourceRow[]): SourceRow {
     cpa:           spend > 0 && deals  > 0 ? spend / deals  : 0,
     cashRoas:      spend > 0 ? cash    / spend : 0,
     revenueRoas:   spend > 0 ? revenue / spend : 0,
+    impressions:   s("impressions"),
+    clicks:        s("clicks"),
+    cpm:           0, // not meaningful for totals
+    ctr:           s("impressions") > 0 ? (s("clicks") / s("impressions")) * 100 : 0,
   };
 }
 
@@ -91,37 +121,43 @@ function cellColor(val: number, avg: number, hib: boolean) {
   return "var(--foreground)";
 }
 
-// ─── Spend setup card ─────────────────────────────────────────────────────────
-function SpendSetupBanner() {
-  return (
-    <div className="rounded-xl px-4 py-3 flex items-start gap-3" style={{ background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.2)" }}>
-      <span style={{ color: "#3b82f6", fontSize: 16, lineHeight: 1.5 }}>ℹ</span>
-      <div className="text-xs" style={{ color: "#94a3b8" }}>
-        <span style={{ color: "#e2e8f0", fontWeight: 600 }}>Spend data not connected.</span>
-        {" "}Add a tab named <code className="px-1 py-0.5 rounded font-mono text-[11px]" style={{ background: "#1e293b", color: "#a78bfa" }}>AD SPEND</code> to your sheet with two columns: <code className="font-mono text-[11px]" style={{ color: "#a78bfa" }}>Source | Spend</code>.
-        Each row = one source and its total spend. Cost and ROAS columns will auto-populate.
-      </div>
-    </div>
-  );
-}
-
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export function AdSetsView({ data }: { data: AttributionData }) {
-  const [sortKey, setSortKey] = useState<SortKey>("bookedCalls");
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [sortKey, setSortKey] = useState<SortKey>("spend");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  function setLevel(l: MetaLevel) {
+    startTransition(() => {
+      router.push(`/ads?level=${l}&datePreset=${data.datePreset}`);
+    });
+  }
+
+  function setDatePreset(dp: string) {
+    startTransition(() => {
+      router.push(`/ads?level=${data.level}&datePreset=${dp}`);
+    });
+  }
 
   if (data.rows.length === 0) {
     return (
       <div className="rounded-2xl p-8 text-center" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
-        <p className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>No call data found</p>
+        <p className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>No data found</p>
         <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-          Make sure the <code className="font-mono px-1 py-0.5 rounded" style={{ background: "var(--secondary)", color: "#a78bfa" }}>CALLS</code> tab exists in your Google Sheet and the API key is set.
+          {data.error
+            ? `Error: ${data.error}`
+            : <>Make sure the <code className="font-mono px-1 py-0.5 rounded" style={{ background: "var(--secondary)", color: "#a78bfa" }}>CALLS</code> tab exists in your Google Sheet and the API key is set.</>}
         </p>
       </div>
     );
   }
 
-  const activeCols = COLS.filter((c) => !c.requiresSpend || data.hasSpend);
+  const activeCols = COLS.filter((c) => {
+    if (c.requiresMeta && !data.metaConnected) return false;
+    if (c.requiresSpend && !data.hasSpend) return false;
+    return true;
+  });
   const total = calcTotals(data.rows);
 
   // Averages per column for color coding
@@ -132,7 +168,7 @@ export function AdSetsView({ data }: { data: AttributionData }) {
   }
 
   const sorted = [...data.rows].sort((a, b) => {
-    const av = a[sortKey] as number, bv = b[sortKey] as number;
+    const av = (a[sortKey] as number) || 0, bv = (b[sortKey] as number) || 0;
     return sortDir === "desc" ? bv - av : av - bv;
   });
 
@@ -141,7 +177,7 @@ export function AdSetsView({ data }: { data: AttributionData }) {
     else { setSortKey(k); setSortDir("desc"); }
   }
 
-  // Summary strip — always show key totals
+  // Summary strip
   const summaryCards = [
     { label: "Total Booked", value: num(total.bookedCalls), color: "#8b5cf6" },
     { label: "Taken Calls",  value: num(total.takenCalls),  color: "#f59e0b" },
@@ -153,12 +189,47 @@ export function AdSetsView({ data }: { data: AttributionData }) {
     ] : []),
   ];
 
-  // Group headers: which cols belong to each group
-  const groups = ["volume", "cost", "results", "roas"] as const;
+  const groups = ["meta", "volume", "cost", "results", "roas"] as const;
 
   return (
-    <div className="space-y-4">
-      {!data.hasSpend && <SpendSetupBanner />}
+    <div className="space-y-4" style={{ opacity: isPending ? 0.6 : 1, transition: "opacity 0.15s" }}>
+
+      {/* Controls bar */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Meta connection badge */}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+          style={{ background: data.metaConnected ? "rgba(34,197,94,0.1)" : "rgba(100,116,139,0.1)", border: `1px solid ${data.metaConnected ? "rgba(34,197,94,0.3)" : "rgba(100,116,139,0.2)"}` }}>
+          {data.metaConnected
+            ? <><CheckCircle2 size={12} style={{ color: "#22c55e" }} /><span style={{ color: "#22c55e" }}>Meta Connected</span></>
+            : <><AlertCircle size={12} style={{ color: "#64748b" }} /><span style={{ color: "#64748b" }}>Meta Not Connected</span></>}
+        </div>
+
+        {/* Level selector */}
+        <div className="flex rounded-lg overflow-hidden" style={{ border: "1px solid var(--border)" }}>
+          {LEVELS.map((l) => (
+            <button key={l.value}
+              onClick={() => setLevel(l.value)}
+              className="px-3 py-1.5 text-xs font-medium transition-colors"
+              style={{
+                background: data.level === l.value ? "#3b82f6" : "var(--card)",
+                color: data.level === l.value ? "#fff" : "var(--muted-foreground)",
+              }}>
+              {l.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Date preset selector */}
+        <select
+          value={data.datePreset}
+          onChange={(e) => setDatePreset(e.target.value)}
+          className="text-xs rounded-lg px-3 py-1.5"
+          style={{ background: "var(--card)", color: "var(--foreground)", border: "1px solid var(--border)", outline: "none" }}>
+          {DATE_PRESETS.map((d) => (
+            <option key={d.value} value={d.value}>{d.label}</option>
+          ))}
+        </select>
+      </div>
 
       {/* Summary strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -177,7 +248,7 @@ export function AdSetsView({ data }: { data: AttributionData }) {
             <thead>
               {/* Group row */}
               <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                <th className="sticky left-0 z-10 px-4 py-2" style={{ background: "var(--card)", minWidth: 170 }} />
+                <th className="sticky left-0 z-10 px-4 py-2" style={{ background: "var(--card)", minWidth: 180 }} />
                 {groups.map((g) => {
                   const cols = activeCols.filter((c) => c.group === g);
                   if (!cols.length) return null;
@@ -193,8 +264,8 @@ export function AdSetsView({ data }: { data: AttributionData }) {
               {/* Column row */}
               <tr style={{ background: "rgba(255,255,255,0.02)", borderBottom: "1px solid var(--border)" }}>
                 <th className="sticky left-0 z-10 px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider"
-                  style={{ background: "var(--card)", color: "var(--muted-foreground)", minWidth: 170 }}>
-                  Source
+                  style={{ background: "var(--card)", color: "var(--muted-foreground)", minWidth: 180 }}>
+                  {data.level === "campaign" ? "Campaign" : data.level === "ad" ? "Ad" : "Ad Set"}
                 </th>
                 {activeCols.map((col, ci) => {
                   const prevGroup = ci > 0 ? activeCols[ci - 1].group : null;
@@ -221,13 +292,18 @@ export function AdSetsView({ data }: { data: AttributionData }) {
               {sorted.map((row, ri) => (
                 <tr key={row.source}
                   style={{ borderTop: "1px solid var(--border)", background: ri % 2 === 0 ? "transparent" : "rgba(255,255,255,0.01)" }}>
-                  <td className="sticky left-0 z-10 px-4 py-3 font-medium text-sm truncate max-w-[170px]"
-                    style={{ background: ri % 2 === 0 ? "var(--card)" : "#0d1a2d", color: "var(--foreground)" }}
-                    title={row.source}>
-                    {row.source}
+                  <td className="sticky left-0 z-10 px-4 py-3 font-medium text-sm"
+                    style={{ background: ri % 2 === 0 ? "var(--card)" : "#0d1a2d", color: "var(--foreground)", maxWidth: 220 }}>
+                    <div className="flex items-center gap-2">
+                      {row.metaStatus && (
+                        <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full"
+                          style={{ background: row.metaStatus === "ACTIVE" ? "#22c55e" : row.metaStatus === "PAUSED" ? "#f59e0b" : "#64748b" }} />
+                      )}
+                      <span className="truncate" title={row.source}>{row.source}</span>
+                    </div>
                   </td>
                   {activeCols.map((col, ci) => {
-                    const val = row[col.key] as number;
+                    const val = (row[col.key] as number) || 0;
                     const prevGroup = ci > 0 ? activeCols[ci - 1].group : null;
                     return (
                       <td key={col.key}
@@ -256,7 +332,7 @@ export function AdSetsView({ data }: { data: AttributionData }) {
                         color: "#e2e8f0",
                         borderLeft: prevGroup !== col.group ? "1px solid var(--border)" : undefined,
                       }}>
-                      {col.fmt(total[col.key] as number)}
+                      {col.fmt((total[col.key] as number) || 0)}
                     </td>
                   );
                 })}
@@ -267,7 +343,13 @@ export function AdSetsView({ data }: { data: AttributionData }) {
         <div className="px-4 py-2 flex items-center gap-3 text-xs" style={{ color: "var(--muted-foreground)", borderTop: "1px solid var(--border)" }}>
           <span><span style={{ color: "#4ade80" }}>■</span> above avg</span>
           <span><span style={{ color: "#f87171" }}>■</span> below avg</span>
-          <span className="ml-auto">{data.rows.length} sources · updated {data.lastUpdated}</span>
+          {data.metaConnected && (
+            <span className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: "#22c55e" }} /> active
+              <span className="w-1.5 h-1.5 rounded-full inline-block ml-1" style={{ background: "#f59e0b" }} /> paused
+            </span>
+          )}
+          <span className="ml-auto">{data.rows.length} rows · updated {data.lastUpdated}</span>
         </div>
       </div>
     </div>
