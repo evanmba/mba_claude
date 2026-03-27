@@ -235,7 +235,7 @@ async function makeProxyFetch(url: string, opts: RequestInit = {}): Promise<Resp
   return fetch(url, opts);
 }
 
-async function fetchSheetValues(
+export async function fetchSheetValues(
   spreadsheetId: string,
   sheetName: string,
   apiKey: string,
