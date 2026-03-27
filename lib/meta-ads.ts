@@ -25,45 +25,41 @@ export function isMetaAdsConnected(): boolean {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** The metrics we care about, mapped 1-to-1 with the API field names. */
+/**
+ * All metrics fetched from the Meta Marketing API for a single day.
+ * Columns map 1-to-1 with the "MAR 2026" sheet (B through I).
+ */
 export interface MetaAdsInsights {
-  date_start: string;           // YYYY-MM-DD (the "yesterday" date)
-  date_stop: string;            // same as date_start for single-day pulls
-  spend: number;                // Amount Spent ($)
-  purchases: number;            // Purchases (actions: offsite_conversion.fb_pixel_purchase)
-  cost_per_purchase: number;    // Cost Per Purchase
-  link_clicks: number;          // Link Clicks (actions: link_click)
-  impressions: number;          // Impressions
-  reach: number;                // Reach
-  frequency: number;            // Frequency
-  cpm: number;                  // CPM (cost per 1000 impressions)
-  ctr: number;                  // CTR (All) – clicks / impressions × 100
-  unique_link_clicks: number;   // Unique Link Clicks
-  cpc: number;                  // CPC (All) – spend / all clicks
-  roas: number;                 // ROAS (purchase_roas)
-  revenue: number;              // Revenue (conversion value of purchases)
-  cost_per_acquisition: number; // Cost Per Acquisition (cost_per_action_type: offsite_conversion.fb_pixel_purchase)
+  date_start: string;              // YYYY-MM-DD
+  date_stop: string;
+  spend: number;                   // B – Amount Spent
+  frequency: number;               // C – Frequency
+  reach: number;                   // D – Reach
+  impressions: number;             // E – Impressions
+  cpm: number;                     // F – CPM
+  unique_link_clicks: number;      // G – Unique Link Clicks
+  unique_link_clicks_ctr: number;  // H – Unique Link Click-Through Rate (%)
+  cost_per_unique_link_click: number; // I – Cost Per Unique Link Click
+
+  // Additional metrics (used in dashboard / other derived columns)
+  link_clicks: number;
+  ctr: number;
+  cpc: number;
+  purchases: number;
+  cost_per_purchase: number;
+  roas: number;
+  revenue: number;
+  cost_per_acquisition: number;
 }
 
-/** Raw action object returned inside Meta's insights response. */
+// ─── Internal raw API types ───────────────────────────────────────────────────
+
 interface MetaAction {
   action_type: string;
   value: string;
 }
 
-/** Raw cost-per-action object returned inside Meta's insights response. */
-interface MetaCostPerAction {
-  action_type: string;
-  value: string;
-}
-
-/** Raw purchase_roas object returned inside Meta's insights response. */
-interface MetaRoas {
-  action_type: string;
-  value: string;
-}
-
-// ─── API fields requested from Meta ──────────────────────────────────────────
+// ─── API fields ───────────────────────────────────────────────────────────────
 
 const FIELDS = [
   "spend",
@@ -73,28 +69,19 @@ const FIELDS = [
   "cpm",
   "ctr",
   "cpc",
-  "unique_clicks",        // unique_link_clicks comes from unique_actions
-  "actions",             // contains link_click + purchase counts
-  "cost_per_action_type",
+  "unique_link_clicks_ctr",        // H – Unique Link CTR
+  "unique_actions",                // G – unique link clicks (action_type: link_click)
+  "cost_per_unique_action_type",   // I – cost per unique link click
+  "actions",                       // purchases + link clicks
+  "cost_per_action_type",          // cost per purchase / CPA
   "purchase_roas",
-  "action_values",       // contains revenue
+  "action_values",                 // revenue
 ].join(",");
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function findAction(actions: MetaAction[] | undefined, type: string): number {
-  const match = (actions ?? []).find((a) => a.action_type === type);
-  return match ? parseFloat(match.value) || 0 : 0;
-}
-
-function findCpa(cpa: MetaCostPerAction[] | undefined, type: string): number {
-  const match = (cpa ?? []).find((a) => a.action_type === type);
-  return match ? parseFloat(match.value) || 0 : 0;
-}
-
-function findRoas(roas: MetaRoas[] | undefined, type: string): number {
-  const match = (roas ?? []).find((r) => r.action_type === type);
-  return match ? parseFloat(match.value) || 0 : 0;
+  return parseFloat((actions ?? []).find((a) => a.action_type === type)?.value ?? "0") || 0;
 }
 
 function n(val: string | undefined): number {
@@ -105,13 +92,13 @@ function n(val: string | undefined): number {
 
 /**
  * Fetch account-level insights for a specific date (YYYY-MM-DD).
- * Aggregates across all campaigns in the account for that single day.
+ * Aggregates across all active campaigns for that single day.
  */
-export async function fetchMetaAdsInsights(
-  date: string // YYYY-MM-DD
-): Promise<MetaAdsInsights> {
+export async function fetchMetaAdsInsights(date: string): Promise<MetaAdsInsights> {
   if (!isMetaAdsConnected()) {
-    throw new Error("Meta Ads not configured: missing META_ADS_ACCESS_TOKEN or META_ADS_ACCOUNT_ID");
+    throw new Error(
+      "Meta Ads not configured: missing META_ADS_ACCESS_TOKEN or META_ADS_ACCOUNT_ID"
+    );
   }
 
   const params = new URLSearchParams({
@@ -122,54 +109,67 @@ export async function fetchMetaAdsInsights(
     limit: "1",
   });
 
-  const url = `${BASE}/${ACCOUNT_ID}/insights?${params}`;
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(`${BASE}/${ACCOUNT_ID}/insights?${params}`, {
+    cache: "no-store",
+  });
   const json = await res.json();
 
   if (!res.ok) {
-    const msg = json?.error?.message ?? JSON.stringify(json);
-    throw new Error(`Meta Ads API error: ${msg}`);
+    throw new Error(`Meta Ads API error: ${json?.error?.message ?? JSON.stringify(json)}`);
   }
 
-  // The API returns a paginated list; we requested account-level so there
-  // should be exactly one row (or zero if there was no spend that day).
   const row = (json.data ?? [])[0] ?? {};
 
   const actions: MetaAction[] = row.actions ?? [];
-  const cpaList: MetaCostPerAction[] = row.cost_per_action_type ?? [];
-  const roasList: MetaRoas[] = row.purchase_roas ?? [];
+  const uniqueActions: MetaAction[] = row.unique_actions ?? [];
+  const cpaList: MetaAction[] = row.cost_per_action_type ?? [];
+  const uniqueCpaList: MetaAction[] = row.cost_per_unique_action_type ?? [];
+  const roasList: MetaAction[] = row.purchase_roas ?? [];
   const actionValues: MetaAction[] = row.action_values ?? [];
 
   const purchases = findAction(actions, "offsite_conversion.fb_pixel_purchase");
   const spend = n(row.spend);
-  const cost_per_purchase = purchases > 0 ? spend / purchases : 0;
 
   return {
     date_start: row.date_start ?? date,
     date_stop: row.date_stop ?? date,
+
+    // Sheet columns B–I
     spend,
-    purchases,
-    cost_per_purchase,
-    link_clicks: findAction(actions, "link_click"),
-    impressions: n(row.impressions),
-    reach: n(row.reach),
     frequency: n(row.frequency),
+    reach: n(row.reach),
+    impressions: n(row.impressions),
     cpm: n(row.cpm),
+    unique_link_clicks: findAction(uniqueActions, "link_click"),
+    unique_link_clicks_ctr: n(row.unique_link_clicks_ctr),
+    cost_per_unique_link_click: findAction(uniqueCpaList, "link_click"),
+
+    // Additional
+    link_clicks: findAction(actions, "link_click"),
     ctr: n(row.ctr),
-    unique_link_clicks: findAction(row.unique_actions ?? [], "link_click"),
     cpc: n(row.cpc),
-    roas: findRoas(roasList, "offsite_conversion.fb_pixel_purchase"),
+    purchases,
+    cost_per_purchase: purchases > 0 ? spend / purchases : 0,
+    roas: findAction(roasList, "offsite_conversion.fb_pixel_purchase"),
     revenue: findAction(actionValues, "offsite_conversion.fb_pixel_purchase"),
-    cost_per_acquisition: findCpa(cpaList, "offsite_conversion.fb_pixel_purchase"),
+    cost_per_acquisition: findAction(cpaList, "offsite_conversion.fb_pixel_purchase"),
   };
 }
 
-/**
- * Returns yesterday's date (UTC) as a YYYY-MM-DD string.
- * Cron jobs typically run in UTC; adjust if your account timezone differs.
- */
+/** Returns yesterday's date in UTC as YYYY-MM-DD. */
 export function getYesterdayDate(): string {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Returns the Google Sheet tab name for a given date.
+ * e.g. 2026-03-26 → "MAR 2026"
+ */
+export function getSheetTabName(date: string): string {
+  const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+                  "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  const d = new Date(date + "T12:00:00Z");
+  return `${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
