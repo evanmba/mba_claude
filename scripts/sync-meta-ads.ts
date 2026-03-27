@@ -63,10 +63,10 @@ if (!META_ACCOUNT)   throw new Error("META_ADS_ACCOUNT_ID is not set");
 
 // ─── Column indices (0-based) ─────────────────────────────────────────────────
 
-const COL_C  = 2;  // Amount Spent — first Meta API column
-const COL_J  = 9;  // Cost Per Unique Link Click — last Meta API column
-const COL_K  = 10; // Total AgeQ Leads — start of copy-from-prev-row range
+const COL_C  = 2;  // Amount Spent — first column (start of copy range)
 const COL_AD = 29; // Sales Call Recordings — end of copy range (endIndex = 30)
+// Meta API writes to: C (spend), D (frequency), E (reach), F (impressions), H (unique link clicks)
+// Copied from previous row: G (CPM), I (unique CTR), J (cost per unique click), K:AD (manual cols)
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
@@ -154,13 +154,18 @@ async function readColumn(token: string, tab: string, col: string): Promise<stri
   return ((json.values ?? []) as string[][]).map(r => r[0] ?? "");
 }
 
-/** Copy K:AD from sourceRow → destRow (0-based indices). Propagates formulas. */
+/**
+ * Copy C:AD from sourceRow → destRow (0-based indices).
+ * This covers ALL data columns including CPM (G), Unique CTR (I),
+ * Cost Per Unique Click (J), and the manual columns K:AD.
+ * Meta API values are written afterward to overwrite C:F and H only.
+ */
 async function copyPrevRow(token: string, sheetId: number, srcIdx: number, dstIdx: number): Promise<void> {
   const body = {
     requests: [{
       copyPaste: {
-        source:      { sheetId, startRowIndex: srcIdx, endRowIndex: srcIdx + 1, startColumnIndex: COL_K, endColumnIndex: COL_AD + 1 },
-        destination: { sheetId, startRowIndex: dstIdx, endRowIndex: dstIdx + 1, startColumnIndex: COL_K, endColumnIndex: COL_AD + 1 },
+        source:      { sheetId, startRowIndex: srcIdx, endRowIndex: srcIdx + 1, startColumnIndex: COL_C, endColumnIndex: COL_AD + 1 },
+        destination: { sheetId, startRowIndex: dstIdx, endRowIndex: dstIdx + 1, startColumnIndex: COL_C, endColumnIndex: COL_AD + 1 },
         pasteType: "PASTE_NORMAL",
         pasteOrientation: "NORMAL",
       },
@@ -174,15 +179,28 @@ async function copyPrevRow(token: string, sheetId: number, srcIdx: number, dstId
   if (!res.ok) throw new Error(`copyPaste failed: ${JSON.stringify(json)}`);
 }
 
-/** Write Meta API values to C:J in the target row (1-based rowNum). */
-async function writeMetaData(token: string, tab: string, rowNum: number, values: (string|number)[]): Promise<void> {
-  const range = encodeURIComponent(`'${tab}'!C${rowNum}:J${rowNum}`);
+/** Write a single range of values (USER_ENTERED so numbers stay numeric). */
+async function writeRange(token: string, range: string, values: (string|number)[]): Promise<void> {
+  const encoded = encodeURIComponent(range);
   const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?valueInputOption=USER_ENTERED`,
+    `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encoded}?valueInputOption=USER_ENTERED`,
     { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ values: [values] }) }
   );
   const json = await res.json();
-  if (!res.ok) throw new Error(`Sheets write failed: ${JSON.stringify(json)}`);
+  if (!res.ok) throw new Error(`Sheets write failed (${range}): ${JSON.stringify(json)}`);
+}
+
+/**
+ * Write Meta API values to the target row.
+ * C:F → Amount Spent, Frequency, Reach, Impressions
+ * H   → Unique Link Clicks
+ * G, I, J are intentionally skipped (kept from previous-row copy).
+ */
+async function writeMetaData(token: string, tab: string, rowNum: number, m: {
+  spend: number; frequency: number; reach: number; impressions: number; unique_link_clicks: number;
+}): Promise<void> {
+  await writeRange(token, `'${tab}'!C${rowNum}:F${rowNum}`, [m.spend, m.frequency, m.reach, m.impressions]);
+  await writeRange(token, `'${tab}'!H${rowNum}`,            [m.unique_link_clicks]);
 }
 
 // ─── Meta API ─────────────────────────────────────────────────────────────────
@@ -265,22 +283,19 @@ async function main() {
   const m = await fetchMeta(yesterdayISO);
   console.log("Meta data:", m);
 
-  // 6. Write C:J with Meta API values
-  const values: (string|number)[] = [
-    m.spend,                      // C – Amount Spent
-    m.frequency,                  // D – Frequency
-    m.reach,                      // E – Reach
-    m.impressions,                // F – Impressions
-    m.cpm,                        // G – CPM
-    m.unique_link_clicks,         // H – Unique Link Clicks
-    m.unique_link_clicks_ctr,     // I – Unique Link CTR (%)
-    m.cost_per_unique_link_click, // J – Cost Per Unique Link Click
-  ];
-
-  console.log(`Writing C${targetRow}:J${targetRow}…`);
-  await writeMetaData(token, tab, targetRow, values);
-  console.log(`✓ Done. Row ${targetRow} ("${todaySheet}") written with ${yesterdayISO} Meta data.`);
-  console.log("Values:", values);
+  // 6. Write Meta API values to C:F and H only
+  //    G (CPM), I (Unique CTR), J (Cost Per Unique Click) keep the previous-row copy
+  console.log(`Writing C:F and H in row ${targetRow}…`);
+  await writeMetaData(token, tab, targetRow, m);
+  console.log(`✓ Done. Row ${targetRow} ("${todaySheet}") updated.`);
+  console.log("  C (Amount Spent)     :", m.spend);
+  console.log("  D (Frequency)        :", m.frequency);
+  console.log("  E (Reach)            :", m.reach);
+  console.log("  F (Impressions)      :", m.impressions);
+  console.log("  G (CPM)              : copied from previous row");
+  console.log("  H (Unique Link Clicks):", m.unique_link_clicks);
+  console.log("  I (Unique CTR)       : copied from previous row");
+  console.log("  J (Cost/Unique Click): copied from previous row");
 }
 
 main().catch(err => {
