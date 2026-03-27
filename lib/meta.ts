@@ -48,11 +48,11 @@ export async function fetchMetaSpend(
   level: MetaLevel = "adset",
   datePreset = "this_month",
 ): Promise<MetaSpendData> {
-  const token     = process.env.META_ACCESS_TOKEN;
-  const accountId = process.env.META_AD_ACCOUNT_ID;   // with or without "act_" prefix
+  const token     = process.env.META_ADS_ACCESS_TOKEN;
+  const accountId = process.env.META_ADS_ACCOUNT_ID;  // with or without "act_" prefix
 
   if (!token || !accountId) {
-    return { rows: [], level, datePreset, error: "META_ACCESS_TOKEN or META_AD_ACCOUNT_ID not set" };
+    return { rows: [], level, datePreset, error: "META_ADS_ACCESS_TOKEN or META_ADS_ACCOUNT_ID not set" };
   }
 
   const acct = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
