@@ -312,46 +312,31 @@ export async function fetchAttributionData(
     const leadsKeys     = [...leadsMap.keys()];
     const metaConnected = !metaData.error && metaData.rows.length > 0;
 
-    // ── Creative level: Call Source drives rows, Meta searched for spend ──
-    if (level === "ad" && usesCallSource) {
-      const rows: SourceRow[] = callsKeys.map((creativeName) => {
-        const calls  = callsMap.get(creativeName)!;
-        const leads  = matchKey(creativeName, leadsKeys)
-          ? (leadsMap.get(matchKey(creativeName, leadsKeys)!) ?? 0)
+    // ── All levels: Call Source drives rows, Meta looked up for spend ─────
+    if (usesCallSource) {
+      const rows: SourceRow[] = callsKeys.map((name) => {
+        const calls = callsMap.get(name)!;
+        const leads = matchKey(name, leadsKeys)
+          ? (leadsMap.get(matchKey(name, leadsKeys)!) ?? 0)
           : 0;
 
         let spend  = 0;
         let status: string | undefined;
         if (metaConnected) {
-          const m = sumMetaSpendForCreative(creativeName, metaData.rows);
+          const m = sumMetaSpendForCreative(name, metaData.rows);
           spend  = m.spend;
           status = m.status !== "UNKNOWN" ? m.status : undefined;
         }
 
-        return buildRow(creativeName, spend, leads, calls, status);
+        return buildRow(name, spend, leads, calls, status);
       })
-      // Filter noise: must have at least 1 booked call OR meaningful spend
       .filter((r) => r.bookedCalls >= 1 || r.spend >= 500)
       .sort((a, b) => b.bookedCalls - a.bookedCalls || b.spend - a.spend);
 
       return { rows, hasSpend: metaConnected, metaConnected, usesCallSource, level, datePreset, lastUpdated };
     }
 
-    // ── Campaign / Ad Set: Meta drives rows, Call Source joined in ────────
-    if (metaConnected) {
-      const rows: SourceRow[] = metaData.rows.map((mr) => {
-        const key   = matchKey(mr.name, callsKeys);
-        const calls = key ? (callsMap.get(key) ?? null) : null;
-        const leads = matchKey(mr.name, leadsKeys)
-          ? (leadsMap.get(matchKey(mr.name, leadsKeys)!) ?? 0)
-          : 0;
-        return buildRow(mr.name, mr.spend, leads, calls, mr.status);
-      }).sort((a, b) => b.spend - a.spend);
-
-      return { rows, hasSpend: true, metaConnected: true, usesCallSource, level, datePreset, lastUpdated };
-    }
-
-    // ── Sheet-only fallback ───────────────────────────────────────────────
+    // ── Sheet-only fallback (no Call Source tab yet) ──────────────────────
     const allKeys = new Set([...callsKeys, ...leadsKeys]);
     const rows: SourceRow[] = Array.from(allKeys)
       .map((key) => buildRow(key, 0, leadsMap.get(key) ?? 0, callsMap.get(key) ?? null))
