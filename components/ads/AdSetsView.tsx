@@ -202,7 +202,15 @@ export function AdSetsView({ data }: { data: AttributionData }) {
           style={{ background: data.metaConnected ? "rgba(34,197,94,0.1)" : "rgba(100,116,139,0.1)", border: `1px solid ${data.metaConnected ? "rgba(34,197,94,0.3)" : "rgba(100,116,139,0.2)"}` }}>
           {data.metaConnected
             ? <><CheckCircle2 size={12} style={{ color: "#22c55e" }} /><span style={{ color: "#22c55e" }}>Meta Connected</span></>
-            : <><AlertCircle size={12} style={{ color: "#64748b" }} /><span style={{ color: "#64748b" }}>Sheet Fallback</span></>}
+            : <><AlertCircle size={12} style={{ color: "#64748b" }} /><span style={{ color: "#64748b" }}>No Meta</span></>}
+        </div>
+
+        {/* Call Source badge */}
+        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+          style={{ background: data.usesCallSource ? "rgba(59,130,246,0.1)" : "rgba(100,116,139,0.1)", border: `1px solid ${data.usesCallSource ? "rgba(59,130,246,0.3)" : "rgba(100,116,139,0.2)"}` }}>
+          {data.usesCallSource
+            ? <><CheckCircle2 size={12} style={{ color: "#3b82f6" }} /><span style={{ color: "#3b82f6" }}>Call Source</span></>
+            : <><AlertCircle size={12} style={{ color: "#64748b" }} /><span style={{ color: "#64748b" }}>CALLS (legacy)</span></>}
         </div>
 
         {/* Level toggle */}
@@ -360,7 +368,7 @@ export function AdSetsView({ data }: { data: AttributionData }) {
               </span>
             </>
           )}
-          <span className="ml-auto">{data.rows.length} rows · {data.lastUpdated}</span>
+          <span className="ml-auto">{data.rows.length} rows · {data.usesCallSource ? "Call Source tab" : "CALLS tab"} · {data.lastUpdated}</span>
         </div>
       </div>
     </div>

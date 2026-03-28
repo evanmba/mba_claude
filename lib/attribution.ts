@@ -15,14 +15,12 @@ export interface SourceRow {
   deals: number;
   cashCollected: number;
   revenue: number;
-  // Computed cost metrics (require spend > 0)
   cpl: number;
   costPerBooked: number;
   costPerTaken: number;
   cpa: number;
   cashRoas: number;
   revenueRoas: number;
-  // Meta status
   metaStatus?: string;
 }
 
@@ -30,6 +28,7 @@ export interface AttributionData {
   rows: SourceRow[];
   hasSpend: boolean;
   metaConnected: boolean;
+  usesCallSource: boolean;   // true = Call Source tab; false = old CALLS tab fallback
   level: MetaLevel;
   datePreset: string;
   lastUpdated: string;
@@ -37,76 +36,103 @@ export interface AttributionData {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Shared helpers
 // ---------------------------------------------------------------------------
 const fi = (hdrs: string[], kws: string[]) =>
   hdrs.findIndex((h) => kws.every((k) => h.toLowerCase().includes(k.toLowerCase())));
 const cv = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "").trim() : "");
-const toBool = (s: string) => { const u = s.toUpperCase().trim(); return u === "TRUE" || u === "YES" || u === "1" || u === "X"; };
+const toBool = (s: string) => {
+  const u = s.toUpperCase().trim();
+  return u === "TRUE" || u === "YES" || u === "1" || u === "X";
+};
 
-// Normalize a name for fuzzy matching
 function normName(s: string): string {
   return s.toLowerCase().trim().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ");
 }
 
-// Strip trailing version-number suffixes from ad names so variants group together.
-// Handles: "Ad Name 1.0.0.2", "Ad Name 0.2.1.7", "Ad Name v1.3", "Ad Name - V2"
+// Strip trailing version-number suffixes so ad variants merge cleanly.
+// "Ad Name 1.0.0.2" → "Ad Name",  "Ad Name v1.3" → "Ad Name"
 function normalizeCreativeName(name: string): string {
   return name
-    .replace(/\s+[-–]?\s*v\d+(\.\d+)*\s*$/i, "")   // " v1.3" / " - V2"
-    .replace(/\s+\d+(\.\d+)+\s*$/, "")               // " 1.0.0.2" / " 0.2.1.7.3"
-    .replace(/\s*\(\s*v?\d+(\.\d+)*\s*\)\s*$/, "")   // " (v2)" / " (1.0)"
+    .replace(/\s+[-–]?\s*v\d+(\.\d+)*\s*$/i, "")
+    .replace(/\s+\d+(\.\d+)+\s*$/, "")
+    .replace(/\s*\(\s*v?\d+(\.\d+)*\s*\)\s*$/, "")
     .trim();
 }
 
-// Group Meta rows by normalized creative name, summing spend + other fields
-function groupByCreative(metaRows: MetaInsightRow[]): MetaInsightRow[] {
-  const grouped = new Map<string, MetaInsightRow & { _count: number }>();
+type CallEntry = { booked: number; taken: number; noShow: number; deals: number; cash: number; revenue: number };
 
-  for (const r of metaRows) {
-    const key = normalizeCreativeName(r.name);
-    if (!grouped.has(key)) {
-      grouped.set(key, { ...r, name: key, _count: 1 });
-    } else {
-      const g = grouped.get(key)!;
-      g.spend       += r.spend;
-      g.impressions += r.impressions;
-      g.clicks      += r.clicks;
-      g.reach       += r.reach;
-      g._count      += 1;
-      // Status: prefer ACTIVE over others
-      if (r.status === "ACTIVE") g.status = "ACTIVE";
-    }
-  }
+// ---------------------------------------------------------------------------
+// "Call Source" tab  ← preferred  (has campaign / ad set / ad columns)
+// ---------------------------------------------------------------------------
+function aggregateCallSource(
+  rows: string[][],
+  groupBy: "campaign" | "adset" | "ad",
+): Map<string, CallEntry> {
+  const map = new Map<string, CallEntry>();
+  if (rows.length < 2) return map;
 
-  // Recompute derived rates
-  const result: MetaInsightRow[] = [];
-  for (const g of grouped.values()) {
-    result.push({
-      ...g,
-      cpm: g.impressions > 0 ? (g.spend / g.impressions) * 1000 : 0,
-      cpc: g.clicks > 0 ? g.spend / g.clicks : 0,
-      ctr: g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0,
-    });
+  // Find header row
+  const hdrIdx = rows.findIndex((r) =>
+    r.some((c) => /campaign|ad set|ad name|first name/i.test(c))
+  );
+  if (hdrIdx < 0) return map;
+
+  const hdrs = rows[hdrIdx].map((h) => h.toLowerCase().trim());
+
+  // Column index for the group-by dimension
+  const keyCol =
+    groupBy === "campaign" ? fi(hdrs, ["campaign"])
+    : groupBy === "adset"  ? fi(hdrs, ["ad set"])
+    : fi(hdrs, ["ad"]);          // "ad" – matches "ad" column (not "ad set")
+
+  if (keyCol < 0) return map;
+
+  const cols = {
+    first:    fi(hdrs, ["first name"]),
+    showed:   fi(hdrs, ["showed"]),
+    closed:   fi(hdrs, ["closed"]),
+    cash:     fi(hdrs, ["cash collected"]),
+    revenue:  fi(hdrs, ["revenue"]),
+  };
+
+  for (const row of rows.slice(hdrIdx + 1)) {
+    // Skip blank rows
+    if (cols.first >= 0 && !cv(row, cols.first)) continue;
+
+    let key = cv(row, keyCol) || "Unknown";
+
+    // At creative level, normalize so version variants merge
+    if (groupBy === "ad") key = normalizeCreativeName(key) || key;
+
+    if (!map.has(key)) map.set(key, { booked: 0, taken: 0, noShow: 0, deals: 0, cash: 0, revenue: 0 });
+    const e = map.get(key)!;
+
+    e.booked += 1;
+    if (toBool(cv(row, cols.showed))) e.taken += 1;
+    const cash = toNum(cv(row, cols.cash));
+    const rev  = toNum(cv(row, cols.revenue));
+    if (toBool(cv(row, cols.closed)) || cash > 0) e.deals += 1;
+    e.cash    += cash;
+    e.revenue += rev;
   }
-  return result;
+  return map;
 }
 
 // ---------------------------------------------------------------------------
-// Parse calls → aggregate by source
+// "CALLS" tab  ← legacy fallback  (groups by "source" column)
 // ---------------------------------------------------------------------------
-function aggregateCalls(rows: string[][]): Map<string, { booked: number; taken: number; noShow: number; deals: number; cash: number; revenue: number }> {
-  const map = new Map<string, { booked: number; taken: number; noShow: number; deals: number; cash: number; revenue: number }>();
+function aggregateCallsLegacy(rows: string[][]): Map<string, CallEntry> {
+  const map = new Map<string, CallEntry>();
   if (rows.length < 2) return map;
 
-  const hdrIdx = rows.findIndex((r) => r.some((c) => c.toLowerCase().includes("booked date")));
+  const hdrIdx = rows.findIndex((r) => r.some((c) => /booked date/i.test(c)));
   if (hdrIdx < 0) return map;
 
   const hdrs = rows[hdrIdx].map((h) => h.toLowerCase().trim());
   const cols = {
     first:      fi(hdrs, ["first name"]),
     source:     fi(hdrs, ["source"]),
-    noShow:     fi(hdrs, ["no show"]),
     showed:     fi(hdrs, ["showed"]),
     fuClosed:   fi(hdrs, ["fu - closed"]),
     closedDate: fi(hdrs, ["closed date"]),
@@ -118,31 +144,32 @@ function aggregateCalls(rows: string[][]): Map<string, { booked: number; taken: 
     if (!cv(row, cols.first)) continue;
     const src = cv(row, cols.source) || "Unknown";
     if (!map.has(src)) map.set(src, { booked: 0, taken: 0, noShow: 0, deals: 0, cash: 0, revenue: 0 });
-    const entry = map.get(src)!;
-    entry.booked += 1;
-    if (toBool(cv(row, cols.showed))) entry.taken += 1;
-    if (toBool(cv(row, cols.noShow))) entry.noShow += 1;
+    const e = map.get(src)!;
+    e.booked += 1;
+    if (toBool(cv(row, cols.showed))) e.taken += 1;
     const cash = toNum(cv(row, cols.cash));
     const rev  = toNum(cv(row, cols.revenue));
-    if (cash > 0 || toBool(cv(row, cols.closedDate)) || toBool(cv(row, cols.fuClosed))) entry.deals += 1;
-    entry.cash    += cash;
-    entry.revenue += rev;
+    if (cash > 0 || toBool(cv(row, cols.closedDate)) || toBool(cv(row, cols.fuClosed))) e.deals += 1;
+    e.cash    += cash;
+    e.revenue += rev;
   }
   return map;
 }
 
 // ---------------------------------------------------------------------------
-// Parse leads → count by source
+// LEADS tab  (still keyed by "source")
 // ---------------------------------------------------------------------------
 function aggregateLeads(rows: string[][]): Map<string, number> {
   const map = new Map<string, number>();
   if (rows.length < 2) return map;
 
-  const hdrIdx = rows.findIndex((r) => r.some((c) => c.toLowerCase().includes("first name") || c.toLowerCase().includes("source")));
+  const hdrIdx = rows.findIndex((r) =>
+    r.some((c) => /first name|source/i.test(c))
+  );
   if (hdrIdx < 0) return map;
 
-  const hdrs = rows[hdrIdx].map((h) => h.toLowerCase().trim());
-  const srcCol   = fi(hdrs, ["source"]);
+  const hdrs    = rows[hdrIdx].map((h) => h.toLowerCase().trim());
+  const srcCol  = fi(hdrs, ["source"]);
   const firstCol = fi(hdrs, ["first name"]);
   if (srcCol < 0) return map;
 
@@ -155,31 +182,61 @@ function aggregateLeads(rows: string[][]): Map<string, number> {
 }
 
 // ---------------------------------------------------------------------------
-// Fuzzy match Meta name → calls source key
+// Meta creative grouping (sum spend across variant ads)
 // ---------------------------------------------------------------------------
-function matchMetaToSource(metaName: string, callsKeys: string[]): string | null {
+function groupMetaByCreative(metaRows: MetaInsightRow[]): MetaInsightRow[] {
+  const grouped = new Map<string, MetaInsightRow>();
+
+  for (const r of metaRows) {
+    const key = normalizeCreativeName(r.name);
+    if (!grouped.has(key)) {
+      grouped.set(key, { ...r, name: key });
+    } else {
+      const g = grouped.get(key)!;
+      g.spend       += r.spend;
+      g.impressions += r.impressions;
+      g.clicks      += r.clicks;
+      g.reach       += r.reach;
+      if (r.status === "ACTIVE") g.status = "ACTIVE";
+    }
+  }
+
+  return [...grouped.values()].map((g) => ({
+    ...g,
+    cpm: g.impressions > 0 ? (g.spend / g.impressions) * 1000 : 0,
+    cpc: g.clicks > 0 ? g.spend / g.clicks : 0,
+    ctr: g.impressions > 0 ? (g.clicks / g.impressions) * 100 : 0,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// Match Meta name → calls map key (exact normalized, then substring)
+// ---------------------------------------------------------------------------
+function matchKey(metaName: string, callsKeys: string[]): string | null {
   const needle = normName(metaName);
   for (const k of callsKeys) if (normName(k) === needle) return k;
-  for (const k of callsKeys) { const hay = normName(k); if (needle.includes(hay) || hay.includes(needle)) return k; }
+  for (const k of callsKeys) {
+    const hay = normName(k);
+    if (needle.includes(hay) || hay.includes(needle)) return k;
+  }
   return null;
 }
 
 // ---------------------------------------------------------------------------
-// Build SourceRow from components
+// Build SourceRow
 // ---------------------------------------------------------------------------
 function buildRow(
   source: string,
   spend: number,
   leads: number,
-  calls: { booked: number; taken: number; noShow: number; deals: number; cash: number; revenue: number } | null,
+  c: CallEntry | null,
   metaStatus?: string,
 ): SourceRow {
-  const booked  = calls?.booked  ?? 0;
-  const taken   = calls?.taken   ?? 0;
-  const noShows = calls?.noShow  ?? 0;
-  const deals   = calls?.deals   ?? 0;
-  const cash    = calls?.cash    ?? 0;
-  const revenue = calls?.revenue ?? 0;
+  const booked  = c?.booked  ?? 0;
+  const taken   = c?.taken   ?? 0;
+  const deals   = c?.deals   ?? 0;
+  const cash    = c?.cash    ?? 0;
+  const revenue = c?.revenue ?? 0;
 
   return {
     source,
@@ -187,7 +244,7 @@ function buildRow(
     leads,
     bookedCalls:   booked,
     takenCalls:    taken,
-    noShows,
+    noShows:       c?.noShow ?? 0,
     deals,
     cashCollected: cash,
     revenue,
@@ -202,7 +259,7 @@ function buildRow(
 }
 
 // ---------------------------------------------------------------------------
-// Main fetch
+// Main export
 // ---------------------------------------------------------------------------
 export async function fetchAttributionData(
   level: MetaLevel = "adset",
@@ -211,51 +268,59 @@ export async function fetchAttributionData(
   const apiKey = process.env.SHEETS_API_KEY ?? process.env.GOOGLE_SHEETS_API_KEY ?? "";
   const lastUpdated = new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
+  // Call Source groupBy dimension
+  const groupBy: "campaign" | "adset" | "ad" =
+    level === "campaign" ? "campaign" : level === "adset" ? "adset" : "ad";
+
   try {
-    const [callsRows, leadsRows, metaData] = await Promise.all([
-      fetchSheetValues(FUNNEL_SHEET_ID, "CALLS", apiKey),
-      fetchSheetValues(FUNNEL_SHEET_ID, "LEADS", apiKey),
+    const [callSourceRows, callsLegacyRows, leadsRows, metaData] = await Promise.all([
+      fetchSheetValues(FUNNEL_SHEET_ID, "Call Source", apiKey).catch(() => [] as string[][]),
+      fetchSheetValues(FUNNEL_SHEET_ID, "CALLS",       apiKey).catch(() => [] as string[][]),
+      fetchSheetValues(FUNNEL_SHEET_ID, "LEADS",       apiKey).catch(() => [] as string[][]),
       fetchMetaSpend(level, datePreset),
     ]);
 
-    const callsBySource = aggregateCalls(callsRows);
-    const leadsBySource = aggregateLeads(leadsRows);
-    const callsKeys     = [...callsBySource.keys()];
+    // Prefer "Call Source" tab; fall back to legacy "CALLS" tab
+    const usesCallSource = callSourceRows.length > 2;
+    const callsMap = usesCallSource
+      ? aggregateCallSource(callSourceRows, groupBy)
+      : aggregateCallsLegacy(callsLegacyRows);
+
+    const leadsMap      = aggregateLeads(leadsRows);
+    const callsKeys     = [...callsMap.keys()];
     const metaConnected = !metaData.error && metaData.rows.length > 0;
 
+    // ── Meta-driven: one row per Meta campaign/adset/ad ───────────────────
     if (metaConnected) {
-      // At the "ad" level, group variants by normalized creative name
       const metaRows = level === "ad"
-        ? groupByCreative(metaData.rows)
+        ? groupMetaByCreative(metaData.rows)
         : metaData.rows;
 
-      const rows: SourceRow[] = metaRows
-        .map((mr) => {
-          const matchKey = matchMetaToSource(mr.name, callsKeys);
-          const calls    = matchKey ? (callsBySource.get(matchKey) ?? null) : null;
-          const leads    = matchKey ? (leadsBySource.get(matchKey) ?? 0) : 0;
-          return buildRow(mr.name, mr.spend, leads, calls, mr.status);
-        })
-        .sort((a, b) => b.spend - a.spend);
+      const rows: SourceRow[] = metaRows.map((mr) => {
+        const key   = matchKey(mr.name, callsKeys);
+        const calls = key ? (callsMap.get(key) ?? null) : null;
+        // Leads: try matching by Meta name → leads source (best-effort)
+        const leads = matchKey(mr.name, [...leadsMap.keys()])
+          ? (leadsMap.get(matchKey(mr.name, [...leadsMap.keys()])!) ?? 0)
+          : 0;
+        return buildRow(mr.name, mr.spend, leads, calls, mr.status);
+      }).sort((a, b) => b.spend - a.spend);
 
-      return { rows, hasSpend: true, metaConnected: true, level, datePreset, lastUpdated };
+      return { rows, hasSpend: true, metaConnected: true, usesCallSource, level, datePreset, lastUpdated };
     }
 
-    // ── Sheet-driven fallback (no Meta tokens) ────────────────────────────
-    const allSources = new Set([...callsBySource.keys(), ...leadsBySource.keys()]);
-    const rows: SourceRow[] = Array.from(allSources)
-      .map((source) => {
-        const calls  = callsBySource.get(source) ?? null;
-        const leads  = leadsBySource.get(source) ?? 0;
-        return buildRow(source, 0, leads, calls);
-      })
+    // ── Sheet-only fallback ───────────────────────────────────────────────
+    const allKeys = new Set([...callsMap.keys(), ...leadsMap.keys()]);
+    const rows: SourceRow[] = Array.from(allKeys)
+      .map((key) => buildRow(key, 0, leadsMap.get(key) ?? 0, callsMap.get(key) ?? null))
       .filter((r) => r.bookedCalls > 0 || r.leads > 0)
       .sort((a, b) => b.bookedCalls - a.bookedCalls);
 
-    return { rows, hasSpend: false, metaConnected: false, level, datePreset, lastUpdated };
+    return { rows, hasSpend: false, metaConnected: false, usesCallSource, level, datePreset, lastUpdated };
   } catch (err) {
     return {
-      rows: [], hasSpend: false, metaConnected: false, level, datePreset, lastUpdated,
+      rows: [], hasSpend: false, metaConnected: false, usesCallSource: false,
+      level, datePreset, lastUpdated,
       error: err instanceof Error ? err.message : String(err),
     };
   }
