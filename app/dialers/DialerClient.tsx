@@ -241,12 +241,15 @@ function TeamTab({
             </h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-max">
+            <table className="w-full text-sm min-w-max" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(30,41,59,0.4)" }}>
-                  {["Month", "Booked", "Taken", "Sit %", "Deals", "Close %"].map((h) => (
+                  {["Month", "Booked", "Taken", "Sit %", "Deals", "Close %"].map((h, hi) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider"
-                      style={{ color: "var(--muted-foreground)" }}>
+                      style={{
+                        color: "var(--muted-foreground)",
+                        ...(hi === 0 ? { position: "sticky", left: 0, background: "rgba(30,41,59,0.95)", zIndex: 2, boxShadow: "2px 0 6px rgba(0,0,0,0.25)" } : {}),
+                      }}>
                       {h}
                     </th>
                   ))}
@@ -257,7 +260,7 @@ function TeamTab({
                   const prev = activeMonths[i - 1];
                   return (
                     <tr key={row.month} style={{ borderBottom: "1px solid var(--border)" }}>
-                      <td className="px-4 py-3 font-medium" style={{ color: "var(--foreground)" }}>
+                      <td className="px-4 py-3 font-medium" style={{ color: "var(--foreground)", position: "sticky", left: 0, background: "var(--card)", zIndex: 1, boxShadow: "2px 0 6px rgba(0,0,0,0.25)" }}>
                         {row.month}
                       </td>
                       <td className="px-4 py-3">
@@ -549,12 +552,15 @@ function IndividualTab({ dialer, metrics }: { dialer: DialerInfo; metrics: Diale
             </h3>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-max">
+            <table className="w-full text-sm min-w-max" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)", background: "rgba(30,41,59,0.4)" }}>
-                  {["Month", "Dials", "Links Sent", "Dial:Link %", "Booked", "Set %", "Taken", "Show-Up %", "Deals"].map((h) => (
+                  {["Month", "Dials", "Links Sent", "Dial:Link %", "Booked", "Set %", "Taken", "Show-Up %", "Deals"].map((h, hi) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap"
-                      style={{ color: "var(--muted-foreground)" }}>
+                      style={{
+                        color: "var(--muted-foreground)",
+                        ...(hi === 0 ? { position: "sticky", left: 0, background: "rgba(30,41,59,0.95)", zIndex: 2, boxShadow: "2px 0 6px rgba(0,0,0,0.25)" } : {}),
+                      }}>
                       {h}
                     </th>
                   ))}
@@ -575,7 +581,7 @@ function IndividualTab({ dialer, metrics }: { dialer: DialerInfo; metrics: Diale
                       }}
                     >
                       <td className="px-4 py-3 font-medium whitespace-nowrap"
-                        style={{ color: isSelected ? dialer.color : "var(--foreground)" }}>
+                        style={{ color: isSelected ? dialer.color : "var(--foreground)", position: "sticky", left: 0, background: isSelected ? `color-mix(in srgb, var(--card) 85%, ${dialer.color})` : "var(--card)", zIndex: 1, boxShadow: "2px 0 6px rgba(0,0,0,0.25)" }}>
                         {m.month}
                         {isSelected && <ChevronRight size={12} className="inline ml-1" />}
                       </td>

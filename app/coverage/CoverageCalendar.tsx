@@ -74,17 +74,20 @@ function isSunBlocked(day: number, hour: number) {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function CoverageCalendar() {
-  const [blocks,   setBlocks]   = useState<Block[]>([]);
-  const [hover,    setHover]    = useState<{ day: number; hour: number } | null>(null);
-  const [dragging, setDragging] = useState<string | null>(null);
-  const [resizing, setResizing] = useState<ResizeState | null>(null);
-  const [hydrated, setHydrated] = useState(false);
+  const [blocks,    setBlocks]    = useState<Block[]>([]);
+  const [hover,     setHover]     = useState<{ day: number; hour: number } | null>(null);
+  const [dragging,  setDragging]  = useState<string | null>(null);
+  const [resizing,  setResizing]  = useState<ResizeState | null>(null);
+  const [hydrated,  setHydrated]  = useState(false);
+  const [mobileDay, setMobileDay] = useState(0);   // 0=Mon … 6=Sun on mobile
+  const [isMobile,  setIsMobile]  = useState(false);
 
   // ── Dynamic row height ─────────────────────────────────────────────────────
   // Measures the calendar body container and fills it exactly, with a half-row
   // of padding above 9am and below 6pm so nothing gets clipped.
 
-  const bodyRef = useRef<HTMLDivElement>(null);
+  const bodyRef  = useRef<HTMLDivElement>(null);
+  const outerRef = useRef<HTMLDivElement>(null);
   const [rowH, setRowH] = useState(52);
 
   // TOTAL_HOURS + 1 slots: the extra slot provides the top+bottom half-row padding
@@ -99,6 +102,34 @@ export default function CoverageCalendar() {
     });
     ro.observe(bodyRef.current);
     return () => ro.disconnect();
+  }, []);
+
+  // Detect mobile breakpoint from outer container width
+  useEffect(() => {
+    if (!outerRef.current) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setIsMobile(entry.contentRect.width < 640);
+    });
+    ro.observe(outerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  // ── Touch swipe for mobile day navigation ──────────────────────────────────
+  const touchStartX = useRef<number | null>(null);
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  }, []);
+
+  const onTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (touchStartX.current === null) return;
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(delta) < 50) return;
+    setMobileDay(d => delta < 0
+      ? Math.min(d + 1, DAYS.length - 1)
+      : Math.max(d - 1, 0)
+    );
   }, []);
 
   // ── Persist ────────────────────────────────────────────────────────────────
@@ -215,7 +246,7 @@ export default function CoverageCalendar() {
   const hourLabels = Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => START_HOUR + i);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 228px)", minHeight: 440, gap: 12 }}>
+    <div ref={outerRef} style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 228px)", minHeight: 440, gap: 12 }}>
 
       {/* Top bar */}
       <div className="flex items-center justify-between flex-wrap gap-3" style={{ flexShrink: 0 }}>
@@ -274,33 +305,68 @@ export default function CoverageCalendar() {
       >
 
         {/* Day headers */}
-        <div
-          className="grid"
-          style={{ gridTemplateColumns: "52px repeat(7, 1fr)", borderBottom: "1px solid var(--border)", background: "rgba(10,15,30,0.6)", flexShrink: 0 }}
-        >
+        {isMobile ? (
           <div
-            className="flex items-end justify-center pb-2 pt-2 text-xs font-bold"
-            style={{ borderRight: "1px solid var(--border)", color: "var(--muted-foreground)" }}
+            className="flex items-center justify-between px-3 py-2"
+            style={{ borderBottom: "1px solid var(--border)", background: "rgba(10,15,30,0.6)", flexShrink: 0 }}
           >
-            ET
-          </div>
-          {DAYS.map((d, i) => (
-            <div
-              key={d}
-              className="py-2 text-center text-xs font-bold uppercase tracking-widest"
-              style={{
-                borderRight: i < 6 ? "1px solid var(--border)" : undefined,
-                color: i >= 5 ? "#f59e0b" : "var(--foreground)",
-                background: i >= 5 ? "rgba(245,158,11,0.04)" : undefined,
-              }}
+            <button
+              onClick={() => setMobileDay(d => Math.max(d - 1, 0))}
+              disabled={mobileDay === 0}
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold"
+              style={{ color: mobileDay === 0 ? "var(--muted-foreground)" : "var(--foreground)", background: "var(--secondary)", opacity: mobileDay === 0 ? 0.4 : 1 }}
             >
-              {d}
+              ‹
+            </button>
+            <div
+              className="text-sm font-bold uppercase tracking-widest"
+              style={{ color: mobileDay >= 5 ? "#f59e0b" : "var(--foreground)" }}
+            >
+              {DAYS[mobileDay]}
             </div>
-          ))}
-        </div>
+            <button
+              onClick={() => setMobileDay(d => Math.min(d + 1, DAYS.length - 1))}
+              disabled={mobileDay === DAYS.length - 1}
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold"
+              style={{ color: mobileDay === DAYS.length - 1 ? "var(--muted-foreground)" : "var(--foreground)", background: "var(--secondary)", opacity: mobileDay === DAYS.length - 1 ? 0.4 : 1 }}
+            >
+              ›
+            </button>
+          </div>
+        ) : (
+          <div
+            className="grid"
+            style={{ gridTemplateColumns: "52px repeat(7, 1fr)", borderBottom: "1px solid var(--border)", background: "rgba(10,15,30,0.6)", flexShrink: 0 }}
+          >
+            <div
+              className="flex items-end justify-center pb-2 pt-2 text-xs font-bold"
+              style={{ borderRight: "1px solid var(--border)", color: "var(--muted-foreground)" }}
+            >
+              ET
+            </div>
+            {DAYS.map((d, i) => (
+              <div
+                key={d}
+                className="py-2 text-center text-xs font-bold uppercase tracking-widest"
+                style={{
+                  borderRight: i < 6 ? "1px solid var(--border)" : undefined,
+                  color: i >= 5 ? "#f59e0b" : "var(--foreground)",
+                  background: i >= 5 ? "rgba(245,158,11,0.04)" : undefined,
+                }}
+              >
+                {d}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Body — measured by ResizeObserver to compute rowH */}
-        <div ref={bodyRef} style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}>
+        <div
+          ref={bodyRef}
+          style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+        >
 
           {/* Time axis */}
           <div style={{ width: 52, flexShrink: 0, borderRight: "1px solid var(--border)", background: "rgba(10,15,30,0.4)", position: "relative", height: calHeight }}>
@@ -323,9 +389,10 @@ export default function CoverageCalendar() {
             ))}
           </div>
 
-          {/* Day columns — horizontal scroll only if needed */}
-          <div style={{ flex: 1, display: "flex", overflowX: "auto", overflowY: "hidden" }}>
+          {/* Day columns — single day on mobile, all days on desktop */}
+          <div style={{ flex: 1, display: "flex", overflowX: isMobile ? "hidden" : "auto", overflowY: "hidden" }}>
             {DAYS.map((day, dayIdx) => {
+              if (isMobile && dayIdx !== mobileDay) return null;
               const dayBlocks    = blocks.filter(b => b.day === dayIdx);
               const isWeekend    = dayIdx >= 5;
               const hoveringHere = hover?.day === dayIdx;
@@ -335,7 +402,7 @@ export default function CoverageCalendar() {
                   key={day}
                   style={{
                     flex: 1,
-                    minWidth: 76,
+                    minWidth: isMobile ? 0 : 76,
                     borderRight: dayIdx < 6 ? "1px solid var(--border)" : undefined,
                     background:  isWeekend ? "rgba(245,158,11,0.025)" : undefined,
                     position: "relative",

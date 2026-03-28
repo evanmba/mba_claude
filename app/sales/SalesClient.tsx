@@ -409,14 +409,16 @@ function Pills<T extends string>({
   options, value, onChange, accent,
 }: { options: { id: T; label: string }[]; value: T; onChange: (v: T) => void; accent: string }) {
   return (
-    <div className="flex gap-1 rounded-lg p-1" style={{ background: "var(--secondary)" }}>
-      {options.map(o => (
-        <button key={o.id} onClick={() => onChange(o.id)}
-          className="px-3 py-1.5 rounded text-xs font-semibold transition-all whitespace-nowrap"
-          style={{ background: value === o.id ? accent : "transparent", color: value === o.id ? "#fff" : "var(--muted-foreground)" }}>
-          {o.label}
-        </button>
-      ))}
+    <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: "touch" as React.CSSProperties["WebkitOverflowScrolling"] }}>
+      <div className="flex gap-1 rounded-lg p-1" style={{ background: "var(--secondary)", width: "max-content" }}>
+        {options.map(o => (
+          <button key={o.id} onClick={() => onChange(o.id)}
+            className="px-3 py-1.5 rounded text-xs font-semibold transition-all whitespace-nowrap"
+            style={{ background: value === o.id ? accent : "transparent", color: value === o.id ? "#fff" : "var(--muted-foreground)" }}>
+            {o.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -472,27 +474,31 @@ export default function SalesClient({ data }: { data: SalesDashboardPayload }) {
       </div>
 
       {/* Control bar */}
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Period */}
-        <Pills<Period>
-          options={[{ id: "monthly", label: "Monthly" }, { id: "ytd", label: "Year to Date" }]}
-          value={period} onChange={setPeriod} accent={ACCENT}
-        />
-
-        {/* Month tabs — only when Monthly */}
-        {period === "monthly" && (
-          <Pills<string>
-            options={data.monthlyData.map(m => ({ id: m.month, label: m.month.split(" ")[0] }))}
-            value={activeMonth} onChange={setActiveMonth} accent="#3b82f6"
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Period */}
+          <Pills<Period>
+            options={[{ id: "monthly", label: "Monthly" }, { id: "ytd", label: "Year to Date" }]}
+            value={period} onChange={setPeriod} accent={ACCENT}
           />
-        )}
 
-        {/* Spacer */}
-        <div className="flex-1" />
+          {/* Month tabs — only when Monthly */}
+          {period === "monthly" && (
+            <div className="min-w-0 flex-1 sm:flex-none">
+              <Pills<string>
+                options={data.monthlyData.map(m => ({ id: m.month, label: m.month.split(" ")[0] }))}
+                value={activeMonth} onChange={setActiveMonth} accent="#3b82f6"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Spacer on desktop */}
+        <div className="hidden sm:block flex-1" />
 
         {/* Refresh */}
         <button onClick={handleRefresh} disabled={isPending}
-          className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg font-medium"
+          className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg font-medium self-start sm:self-auto"
           style={{ color: ACCENT, background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)" }}>
           <RefreshCw size={12} className={isPending ? "animate-spin" : ""} />
           {isPending ? "Refreshing…" : "Refresh"}
