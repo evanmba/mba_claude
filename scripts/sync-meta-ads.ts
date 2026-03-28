@@ -240,62 +240,59 @@ async function fetchMeta(date: string) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
-  // Today's date = the row we write to (e.g. "3/27/26" → row 32)
-  // Yesterday's date = the Meta API date (completed day's data)
-  const todayISO     = process.env.META_ADS_TODAY_OVERRIDE     || getTodayISO();
-  const yesterdayISO = process.env.META_ADS_YESTERDAY_OVERRIDE || getYesterdayISO();
-  const todaySheet   = toSheetDate(todayISO);       // e.g. "3/27/26"
-  const tab          = process.env.META_ADS_SHEET_TAB || toTabName(todayISO); // e.g. "MAR 2026"
+  const todayISO       = process.env.META_ADS_TODAY_OVERRIDE     || getTodayISO();
+  const yesterdayISO   = process.env.META_ADS_YESTERDAY_OVERRIDE || getYesterdayISO();
+  const todaySheet     = toSheetDate(todayISO);     // e.g. "3/27/26"
+  const yesterdaySheet = toSheetDate(yesterdayISO); // e.g. "3/26/26"
+  const tab = process.env.META_ADS_SHEET_TAB || toTabName(todayISO);
 
-  console.log(`Today row: "${todaySheet}" | Meta data date: ${yesterdayISO} | Tab: "${tab}"`);
+  console.log(`Today: ${todayISO} ("${todaySheet}") | Yesterday: ${yesterdayISO} ("${yesterdaySheet}") | Tab: "${tab}"`);
 
-  // 1. Auth
-  const token = await getGoogleToken();
-
-  // 2. Get numeric sheetId for copyPaste
+  // 1. Auth + sheet metadata
+  const token   = await getGoogleToken();
   const sheetId = await getSheetId(token, tab);
   console.log(`Sheet ID: ${sheetId}`);
 
-  // 3. Find today's row by scanning column B
+  // 2. Read column B to locate both rows
   const colB = await readColumn(token, tab, "B");
-  console.log(`Column B — first 5: [${colB.slice(0, 5).join(" | ")}]`);
 
-  let targetRow = -1;
-  for (let i = 0; i < colB.length; i++) {
-    if (colB[i].trim() === todaySheet) { targetRow = i + 1; break; } // 1-based
-  }
-  if (targetRow < 0) throw new Error(`Date "${todaySheet}" not found in column B. Check tab name or date format.`);
-  console.log(`Target row: ${targetRow} (date "${todaySheet}")`);
-
-  // 4. Copy K:AD from previous row → today's row
-  if (targetRow > 2) {
-    const prevRowIdx = targetRow - 2; // 0-based index of previous row
-    const currRowIdx = targetRow - 1; // 0-based index of today's row
-    console.log(`Copying K:AD from row ${targetRow - 1} → row ${targetRow}…`);
-    await copyPrevRow(token, sheetId, prevRowIdx, currRowIdx);
-    console.log("Copy-paste: OK");
-  } else {
-    console.log("First data row — skipping copy-paste.");
+  function findRow(dateStr: string): number {
+    for (let i = 0; i < colB.length; i++) {
+      if (colB[i].trim() === dateStr) return i + 1; // 1-based
+    }
+    throw new Error(`Date "${dateStr}" not found in column B. Check tab name or date format.`);
   }
 
-  // 5. Fetch yesterday's Meta data
-  console.log(`Fetching Meta data for ${yesterdayISO}…`);
-  const m = await fetchMeta(yesterdayISO);
-  console.log("Meta data:", m);
+  const yesterdayRow = findRow(yesterdaySheet);
+  const todayRow     = findRow(todaySheet);
+  console.log(`Yesterday row: ${yesterdayRow} | Today row: ${todayRow}`);
 
-  // 6. Write Meta API values to C:F and H only
-  //    G (CPM), I (Unique CTR), J (Cost Per Unique Click) keep the previous-row copy
-  console.log(`Writing C:F and H in row ${targetRow}…`);
-  await writeMetaData(token, tab, targetRow, m);
-  console.log(`✓ Done. Row ${targetRow} ("${todaySheet}") updated.`);
-  console.log("  C (Amount Spent)     :", m.spend);
-  console.log("  D (Frequency)        :", m.frequency);
-  console.log("  E (Reach)            :", m.reach);
-  console.log("  F (Impressions)      :", m.impressions);
-  console.log("  G (CPM)              : copied from previous row");
-  console.log("  H (Unique Link Clicks):", m.unique_link_clicks);
-  console.log("  I (Unique CTR)       : copied from previous row");
-  console.log("  J (Cost/Unique Click): copied from previous row");
+  // 3. Fetch both days' Meta data in parallel
+  console.log(`Fetching Meta data for ${yesterdayISO} and ${todayISO}…`);
+  const [metaYesterday, metaToday] = await Promise.all([
+    fetchMeta(yesterdayISO),
+    fetchMeta(todayISO),
+  ]);
+  console.log(`Yesterday Meta: spend=$${metaYesterday.spend} reach=${metaYesterday.reach}`);
+  console.log(`Today Meta:     spend=$${metaToday.spend} reach=${metaToday.reach}`);
+
+  // 4. Refresh yesterday's row with final accurate data (C:F and H)
+  console.log(`Refreshing yesterday row ${yesterdayRow} with final data…`);
+  await writeMetaData(token, tab, yesterdayRow, metaYesterday);
+  console.log(`Yesterday row ${yesterdayRow}: updated.`);
+
+  // 5. Copy C:AD from yesterday's row → today's row (formula propagation)
+  console.log(`Copying C:AD from row ${yesterdayRow} → row ${todayRow}…`);
+  await copyPrevRow(token, sheetId, yesterdayRow - 1, todayRow - 1); // 0-based
+  console.log("Copy-paste: OK");
+
+  // 6. Write today's current running Meta data to today's row (C:F and H)
+  console.log(`Writing today's current data to row ${todayRow}…`);
+  await writeMetaData(token, tab, todayRow, metaToday);
+
+  console.log(`\n✓ Done.`);
+  console.log(`  Row ${yesterdayRow} ("${yesterdaySheet}"): final data refreshed`);
+  console.log(`  Row ${todayRow} ("${todaySheet}"):     current data written + formulas copied`);
 }
 
 main().catch(err => {
