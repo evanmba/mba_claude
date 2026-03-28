@@ -259,6 +259,29 @@ function buildRow(
 }
 
 // ---------------------------------------------------------------------------
+// Match a Call Source creative name → sum spend from all matching Meta ads
+// "Matching" = either name contains the other (after normalization)
+// ---------------------------------------------------------------------------
+function sumMetaSpendForCreative(
+  creativeName: string,
+  metaAdRows: MetaInsightRow[],
+): { spend: number; status: string } {
+  const needle = normName(creativeName);
+  let spend = 0;
+  let status = "UNKNOWN";
+
+  for (const r of metaAdRows) {
+    const hay = normName(r.name);
+    if (hay.includes(needle) || needle.includes(hay)) {
+      spend += r.spend;
+      if (r.status === "ACTIVE") status = "ACTIVE";
+      else if (status === "UNKNOWN") status = r.status;
+    }
+  }
+  return { spend, status };
+}
+
+// ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
 export async function fetchAttributionData(
@@ -268,7 +291,6 @@ export async function fetchAttributionData(
   const apiKey = process.env.SHEETS_API_KEY ?? process.env.GOOGLE_SHEETS_API_KEY ?? "";
   const lastUpdated = new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 
-  // Call Source groupBy dimension
   const groupBy: "campaign" | "adset" | "ad" =
     level === "campaign" ? "campaign" : level === "adset" ? "adset" : "ad";
 
@@ -277,31 +299,51 @@ export async function fetchAttributionData(
       fetchSheetValues(FUNNEL_SHEET_ID, "Call Source", apiKey).catch(() => [] as string[][]),
       fetchSheetValues(FUNNEL_SHEET_ID, "CALLS",       apiKey).catch(() => [] as string[][]),
       fetchSheetValues(FUNNEL_SHEET_ID, "LEADS",       apiKey).catch(() => [] as string[][]),
-      fetchMetaSpend(level, datePreset),
+      fetchMetaSpend(level === "ad" ? "ad" : level, datePreset),
     ]);
 
-    // Prefer "Call Source" tab; fall back to legacy "CALLS" tab
     const usesCallSource = callSourceRows.length > 2;
-    const callsMap = usesCallSource
+    const callsMap  = usesCallSource
       ? aggregateCallSource(callSourceRows, groupBy)
       : aggregateCallsLegacy(callsLegacyRows);
 
     const leadsMap      = aggregateLeads(leadsRows);
     const callsKeys     = [...callsMap.keys()];
+    const leadsKeys     = [...leadsMap.keys()];
     const metaConnected = !metaData.error && metaData.rows.length > 0;
 
-    // ── Meta-driven: one row per Meta campaign/adset/ad ───────────────────
-    if (metaConnected) {
-      const metaRows = level === "ad"
-        ? groupMetaByCreative(metaData.rows)
-        : metaData.rows;
+    // ── Creative level: Call Source drives rows, Meta searched for spend ──
+    if (level === "ad" && usesCallSource) {
+      const rows: SourceRow[] = callsKeys.map((creativeName) => {
+        const calls  = callsMap.get(creativeName)!;
+        const leads  = matchKey(creativeName, leadsKeys)
+          ? (leadsMap.get(matchKey(creativeName, leadsKeys)!) ?? 0)
+          : 0;
 
-      const rows: SourceRow[] = metaRows.map((mr) => {
+        let spend  = 0;
+        let status: string | undefined;
+        if (metaConnected) {
+          const m = sumMetaSpendForCreative(creativeName, metaData.rows);
+          spend  = m.spend;
+          status = m.status !== "UNKNOWN" ? m.status : undefined;
+        }
+
+        return buildRow(creativeName, spend, leads, calls, status);
+      })
+      // Filter noise: must have at least 1 booked call OR meaningful spend
+      .filter((r) => r.bookedCalls >= 1 || r.spend >= 500)
+      .sort((a, b) => b.bookedCalls - a.bookedCalls || b.spend - a.spend);
+
+      return { rows, hasSpend: metaConnected, metaConnected, usesCallSource, level, datePreset, lastUpdated };
+    }
+
+    // ── Campaign / Ad Set: Meta drives rows, Call Source joined in ────────
+    if (metaConnected) {
+      const rows: SourceRow[] = metaData.rows.map((mr) => {
         const key   = matchKey(mr.name, callsKeys);
         const calls = key ? (callsMap.get(key) ?? null) : null;
-        // Leads: try matching by Meta name → leads source (best-effort)
-        const leads = matchKey(mr.name, [...leadsMap.keys()])
-          ? (leadsMap.get(matchKey(mr.name, [...leadsMap.keys()])!) ?? 0)
+        const leads = matchKey(mr.name, leadsKeys)
+          ? (leadsMap.get(matchKey(mr.name, leadsKeys)!) ?? 0)
           : 0;
         return buildRow(mr.name, mr.spend, leads, calls, mr.status);
       }).sort((a, b) => b.spend - a.spend);
@@ -310,7 +352,7 @@ export async function fetchAttributionData(
     }
 
     // ── Sheet-only fallback ───────────────────────────────────────────────
-    const allKeys = new Set([...callsMap.keys(), ...leadsMap.keys()]);
+    const allKeys = new Set([...callsKeys, ...leadsKeys]);
     const rows: SourceRow[] = Array.from(allKeys)
       .map((key) => buildRow(key, 0, leadsMap.get(key) ?? 0, callsMap.get(key) ?? null))
       .filter((r) => r.bookedCalls > 0 || r.leads > 0)
