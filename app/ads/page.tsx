@@ -1,4 +1,3 @@
-"use server";
 import { Suspense } from "react";
 import { revalidatePath } from "next/cache";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
