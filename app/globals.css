@@ -64,6 +64,10 @@ body {
   background: #475569;
 }
 
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 /* Table row hover highlight */
 tr.hoverable {
   cursor: default;
