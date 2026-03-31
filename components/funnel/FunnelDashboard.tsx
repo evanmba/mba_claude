@@ -14,9 +14,27 @@ interface Props {
 export function FunnelDashboard({ data, error }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "done" | "error">("idle");
 
-  function refresh() {
+  async function refresh() {
+    setSyncStatus("syncing");
+    try {
+      // 1. Push today's live Meta Ads data to the Google Sheet
+      const res = await fetch("/api/meta-ads/refresh-today");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.error("[refresh] Meta sync failed:", body);
+        setSyncStatus("error");
+      } else {
+        setSyncStatus("done");
+      }
+    } catch (e) {
+      console.error("[refresh] Meta sync error:", e);
+      setSyncStatus("error");
+    }
+    // 2. Re-fetch the sheet data to update the dashboard
     startTransition(() => { router.refresh(); });
+    setTimeout(() => setSyncStatus("idle"), 3000);
   }
 
   return (
@@ -34,16 +52,16 @@ export function FunnelDashboard({ data, error }: Props) {
         </div>
         <button
           onClick={refresh}
-          disabled={isPending}
+          disabled={isPending || syncStatus === "syncing"}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium flex-shrink-0"
           style={{
-            background: "var(--card)",
-            border: "1px solid var(--border)",
-            color: isPending ? "var(--muted-foreground)" : "var(--foreground)",
-            cursor: isPending ? "not-allowed" : "pointer",
+            background: syncStatus === "done" ? "rgba(34,197,94,0.1)" : syncStatus === "error" ? "rgba(239,68,68,0.1)" : "var(--card)",
+            border: `1px solid ${syncStatus === "done" ? "rgba(34,197,94,0.3)" : syncStatus === "error" ? "rgba(239,68,68,0.3)" : "var(--border)"}`,
+            color: syncStatus === "done" ? "#22c55e" : syncStatus === "error" ? "#ef4444" : isPending || syncStatus === "syncing" ? "var(--muted-foreground)" : "var(--foreground)",
+            cursor: isPending || syncStatus === "syncing" ? "not-allowed" : "pointer",
           }}>
-          <RefreshCw size={13} style={{ color: "#3b82f6", animation: isPending ? "spin 0.8s linear infinite" : "none" }} />
-          {isPending ? "Refreshing…" : "Refresh"}
+          <RefreshCw size={13} style={{ color: syncStatus === "done" ? "#22c55e" : syncStatus === "error" ? "#ef4444" : "#3b82f6", animation: isPending || syncStatus === "syncing" ? "spin 0.8s linear infinite" : "none" }} />
+          {syncStatus === "syncing" ? "Syncing Meta…" : syncStatus === "done" ? "Synced!" : syncStatus === "error" ? "Sync failed" : isPending ? "Refreshing…" : "Refresh"}
         </button>
       </div>
 
