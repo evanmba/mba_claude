@@ -149,9 +149,9 @@ function FunnelBar({ label, count, max, note, color, isSub = false }: {
   const pct = max > 0 ? (count / max) * 100 : 0;
   return (
     <div className={`flex items-center gap-3 ${isSub ? "pl-5" : ""}`}>
-      <div className="w-32 flex-shrink-0">
+      <div className="w-24 sm:w-32 flex-shrink-0">
         <p className="text-xs font-semibold" style={{ color: isSub ? "var(--muted-foreground)" : "var(--foreground)" }}>{label}</p>
-        {note && <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{note}</p>}
+        {note && <p className="text-xs hidden sm:block" style={{ color: "var(--muted-foreground)" }}>{note}</p>}
       </div>
       <div className="flex-1 relative h-7 rounded" style={{ background: "var(--secondary)" }}>
         <div className="h-full rounded transition-all duration-500"
@@ -201,7 +201,7 @@ function SalesFunnel({ d, label }: { d: CloserData; label: string }) {
         <FunnelBar label="FU Closed"  count={d.totalFUCloses}  max={max} color="#22c55e" isSub
           note={`${fmtPct(d.fuCloseRate)} FU close`} />
       </div>
-      <div className="px-5 py-3 border-t grid grid-cols-4 gap-3" style={{ borderColor: "var(--border)", background: "rgba(16,185,129,0.04)" }}>
+      <div className="px-5 py-3 border-t grid grid-cols-2 sm:grid-cols-4 gap-3" style={{ borderColor: "var(--border)", background: "rgba(16,185,129,0.04)" }}>
         {[
           { label: "Booked",  value: d.totalBooked },
           { label: "Taken",   value: d.totalTaken  },
@@ -460,31 +460,46 @@ export default function SalesClient({ data }: { data: SalesDashboardPayload }) {
         </div>
       )}
 
-      {/* Page header */}
-      <div>
-        <div className="flex items-center gap-2 mb-1">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(16,185,129,0.15)" }}>
-            <TrendingUp size={16} style={{ color: ACCENT }} />
+      {/* Page header — title left, refresh top-right */}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "rgba(16,185,129,0.15)" }}>
+              <TrendingUp size={16} style={{ color: ACCENT }} />
+            </div>
+            <h1 className="text-xl sm:text-2xl font-bold" style={{ color: "var(--foreground)" }}>Sales Dashboard</h1>
           </div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>Sales Dashboard</h1>
+          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+            Call funnel, revenue & cash, rate metrics · {data.closer1Name}
+          </p>
         </div>
-        <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-          Call funnel, revenue & cash, rate metrics · {data.closer1Name}
-        </p>
+        {/* Refresh — top right */}
+        <button
+          onClick={handleRefresh}
+          disabled={isPending}
+          className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg font-medium flex-shrink-0 transition-all"
+          style={{
+            color: isPending ? ACCENT : "var(--muted-foreground)",
+            background: isPending ? "rgba(16,185,129,0.1)" : "var(--secondary)",
+            border: "1px solid transparent",
+          }}
+          onMouseEnter={e => { if (!isPending) { e.currentTarget.style.color = ACCENT; e.currentTarget.style.background = "rgba(16,185,129,0.1)"; e.currentTarget.style.borderColor = "rgba(16,185,129,0.25)"; }}}
+          onMouseLeave={e => { if (!isPending) { e.currentTarget.style.color = "var(--muted-foreground)"; e.currentTarget.style.background = "var(--secondary)"; e.currentTarget.style.borderColor = "transparent"; }}}
+        >
+          <RefreshCw size={12} className={isPending ? "animate-spin" : ""} />
+          <span className="hidden sm:inline">{isPending ? "Refreshing…" : "Refresh"}</span>
+        </button>
       </div>
 
-      {/* Control bar */}
+      {/* Period + Month selectors */}
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Period */}
           <Pills<Period>
             options={[{ id: "monthly", label: "Monthly" }, { id: "ytd", label: "Year to Date" }]}
             value={period} onChange={setPeriod} accent={ACCENT}
           />
-
-          {/* Month tabs — only when Monthly */}
           {period === "monthly" && (
-            <div className="min-w-0 flex-1 sm:flex-none">
+            <div className="min-w-0 max-w-full">
               <Pills<string>
                 options={data.monthlyData.map(m => ({ id: m.month, label: m.month.split(" ")[0] }))}
                 value={activeMonth} onChange={setActiveMonth} accent="#3b82f6"
@@ -492,17 +507,6 @@ export default function SalesClient({ data }: { data: SalesDashboardPayload }) {
             </div>
           )}
         </div>
-
-        {/* Spacer on desktop */}
-        <div className="hidden sm:block flex-1" />
-
-        {/* Refresh */}
-        <button onClick={handleRefresh} disabled={isPending}
-          className="flex items-center gap-1.5 text-xs px-3 py-2 rounded-lg font-medium self-start sm:self-auto"
-          style={{ color: ACCENT, background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)" }}>
-          <RefreshCw size={12} className={isPending ? "animate-spin" : ""} />
-          {isPending ? "Refreshing…" : "Refresh"}
-        </button>
       </div>
 
       {!d ? (
@@ -510,7 +514,7 @@ export default function SalesClient({ data }: { data: SalesDashboardPayload }) {
       ) : (
         <>
           {/* 2 KPI cards */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
               { label: "Cash / Call",        value: fmtDollar(d.cashPerCall),       color: ACCENT,    icon: DollarSign },
               { label: "Total Cash Collected", value: fmtDollar(d.totalCash, true), color: "#22c55e", icon: DollarSign },
