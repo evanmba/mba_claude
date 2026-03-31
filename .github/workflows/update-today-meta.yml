@@ -1,0 +1,45 @@
+name: Update Today's Meta Ads (every 30 min)
+
+on:
+  schedule:
+    # Runs every 30 minutes, 6 AM–11:30 PM Eastern (EDT = UTC-4: 10:00–03:30 UTC)
+    # Covers the full day so the sheet stays current throughout business hours
+    - cron: "*/30 10-23 * * *"  # 10:00–23:30 UTC (6 AM–7:30 PM EDT)
+    - cron: "*/30 0-3 * * *"    # 00:00–03:30 UTC (8 PM–11:30 PM EDT)
+
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Override date (YYYY-MM-DD). Defaults to today."
+        required: false
+        default: ""
+
+jobs:
+  update:
+    name: Refresh Today's Row
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run update script
+        env:
+          META_ADS_ACCESS_TOKEN: ${{ secrets.META_ADS_ACCESS_TOKEN }}
+          META_ADS_ACCOUNT_ID: ${{ secrets.META_ADS_ACCOUNT_ID }}
+          MASTER_TRACKER_SHEET_ID: ${{ secrets.MASTER_TRACKER_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+          META_ADS_TODAY_OVERRIDE: ${{ github.event.inputs.date }}
+        run: npx tsx scripts/update-today-meta.ts
