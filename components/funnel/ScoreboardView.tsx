@@ -279,14 +279,23 @@ interface Props {
 }
 
 export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLabel, prevMonthLabel }: Props) {
-  const [period, setPeriod] = useState<"4d" | "14d" | "month">("month");
-
-  const kpi =
-    period === "4d"  ? (monthly.find((r) => r.period === "4 Days")  ?? null) :
-    period === "14d" ? (monthly.find((r) => r.period === "14 Days") ?? null) :
-    (monthly.find((r) => r.period === "30 Days") ?? monthly.find((r) => r.isRollup) ?? null);
+  const [period, setPeriod] = useState<"today" | "4d" | "14d" | "month">("month");
 
   const dailyRows = monthly.filter((r) => !r.isRollup);
+
+  // Today's row: match against M/D/YY or M/D/YYYY date strings
+  const todayDate = new Date();
+  const todayStr  = `${todayDate.getMonth() + 1}/${todayDate.getDate()}/${String(todayDate.getFullYear()).slice(-2)}`;
+  const todayRow  = dailyRows.find((r) => r.period === todayStr)
+    ?? dailyRows.find((r) => r.period === `${todayDate.getMonth() + 1}/${todayDate.getDate()}/${todayDate.getFullYear()}`)
+    ?? (dailyRows.length > 0 ? dailyRows[dailyRows.length - 1] : null);  // most recent if today not found
+
+  const kpi =
+    period === "today" ? todayRow :
+    period === "4d"    ? (monthly.find((r) => r.period === "4 Days")  ?? null) :
+    period === "14d"   ? (monthly.find((r) => r.period === "14 Days") ?? null) :
+    (monthly.find((r) => r.period === "30 Days") ?? monthly.find((r) => r.isRollup) ?? null);
+
 
   const { monthIdx, year } = parseMonthLabel(monthLabel);
   const monthName = MONTH_NAMES[monthIdx];
@@ -314,7 +323,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
   } : null;
 
   const isPacing = period === "month" && isCurrentMonth && daysWithData > 0 && daysWithData < totalDays && kpi != null;
-  const showMoM  = period === "month";
+  const showMoM  = period === "month" || period === "today";
 
   // Previous month KPI: prefer the actual prev month sheet (full data), fall back to YTD/scoreboard rows
   const prevKpi = prevMonthly.find((r) => r.period === "30 Days") ?? prevMonthly.find((r) => r.isRollup) ?? null;
@@ -356,6 +365,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
   void prevMonthLabel; // available for display if needed
 
   const TABS = [
+    { key: "today", label: "Today" },
     { key: "4d",    label: "4 Days" },
     { key: "14d",   label: "14 Days" },
     { key: "month", label: monthName },
