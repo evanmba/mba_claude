@@ -23,7 +23,7 @@ import { createSign } from "crypto";
 
 const SPREADSHEET_ID = process.env.MASTER_TRACKER_SHEET_ID ?? "";
 const SA_EMAIL       = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? "";
-const SA_KEY         = (process.env.GOOGLE_MASTER_SHEETS_API_KEY ?? "").replace(/\\n/g, "\n");
+const SA_KEY         = (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY ?? "").replace(/\\n/g, "\n");
 const META_TOKEN     = process.env.META_ADS_ACCESS_TOKEN ?? "";
 const META_ACCOUNT   = process.env.META_ADS_ACCOUNT_ID ?? "";
 
