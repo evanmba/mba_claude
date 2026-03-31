@@ -279,7 +279,13 @@ interface Props {
 }
 
 export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLabel, prevMonthLabel }: Props) {
-  const kpi = monthly.find((r) => r.period === "30 Days") ?? monthly.find((r) => r.isRollup) ?? null;
+  const [period, setPeriod] = useState<"4d" | "14d" | "month">("month");
+
+  const kpi =
+    period === "4d"  ? (monthly.find((r) => r.period === "4 Days")  ?? null) :
+    period === "14d" ? (monthly.find((r) => r.period === "14 Days") ?? null) :
+    (monthly.find((r) => r.period === "30 Days") ?? monthly.find((r) => r.isRollup) ?? null);
+
   const dailyRows = monthly.filter((r) => !r.isRollup);
 
   const { monthIdx, year } = parseMonthLabel(monthLabel);
@@ -307,7 +313,8 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
     dealsClosed:  projectCount(kpi.dealsClosed,  daysWithData, totalDays),
   } : null;
 
-  const isPacing = isCurrentMonth && daysWithData > 0 && daysWithData < totalDays && kpi != null;
+  const isPacing = period === "month" && isCurrentMonth && daysWithData > 0 && daysWithData < totalDays && kpi != null;
+  const showMoM  = period === "month";
 
   // Previous month KPI: prefer the actual prev month sheet (full data), fall back to YTD/scoreboard rows
   const prevKpi = prevMonthly.find((r) => r.period === "30 Days") ?? prevMonthly.find((r) => r.isRollup) ?? null;
@@ -348,8 +355,28 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
 
   void prevMonthLabel; // available for display if needed
 
+  const TABS = [
+    { key: "4d",    label: "4 Days" },
+    { key: "14d",   label: "14 Days" },
+    { key: "month", label: monthName },
+  ] as const;
+
   return (
     <div className="flex flex-col gap-4">
+
+      {/* ── Period tabs ── */}
+      <div className="flex rounded-lg overflow-hidden self-start" style={{ border: "1px solid var(--border)" }}>
+        {TABS.map((t) => (
+          <button key={t.key} onClick={() => setPeriod(t.key)}
+            className="px-4 py-1.5 text-xs font-semibold transition-colors"
+            style={{
+              background: period === t.key ? "#3b82f6" : "var(--card)",
+              color: period === t.key ? "#fff" : "var(--muted-foreground)",
+            }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
 
       {/* ── Pace banner ── */}
       {isPacing && (
@@ -367,13 +394,13 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
         <MetricCard label="Spend"
           value={proj?.spend != null ? $$(proj.spend) : (kpi ? $$(kpi.amountSpent) : "—")}
           mv={proj?.spend != null ? c$$(proj.spend) : (kpi ? c$$(kpi.amountSpent) : "—")}
-          cur={proj?.spend ?? kpi?.amountSpent ?? 0} prv={prev.amountSpent} hib={false}
+          cur={proj?.spend ?? kpi?.amountSpent ?? 0} prv={showMoM ? prev.amountSpent : undefined} hib={false}
           actual={proj?.spend != null && kpi ? $$(kpi.amountSpent) : undefined}
           ma={proj?.spend != null && kpi ? c$$(kpi.amountSpent) : undefined} />
         <MetricCard label="Impressions"
           value={proj?.impressions != null ? num(proj.impressions) : (kpi ? num(kpi.impressions) : "—")}
           mv={proj?.impressions != null ? cnum(proj.impressions) : (kpi ? cnum(kpi.impressions) : "—")}
-          cur={proj?.impressions ?? kpi?.impressions ?? 0} prv={prev.impressions} hib={true}
+          cur={proj?.impressions ?? kpi?.impressions ?? 0} prv={showMoM ? prev.impressions : undefined} hib={true}
           actual={proj?.impressions != null && kpi ? num(kpi.impressions) : undefined}
           ma={proj?.impressions != null && kpi ? cnum(kpi.impressions) : undefined} />
         <MetricCard label="CPM" value={kpi ? $$(kpi.cpm) : "—"} mv={kpi ? c$$(kpi.cpm) : "—"} cur={kpi?.cpm ?? 0} prv={undefined} hib={false} />
@@ -382,11 +409,11 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
         <MetricCard label="Unique Clicks"
           value={proj?.uniqueClicks != null ? num(proj.uniqueClicks) : (kpi ? num(kpi.uniqueClicks) : "—")}
           mv={proj?.uniqueClicks != null ? cnum(proj.uniqueClicks) : (kpi ? cnum(kpi.uniqueClicks) : "—")}
-          cur={proj?.uniqueClicks ?? kpi?.uniqueClicks ?? 0} prv={prev.uniqueClicks} hib={true}
+          cur={proj?.uniqueClicks ?? kpi?.uniqueClicks ?? 0} prv={showMoM ? prev.uniqueClicks : undefined} hib={true}
           actual={proj?.uniqueClicks != null && kpi ? num(kpi.uniqueClicks) : undefined}
           ma={proj?.uniqueClicks != null && kpi ? cnum(kpi.uniqueClicks) : undefined} />
-        <MetricCard label="Unique CTR"  value={kpi ? pct(kpi.ctr)         : "—"} cur={kpi?.ctr          ?? 0} prv={prev.ctr}          hib={true}  />
-        <MetricCard label="$ Per Click" value={kpi ? $$(kpi.costPerClick) : "—"} mv={kpi ? c$$(kpi.costPerClick) : "—"} cur={kpi?.costPerClick ?? 0} prv={prev.costPerClick} hib={false} />
+        <MetricCard label="Unique CTR"  value={kpi ? pct(kpi.ctr)         : "—"} cur={kpi?.ctr          ?? 0} prv={showMoM ? prev.ctr : undefined}          hib={true}  />
+        <MetricCard label="$ Per Click" value={kpi ? $$(kpi.costPerClick) : "—"} mv={kpi ? c$$(kpi.costPerClick) : "—"} cur={kpi?.costPerClick ?? 0} prv={showMoM ? prev.costPerClick : undefined} hib={false} />
       </div>
 
       {/* ── Row 2: Leads ── */}
@@ -395,11 +422,11 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
         <MetricCard label="Leads"
           value={proj?.leads != null ? num(proj.leads) : (kpi ? num(kpi.leads) : "—")}
           mv={proj?.leads != null ? cnum(proj.leads) : (kpi ? cnum(kpi.leads) : "—")}
-          cur={proj?.leads ?? kpi?.leads ?? 0} prv={prev.leads} hib={true}
+          cur={proj?.leads ?? kpi?.leads ?? 0} prv={showMoM ? prev.leads : undefined} hib={true}
           actual={proj?.leads != null && kpi ? num(kpi.leads) : undefined}
           ma={proj?.leads != null && kpi ? cnum(kpi.leads) : undefined} />
-        <MetricCard label="Opt-In Conv %"  value={kpi ? pct(kpi.leadConv)    : "—"} cur={kpi?.leadConv    ?? 0} prv={prev.optInConv}   hib={true}  />
-        <MetricCard label="Cost Per Lead"  value={kpi ? $$(kpi.costPerLead)  : "—"} mv={kpi ? c$$(kpi.costPerLead) : "—"} cur={kpi?.costPerLead  ?? 0} prv={prev.costPerLead}  hib={false} />
+        <MetricCard label="Opt-In Conv %"  value={kpi ? pct(kpi.leadConv)    : "—"} cur={kpi?.leadConv    ?? 0} prv={showMoM ? prev.optInConv : undefined}   hib={true}  />
+        <MetricCard label="Cost Per Lead"  value={kpi ? $$(kpi.costPerLead)  : "—"} mv={kpi ? c$$(kpi.costPerLead) : "—"} cur={kpi?.costPerLead  ?? 0} prv={showMoM ? prev.costPerLead : undefined}  hib={false} />
       </div>
 
       {/* ── Row 3: Apps ── */}
@@ -408,11 +435,11 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
         <MetricCard label="Total Apps"
           value={proj?.apps != null ? num(proj.apps) : (kpi ? num(kpi.apps) : "—")}
           mv={proj?.apps != null ? cnum(proj.apps) : (kpi ? cnum(kpi.apps) : "—")}
-          cur={proj?.apps ?? kpi?.apps ?? 0} prv={prev.apps} hib={true}
+          cur={proj?.apps ?? kpi?.apps ?? 0} prv={showMoM ? prev.apps : undefined} hib={true}
           actual={proj?.apps != null && kpi ? num(kpi.apps) : undefined}
           ma={proj?.apps != null && kpi ? cnum(kpi.apps) : undefined} />
-        <MetricCard label="App Conv %"   value={kpi ? pct(kpi.appConv)    : "—"} cur={kpi?.appConv    ?? 0} prv={prev.appConv}    hib={true}  />
-        <MetricCard label="Cost Per App" value={kpi ? $$(kpi.costPerApp)  : "—"} mv={kpi ? c$$(kpi.costPerApp) : "—"} cur={kpi?.costPerApp  ?? 0} prv={prev.costPerApp}  hib={false} />
+        <MetricCard label="App Conv %"   value={kpi ? pct(kpi.appConv)    : "—"} cur={kpi?.appConv    ?? 0} prv={showMoM ? prev.appConv : undefined}    hib={true}  />
+        <MetricCard label="Cost Per App" value={kpi ? $$(kpi.costPerApp)  : "—"} mv={kpi ? c$$(kpi.costPerApp) : "—"} cur={kpi?.costPerApp  ?? 0} prv={showMoM ? prev.costPerApp : undefined}  hib={false} />
       </div>
 
       {/* ── Row 4: Booked Calls ── */}
@@ -421,11 +448,11 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
         <MetricCard label="Booked Calls"
           value={proj?.bookedCalls != null ? num(proj.bookedCalls) : (kpi ? num(kpi.bookedCalls) : "—")}
           mv={proj?.bookedCalls != null ? cnum(proj.bookedCalls) : (kpi ? cnum(kpi.bookedCalls) : "—")}
-          cur={proj?.bookedCalls ?? kpi?.bookedCalls ?? 0} prv={prev.bookedCalls} hib={true}
+          cur={proj?.bookedCalls ?? kpi?.bookedCalls ?? 0} prv={showMoM ? prev.bookedCalls : undefined} hib={true}
           actual={proj?.bookedCalls != null && kpi ? num(kpi.bookedCalls) : undefined}
           ma={proj?.bookedCalls != null && kpi ? cnum(kpi.bookedCalls) : undefined} />
-        <MetricCard label="Lead-to-Booked"      value={kpi ? pct(kpi.bookedConv)    : "—"} cur={kpi?.bookedConv    ?? 0} prv={prev.leadToBooked}  hib={true}  />
-        <MetricCard label="Cost Per Booked"     value={kpi ? $$(kpi.costPerBooked)  : "—"} mv={kpi ? c$$(kpi.costPerBooked) : "—"} cur={kpi?.costPerBooked  ?? 0} prv={prev.costPerBooked} hib={false} />
+        <MetricCard label="Lead-to-Booked"      value={kpi ? pct(kpi.bookedConv)    : "—"} cur={kpi?.bookedConv    ?? 0} prv={showMoM ? prev.leadToBooked : undefined}  hib={true}  />
+        <MetricCard label="Cost Per Booked"     value={kpi ? $$(kpi.costPerBooked)  : "—"} mv={kpi ? c$$(kpi.costPerBooked) : "—"} cur={kpi?.costPerBooked  ?? 0} prv={showMoM ? prev.costPerBooked : undefined} hib={false} />
       </div>
 
       {/* ── Row 5: Taken Calls ── */}
@@ -434,11 +461,11 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
         <MetricCard label="Taken Calls"
           value={proj?.takenCalls != null ? num(proj.takenCalls) : (kpi ? num(kpi.takenCalls) : "—")}
           mv={proj?.takenCalls != null ? cnum(proj.takenCalls) : (kpi ? cnum(kpi.takenCalls) : "—")}
-          cur={proj?.takenCalls ?? kpi?.takenCalls ?? 0} prv={prev.takenCalls} hib={true}
+          cur={proj?.takenCalls ?? kpi?.takenCalls ?? 0} prv={showMoM ? prev.takenCalls : undefined} hib={true}
           actual={proj?.takenCalls != null && kpi ? num(kpi.takenCalls) : undefined}
           ma={proj?.takenCalls != null && kpi ? cnum(kpi.takenCalls) : undefined} />
-        <MetricCard label="Show-Up Rate"    value={kpi ? pct(kpi.showUpRate)   : "—"} cur={kpi?.showUpRate   ?? 0} prv={prev.showUpRate}   hib={true}  />
-        <MetricCard label="Cost Per Taken"  value={kpi ? $$(kpi.costPerTaken)  : "—"} mv={kpi ? c$$(kpi.costPerTaken) : "—"} cur={kpi?.costPerTaken  ?? 0} prv={prev.costPerTaken} hib={false} />
+        <MetricCard label="Show-Up Rate"    value={kpi ? pct(kpi.showUpRate)   : "—"} cur={kpi?.showUpRate   ?? 0} prv={showMoM ? prev.showUpRate : undefined}   hib={true}  />
+        <MetricCard label="Cost Per Taken"  value={kpi ? $$(kpi.costPerTaken)  : "—"} mv={kpi ? c$$(kpi.costPerTaken) : "—"} cur={kpi?.costPerTaken  ?? 0} prv={showMoM ? prev.costPerTaken : undefined} hib={false} />
       </div>
 
       {/* ── Row 6: Deals ── */}
@@ -447,11 +474,11 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
         <MetricCard label="Deals Closed"
           value={proj?.dealsClosed != null ? num(proj.dealsClosed) : (kpi ? num(kpi.dealsClosed) : "—")}
           mv={proj?.dealsClosed != null ? cnum(proj.dealsClosed) : (kpi ? cnum(kpi.dealsClosed) : "—")}
-          cur={proj?.dealsClosed ?? kpi?.dealsClosed ?? 0} prv={prev.dealsClosed} hib={true}
+          cur={proj?.dealsClosed ?? kpi?.dealsClosed ?? 0} prv={showMoM ? prev.dealsClosed : undefined} hib={true}
           actual={proj?.dealsClosed != null && kpi ? num(kpi.dealsClosed) : undefined}
           ma={proj?.dealsClosed != null && kpi ? cnum(kpi.dealsClosed) : undefined} />
-        <MetricCard label="Close Rate"  value={kpi ? pct(kpi.closeRate) : "—"} cur={kpi?.closeRate ?? 0} prv={prev.closeRate} hib={true}  />
-        <MetricCard label="Cost/Acq"    value={kpi ? $$(kpi.cpa)       : "—"} mv={kpi ? c$$(kpi.cpa) : "—"} cur={kpi?.cpa       ?? 0} prv={prev.cpa}       hib={false} />
+        <MetricCard label="Close Rate"  value={kpi ? pct(kpi.closeRate) : "—"} cur={kpi?.closeRate ?? 0} prv={showMoM ? prev.closeRate : undefined} hib={true}  />
+        <MetricCard label="Cost/Acq"    value={kpi ? $$(kpi.cpa)       : "—"} mv={kpi ? c$$(kpi.cpa) : "—"} cur={kpi?.cpa       ?? 0} prv={showMoM ? prev.cpa : undefined}       hib={false} />
       </div>
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {(() => {
@@ -459,8 +486,8 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
           const prevCashRevRatio = prev.cash != null && prev.revenue != null && prev.revenue > 0
             ? prev.cash / prev.revenue : undefined;
           return (<>
-            <MetricCard label="Cash"    value={kpi ? $$(kpi.cash)    : "—"} mv={kpi ? c$$(kpi.cash)    : "—"} cur={kpi?.cash    ?? 0} prv={prev.cash}    hib={true} />
-            <MetricCard label="Revenue" value={kpi ? $$(kpi.revenue) : "—"} mv={kpi ? c$$(kpi.revenue) : "—"} cur={kpi?.revenue ?? 0} prv={prev.revenue} hib={true} />
+            <MetricCard label="Cash"    value={kpi ? $$(kpi.cash)    : "—"} mv={kpi ? c$$(kpi.cash)    : "—"} cur={kpi?.cash    ?? 0} prv={showMoM ? prev.cash : undefined}    hib={true} />
+            <MetricCard label="Revenue" value={kpi ? $$(kpi.revenue) : "—"} mv={kpi ? c$$(kpi.revenue) : "—"} cur={kpi?.revenue ?? 0} prv={showMoM ? prev.revenue : undefined} hib={true} />
             <MetricCard label="Cash:Rev" value={cashRevRatio > 0 ? `${cashRevRatio.toFixed(2)}x` : "—"} cur={cashRevRatio} prv={prevCashRevRatio} hib={true} />
           </>);
         })()}
@@ -472,8 +499,8 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
           const revROAS  = kpi && kpi.revenueROAS > 0 ? kpi.revenueROAS
             : (kpi && kpi.amountSpent > 0 ? kpi.revenue / kpi.amountSpent : 0);
           return (<>
-            <MetricCard label="Cash ROAS"    value={cashROAS > 0 ? `${cashROAS.toFixed(2)}x`    : "—"} cur={cashROAS}    prv={prev.cashROAS}    hib={true} />
-            <MetricCard label="Revenue ROAS" value={revROAS  > 0 ? `${revROAS.toFixed(2)}x`     : "—"} cur={revROAS}     prv={prev.revenueROAS} hib={true} />
+            <MetricCard label="Cash ROAS"    value={cashROAS > 0 ? `${cashROAS.toFixed(2)}x`    : "—"} cur={cashROAS}    prv={showMoM ? prev.cashROAS : undefined}    hib={true} />
+            <MetricCard label="Revenue ROAS" value={revROAS  > 0 ? `${revROAS.toFixed(2)}x`     : "—"} cur={revROAS}     prv={showMoM ? prev.revenueROAS : undefined} hib={true} />
           </>);
         })()}
       </div>
@@ -485,16 +512,16 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <SparkCard label="Leads" monthName={monthName} curData={dailyRows.map((r) => r.leads)}
           monthIdx={monthIdx} year={year} color="#8b5cf6" formatter={num}
-          curTotal={kpi?.leads ?? 0} prv={prev.leads} />
+          curTotal={kpi?.leads ?? 0} prv={showMoM ? prev.leads : undefined} />
         <SparkCard label="Booked Calls" monthName={monthName} curData={dailyRows.map((r) => r.bookedCalls)}
           monthIdx={monthIdx} year={year} color="#22c55e" formatter={num}
-          curTotal={kpi?.bookedCalls ?? 0} prv={prev.bookedCalls} />
+          curTotal={kpi?.bookedCalls ?? 0} prv={showMoM ? prev.bookedCalls : undefined} />
         <SparkCard label="Taken Calls" monthName={monthName} curData={dailyRows.map((r) => r.takenCalls)}
           monthIdx={monthIdx} year={year} color="#f59e0b" formatter={num}
-          curTotal={kpi?.takenCalls ?? 0} prv={prev.takenCalls} />
+          curTotal={kpi?.takenCalls ?? 0} prv={showMoM ? prev.takenCalls : undefined} />
         <SparkCard label="Deals Closed" monthName={monthName} curData={dailyRows.map((r) => r.dealsClosed)}
           monthIdx={monthIdx} year={year} color="#ef4444" formatter={num}
-          curTotal={kpi?.dealsClosed ?? 0} prv={prev.dealsClosed} />
+          curTotal={kpi?.dealsClosed ?? 0} prv={showMoM ? prev.dealsClosed : undefined} />
       </div>
 
     </div>
