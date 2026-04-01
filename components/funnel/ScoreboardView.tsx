@@ -74,16 +74,15 @@ function MomBadge({ cur, prv, hib = true }: { cur: number | undefined; prv: numb
 const CARD_BG = "#0b1628";
 
 function MetricCard({
-  label, value, cur, prv, hib = true, actual, mv, ma,
+  label, value, cur, prv, hib = true, actual, mv, ma, dod, avgDaily,
 }: {
   label: string; value: string;
   cur: number | undefined; prv: number | undefined; hib?: boolean;
-  /** When set, `value` is the projection and `actual` is the real-to-date count. */
-  actual?: string;
-  /** Compact value shown on mobile only (e.g. "1.54M"). Falls back to `value` if omitted. */
-  mv?: string;
-  /** Compact actual shown on mobile only. Falls back to `actual` if omitted. */
-  ma?: string;
+  actual?: string; mv?: string; ma?: string;
+  /** Day-over-Day % change — shown only when provided (Today tab) */
+  dod?: number;
+  /** Typical daily average from YTD — shown only when provided (Today tab) */
+  avgDaily?: string;
 }) {
   const isProjected = actual != null;
   return (
@@ -100,12 +99,11 @@ function MetricCard({
         )}
       </div>
 
-      {/* Value — compact on mobile, full on sm+ */}
+      {/* Value */}
       <p className="text-2xl sm:text-4xl" style={{ color: "#ffffff", fontWeight: 800, lineHeight: 1, margin: 0 }}>
         {mv ? <><span className="sm:hidden">{mv}</span><span className="hidden sm:inline">{value}</span></> : value}
       </p>
 
-      {/* Actual to-date (only when projecting) */}
       {isProjected && (
         <p style={{ color: "#94a3b8", fontSize: 11, margin: 0 }}>
           <span style={{ color: "#64748b" }}>actual </span>
@@ -114,6 +112,22 @@ function MetricCard({
       )}
 
       <MomBadge cur={cur} prv={prv} hib={hib} />
+
+      {/* DoD + avg daily — Today tab only */}
+      {(dod !== undefined || avgDaily) && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", paddingTop: 2 }}>
+          {dod !== undefined && (
+            <span style={{ fontSize: 11, fontWeight: 600, color: dod >= 0 ? "#4ade80" : "#f87171" }}>
+              {dod >= 0 ? "↑" : "↓"} {Math.abs(dod).toFixed(1)}% DoD
+            </span>
+          )}
+          {avgDaily && (
+            <span style={{ fontSize: 11, color: "#475569" }}>
+              avg <span style={{ color: "#64748b", fontWeight: 500 }}>{avgDaily}</span>/day
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -297,6 +311,56 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
     period === "14d"   ? (monthly.find((r) => r.period === "14 Days") ?? null) :
     (monthly.find((r) => r.period === "30 Days") ?? monthly.find((r) => r.isRollup) ?? null);
 
+  // ── Today: DoD and YTD daily average ────────────────────────────────────────
+  const todayIdx    = todayRow ? dailyRows.indexOf(todayRow) : -1;
+  const yesterdayRow = todayIdx > 0 ? dailyRows[todayIdx - 1] : null;
+
+  // DoD % helper — undefined when no comparison available
+  const dodPct = (cur: number, prv: number | undefined): number | undefined =>
+    (!prv || prv === 0 || cur === 0) ? undefined : ((cur - prv) / prv) * 100;
+
+  // YTD daily avg: for each completed month in YTD, daily = total / days_in_month; then avg
+  const MONTH_NAME_IDX: Record<string, number> = {
+    "january":0,"february":1,"march":2,"april":3,"may":4,"june":5,
+    "july":6,"august":7,"september":8,"october":9,"november":10,"december":11,
+  };
+  const completedYtd = ytd.filter((r) => {
+    if (r.isSummary) return false;
+    const idx = MONTH_NAME_IDX[r.month.toLowerCase()];
+    return idx !== undefined && idx < monthIdx; // only months before current
+  });
+  const ytdDailyRates = completedYtd.map((r) => {
+    const mIdx = MONTH_NAME_IDX[r.month.toLowerCase()] ?? 0;
+    const days = new Date(year, mIdx + 1, 0).getDate();
+    return {
+      spend:        r.amountSpent   / days,
+      impressions:  r.impressions   / days,
+      uniqueClicks: r.uniqueClicks  / days,
+      leads:        r.leads         / days,
+      bookedCalls:  r.bookedCalls   / days,
+      takenCalls:   r.takenCalls    / days,
+      dealsClosed:  r.dealsClosed   / days,
+      cash:         r.cash          / days,
+      revenue:      r.revenue       / days,
+    };
+  });
+  const nd = ytdDailyRates.length;
+  const ytdAvg = nd > 0 ? {
+    spend:        ytdDailyRates.reduce((s, r) => s + r.spend,        0) / nd,
+    impressions:  ytdDailyRates.reduce((s, r) => s + r.impressions,  0) / nd,
+    uniqueClicks: ytdDailyRates.reduce((s, r) => s + r.uniqueClicks, 0) / nd,
+    leads:        ytdDailyRates.reduce((s, r) => s + r.leads,        0) / nd,
+    bookedCalls:  ytdDailyRates.reduce((s, r) => s + r.bookedCalls,  0) / nd,
+    takenCalls:   ytdDailyRates.reduce((s, r) => s + r.takenCalls,   0) / nd,
+    dealsClosed:  ytdDailyRates.reduce((s, r) => s + r.dealsClosed,  0) / nd,
+    cash:         ytdDailyRates.reduce((s, r) => s + r.cash,         0) / nd,
+    revenue:      ytdDailyRates.reduce((s, r) => s + r.revenue,      0) / nd,
+  } : null;
+
+  const isToday = period === "today";
+  // Helper: format avg daily value — suppress tiny floats by rounding
+  const fAvg = (v: number) => v >= 1000 ? `$${Math.round(v / 1000)}K` : v >= 1 ? v.toFixed(1) : v.toFixed(2);
+
 
   const { monthIdx, year } = parseMonthLabel(monthLabel);
   const monthName = MONTH_NAMES[monthIdx];
@@ -432,13 +496,17 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
           mv={effectiveProj?.spend != null ? c$$(effectiveProj.spend) : (kpi ? c$$(kpi.amountSpent) : "—")}
           cur={effectiveProj?.spend ?? kpi?.amountSpent ?? 0} prv={showMoM ? prev.amountSpent : undefined} hib={false}
           actual={effectiveProj?.spend != null && kpi ? $$(kpi.amountSpent) : undefined}
-          ma={effectiveProj?.spend != null && kpi ? c$$(kpi.amountSpent) : undefined} />
+          ma={effectiveProj?.spend != null && kpi ? c$$(kpi.amountSpent) : undefined}
+          dod={isToday ? dodPct(kpi?.amountSpent ?? 0, yesterdayRow?.amountSpent) : undefined}
+          avgDaily={isToday && ytdAvg ? `$${fAvg(ytdAvg.spend)}` : undefined} />
         <MetricCard label="Impressions"
           value={effectiveProj?.impressions != null ? num(effectiveProj.impressions) : (kpi ? num(kpi.impressions) : "—")}
           mv={effectiveProj?.impressions != null ? cnum(effectiveProj.impressions) : (kpi ? cnum(kpi.impressions) : "—")}
           cur={effectiveProj?.impressions ?? kpi?.impressions ?? 0} prv={showMoM ? prev.impressions : undefined} hib={true}
           actual={effectiveProj?.impressions != null && kpi ? num(kpi.impressions) : undefined}
-          ma={effectiveProj?.impressions != null && kpi ? cnum(kpi.impressions) : undefined} />
+          ma={effectiveProj?.impressions != null && kpi ? cnum(kpi.impressions) : undefined}
+          dod={isToday ? dodPct(kpi?.impressions ?? 0, yesterdayRow?.impressions) : undefined}
+          avgDaily={isToday && ytdAvg ? fAvg(ytdAvg.impressions) : undefined} />
         <MetricCard label="CPM" value={kpi ? $$(kpi.cpm) : "—"} mv={kpi ? c$$(kpi.cpm) : "—"} cur={kpi?.cpm ?? 0} prv={undefined} hib={false} />
       </div>
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -447,7 +515,9 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
           mv={effectiveProj?.uniqueClicks != null ? cnum(effectiveProj.uniqueClicks) : (kpi ? cnum(kpi.uniqueClicks) : "—")}
           cur={effectiveProj?.uniqueClicks ?? kpi?.uniqueClicks ?? 0} prv={showMoM ? prev.uniqueClicks : undefined} hib={true}
           actual={effectiveProj?.uniqueClicks != null && kpi ? num(kpi.uniqueClicks) : undefined}
-          ma={effectiveProj?.uniqueClicks != null && kpi ? cnum(kpi.uniqueClicks) : undefined} />
+          ma={effectiveProj?.uniqueClicks != null && kpi ? cnum(kpi.uniqueClicks) : undefined}
+          dod={isToday ? dodPct(kpi?.uniqueClicks ?? 0, yesterdayRow?.uniqueClicks) : undefined}
+          avgDaily={isToday && ytdAvg ? fAvg(ytdAvg.uniqueClicks) : undefined} />
         <MetricCard label="Unique CTR"  value={kpi ? pct(kpi.ctr)         : "—"} cur={kpi?.ctr          ?? 0} prv={showMoM ? prev.ctr : undefined}          hib={true}  />
         <MetricCard label="$ Per Click" value={kpi ? $$(kpi.costPerClick) : "—"} mv={kpi ? c$$(kpi.costPerClick) : "—"} cur={kpi?.costPerClick ?? 0} prv={showMoM ? prev.costPerClick : undefined} hib={false} />
       </div>
@@ -460,7 +530,9 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
           mv={effectiveProj?.leads != null ? cnum(effectiveProj.leads) : (kpi ? cnum(kpi.leads) : "—")}
           cur={effectiveProj?.leads ?? kpi?.leads ?? 0} prv={showMoM ? prev.leads : undefined} hib={true}
           actual={effectiveProj?.leads != null && kpi ? num(kpi.leads) : undefined}
-          ma={effectiveProj?.leads != null && kpi ? cnum(kpi.leads) : undefined} />
+          ma={effectiveProj?.leads != null && kpi ? cnum(kpi.leads) : undefined}
+          dod={isToday ? dodPct(kpi?.leads ?? 0, yesterdayRow?.leads) : undefined}
+          avgDaily={isToday && ytdAvg ? fAvg(ytdAvg.leads) : undefined} />
         <MetricCard label="Opt-In Conv %"  value={kpi ? pct(kpi.leadConv)    : "—"} cur={kpi?.leadConv    ?? 0} prv={showMoM ? prev.optInConv : undefined}   hib={true}  />
         <MetricCard label="Cost Per Lead"  value={kpi ? $$(kpi.costPerLead)  : "—"} mv={kpi ? c$$(kpi.costPerLead) : "—"} cur={kpi?.costPerLead  ?? 0} prv={showMoM ? prev.costPerLead : undefined}  hib={false} />
       </div>
@@ -486,7 +558,9 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
           mv={effectiveProj?.bookedCalls != null ? cnum(effectiveProj.bookedCalls) : (kpi ? cnum(kpi.bookedCalls) : "—")}
           cur={effectiveProj?.bookedCalls ?? kpi?.bookedCalls ?? 0} prv={showMoM ? prev.bookedCalls : undefined} hib={true}
           actual={effectiveProj?.bookedCalls != null && kpi ? num(kpi.bookedCalls) : undefined}
-          ma={effectiveProj?.bookedCalls != null && kpi ? cnum(kpi.bookedCalls) : undefined} />
+          ma={effectiveProj?.bookedCalls != null && kpi ? cnum(kpi.bookedCalls) : undefined}
+          dod={isToday ? dodPct(kpi?.bookedCalls ?? 0, yesterdayRow?.bookedCalls) : undefined}
+          avgDaily={isToday && ytdAvg ? fAvg(ytdAvg.bookedCalls) : undefined} />
         <MetricCard label="Lead-to-Booked"      value={kpi ? pct(kpi.bookedConv)    : "—"} cur={kpi?.bookedConv    ?? 0} prv={showMoM ? prev.leadToBooked : undefined}  hib={true}  />
         <MetricCard label="Cost Per Booked"     value={kpi ? $$(kpi.costPerBooked)  : "—"} mv={kpi ? c$$(kpi.costPerBooked) : "—"} cur={kpi?.costPerBooked  ?? 0} prv={showMoM ? prev.costPerBooked : undefined} hib={false} />
       </div>
@@ -499,7 +573,9 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
           mv={effectiveProj?.takenCalls != null ? cnum(effectiveProj.takenCalls) : (kpi ? cnum(kpi.takenCalls) : "—")}
           cur={effectiveProj?.takenCalls ?? kpi?.takenCalls ?? 0} prv={showMoM ? prev.takenCalls : undefined} hib={true}
           actual={effectiveProj?.takenCalls != null && kpi ? num(kpi.takenCalls) : undefined}
-          ma={effectiveProj?.takenCalls != null && kpi ? cnum(kpi.takenCalls) : undefined} />
+          ma={effectiveProj?.takenCalls != null && kpi ? cnum(kpi.takenCalls) : undefined}
+          dod={isToday ? dodPct(kpi?.takenCalls ?? 0, yesterdayRow?.takenCalls) : undefined}
+          avgDaily={isToday && ytdAvg ? fAvg(ytdAvg.takenCalls) : undefined} />
         <MetricCard label="Show-Up Rate"    value={kpi ? pct(kpi.showUpRate)   : "—"} cur={kpi?.showUpRate   ?? 0} prv={showMoM ? prev.showUpRate : undefined}   hib={true}  />
         <MetricCard label="Cost Per Taken"  value={kpi ? $$(kpi.costPerTaken)  : "—"} mv={kpi ? c$$(kpi.costPerTaken) : "—"} cur={kpi?.costPerTaken  ?? 0} prv={showMoM ? prev.costPerTaken : undefined} hib={false} />
       </div>
@@ -512,7 +588,9 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
           mv={effectiveProj?.dealsClosed != null ? cnum(effectiveProj.dealsClosed) : (kpi ? cnum(kpi.dealsClosed) : "—")}
           cur={effectiveProj?.dealsClosed ?? kpi?.dealsClosed ?? 0} prv={showMoM ? prev.dealsClosed : undefined} hib={true}
           actual={effectiveProj?.dealsClosed != null && kpi ? num(kpi.dealsClosed) : undefined}
-          ma={effectiveProj?.dealsClosed != null && kpi ? cnum(kpi.dealsClosed) : undefined} />
+          ma={effectiveProj?.dealsClosed != null && kpi ? cnum(kpi.dealsClosed) : undefined}
+          dod={isToday ? dodPct(kpi?.dealsClosed ?? 0, yesterdayRow?.dealsClosed) : undefined}
+          avgDaily={isToday && ytdAvg ? fAvg(ytdAvg.dealsClosed) : undefined} />
         <MetricCard label="Close Rate"  value={kpi ? pct(kpi.closeRate) : "—"} cur={kpi?.closeRate ?? 0} prv={showMoM ? prev.closeRate : undefined} hib={true}  />
         <MetricCard label="Cost/Acq"    value={kpi ? $$(kpi.cpa)       : "—"} mv={kpi ? c$$(kpi.cpa) : "—"} cur={kpi?.cpa       ?? 0} prv={showMoM ? prev.cpa : undefined}       hib={false} />
       </div>
@@ -522,8 +600,12 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
           const prevCashRevRatio = prev.cash != null && prev.revenue != null && prev.revenue > 0
             ? prev.cash / prev.revenue : undefined;
           return (<>
-            <MetricCard label="Cash"    value={kpi ? $$(kpi.cash)    : "—"} mv={kpi ? c$$(kpi.cash)    : "—"} cur={kpi?.cash    ?? 0} prv={showMoM ? prev.cash : undefined}    hib={true} />
-            <MetricCard label="Revenue" value={kpi ? $$(kpi.revenue) : "—"} mv={kpi ? c$$(kpi.revenue) : "—"} cur={kpi?.revenue ?? 0} prv={showMoM ? prev.revenue : undefined} hib={true} />
+            <MetricCard label="Cash"    value={kpi ? $$(kpi.cash)    : "—"} mv={kpi ? c$$(kpi.cash)    : "—"} cur={kpi?.cash    ?? 0} prv={showMoM ? prev.cash : undefined}    hib={true}
+              dod={isToday ? dodPct(kpi?.cash ?? 0, yesterdayRow?.cash) : undefined}
+              avgDaily={isToday && ytdAvg ? `$${fAvg(ytdAvg.cash)}` : undefined} />
+            <MetricCard label="Revenue" value={kpi ? $$(kpi.revenue) : "—"} mv={kpi ? c$$(kpi.revenue) : "—"} cur={kpi?.revenue ?? 0} prv={showMoM ? prev.revenue : undefined} hib={true}
+              dod={isToday ? dodPct(kpi?.revenue ?? 0, yesterdayRow?.revenue) : undefined}
+              avgDaily={isToday && ytdAvg ? `$${fAvg(ytdAvg.revenue)}` : undefined} />
             <MetricCard label="Cash:Rev" value={cashRevRatio > 0 ? `${cashRevRatio.toFixed(2)}x` : "—"} cur={cashRevRatio} prv={prevCashRevRatio} hib={true} />
           </>);
         })()}
