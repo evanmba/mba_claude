@@ -311,6 +311,8 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
     period === "14d"   ? (monthly.find((r) => r.period === "14 Days") ?? null) :
     (monthly.find((r) => r.period === "30 Days") ?? monthly.find((r) => r.isRollup) ?? null);
 
+  const { monthIdx, year } = parseMonthLabel(monthLabel);
+
   // ── Today: DoD and YTD daily average ────────────────────────────────────────
   const todayIdx    = todayRow ? dailyRows.indexOf(todayRow) : -1;
   const yesterdayRow = todayIdx > 0 ? dailyRows[todayIdx - 1] : null;
@@ -360,9 +362,6 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
   const isToday = period === "today";
   // Helper: format avg daily value — suppress tiny floats by rounding
   const fAvg = (v: number) => v >= 1000 ? `$${Math.round(v / 1000)}K` : v >= 1 ? v.toFixed(1) : v.toFixed(2);
-
-
-  const { monthIdx, year } = parseMonthLabel(monthLabel);
   const monthName = MONTH_NAMES[monthIdx];
 
   // ── Pace-based projections for count metrics ─────────────────────────────
