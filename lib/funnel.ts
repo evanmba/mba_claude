@@ -253,7 +253,7 @@ export async function fetchSheetValues(
   const csvUrl = PUBLISHED_CSV[sheetName];
   if (csvUrl) {
     try {
-      const res = await fetch(csvUrl, { next: { revalidate: 60 } } as RequestInit);
+      const res = await fetch(csvUrl, { cache: "no-store" } as RequestInit);
       if (res.ok) {
         const text = await res.text();
         return parseCSV(text);
@@ -267,7 +267,7 @@ export async function fetchSheetValues(
   // Fall back to Sheets API v4
   const range = encodeURIComponent(`'${sheetName}'`);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}?key=${apiKey}`;
-  const res = await makeProxyFetch(url, { next: { revalidate: 60 } } as RequestInit);
+  const res = await makeProxyFetch(url, { cache: "no-store" } as RequestInit);
   if (!res.ok) {
     console.warn(`[funnel] Sheet "${sheetName}" failed: ${res.status}`);
     return [];
