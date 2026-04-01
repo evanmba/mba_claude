@@ -22,6 +22,15 @@ export function getPreviousMonthTab(): string {
   return `${MONTH_LABELS[prevM]} ${prevY}`;
 }
 
+/** Returns the tab label for the month before a given label, e.g. "MAR 2026" → "FEB 2026". */
+export function getMonthTabBefore(label: string): string {
+  const [abbr, yearStr] = label.split(" ");
+  const idx = MONTH_LABELS.indexOf((abbr ?? "").toUpperCase());
+  const year = parseInt(yearStr ?? "2026", 10);
+  if (idx <= 0) return `DEC ${year - 1}`;
+  return `${MONTH_LABELS[idx - 1]} ${year}`;
+}
+
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export interface MonthlyRow {
@@ -760,9 +769,9 @@ function parseCustomers(rows: string[][]): Customer[] {
 
 // ─── Public fetch function ─────────────────────────────────────────────────
 
-export async function fetchFunnelData(apiKey: string): Promise<FunnelData> {
-  const monthLabel = getCurrentMonthTab();
-  const prevMonthLabel = getPreviousMonthTab();
+export async function fetchFunnelData(apiKey: string, selectedMonth?: string): Promise<FunnelData> {
+  const monthLabel = selectedMonth ?? getCurrentMonthTab();
+  const prevMonthLabel = getMonthTabBefore(monthLabel);
 
   const [monthlyRows, prevMonthlyRows, ytdRows, ytd2025Rows, leadsRows, callsRows, customersRows] = await Promise.all([
     fetchSheetValues(FUNNEL_SHEET_ID, monthLabel, apiKey),

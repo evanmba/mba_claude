@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { type ScoreboardRow, type MonthlyRow, type YTDRow } from "@/lib/funnel";
+import { YTDView } from "./YTDView";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 const $$ = (n: number) =>
@@ -278,8 +279,8 @@ interface Props {
   prevMonthLabel: string;
 }
 
-export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLabel, prevMonthLabel }: Props) {
-  const [period, setPeriod] = useState<"today" | "4d" | "14d" | "month">("month");
+export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025, monthLabel, prevMonthLabel }: Props) {
+  const [period, setPeriod] = useState<"today" | "4d" | "14d" | "month" | "ytd">("month");
 
   const dailyRows = monthly.filter((r) => !r.isRollup);
 
@@ -369,7 +370,29 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, monthLab
     { key: "4d",    label: "4 Days" },
     { key: "14d",   label: "14 Days" },
     { key: "month", label: monthName },
+    { key: "ytd",   label: "YTD" },
   ] as const;
+
+  // ── YTD view ──────────────────────────────────────────────────────────────
+  if (period === "ytd") {
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="flex rounded-lg overflow-hidden self-start" style={{ border: "1px solid var(--border)" }}>
+          {TABS.map((t) => (
+            <button key={t.key} onClick={() => setPeriod(t.key)}
+              className="px-4 py-1.5 text-xs font-semibold transition-colors"
+              style={{
+                background: period === t.key ? "#3b82f6" : "var(--card)",
+                color: period === t.key ? "#fff" : "var(--muted-foreground)",
+              }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <YTDView ytd={ytd} ytd2025={ytd2025} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">

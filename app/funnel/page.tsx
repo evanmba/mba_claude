@@ -3,12 +3,16 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { FunnelDashboard } from "@/components/funnel/FunnelDashboard";
 import { fetchFunnelData, type FunnelData } from "@/lib/funnel";
 
-async function FunnelDataLoader() {
+interface PageProps {
+  searchParams: Promise<{ month?: string }>;
+}
+
+async function FunnelDataLoader({ selectedMonth }: { selectedMonth?: string }) {
   const apiKey = process.env.GOOGLE_MASTER_SHEETS_API_KEY ?? "";
   let data: FunnelData | null = null;
   let fetchError = false;
   try {
-    data = await fetchFunnelData(apiKey);
+    data = await fetchFunnelData(apiKey, selectedMonth);
   } catch (err) {
     console.error("[funnel] fetch error:", err);
     fetchError = true;
@@ -35,11 +39,14 @@ function FunnelSkeleton() {
   );
 }
 
-export default function FunnelPage() {
+export default async function FunnelPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const selectedMonth = params.month ? decodeURIComponent(params.month) : undefined;
+
   return (
     <DashboardLayout>
       <Suspense fallback={<FunnelSkeleton />}>
-        <FunnelDataLoader />
+        <FunnelDataLoader selectedMonth={selectedMonth} />
       </Suspense>
     </DashboardLayout>
   );
