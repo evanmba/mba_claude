@@ -111,7 +111,7 @@ function MetricCard({
         </p>
       )}
 
-      <MomBadge cur={cur} prv={prv} hib={hib} />
+      {prv != null && <MomBadge cur={cur} prv={prv} hib={hib} />}
 
       {/* DoD + avg daily — Today tab only */}
       {(dod !== undefined || avgDaily) && (
@@ -390,7 +390,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
   const effectiveProj = period === "month" ? proj : null;
 
   const isPacing = period === "month" && isCurrentMonth && daysWithData > 0 && daysWithData < totalDays && kpi != null;
-  const showMoM  = period === "month" || period === "today";
+  const showMoM  = period === "month";
 
   // Previous month KPI: prefer the actual prev month sheet (full data), fall back to YTD/scoreboard rows
   const prevKpi = prevMonthly.find((r) => r.period === "30 Days") ?? prevMonthly.find((r) => r.isRollup) ?? null;
