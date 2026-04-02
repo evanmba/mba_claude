@@ -298,12 +298,15 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
 
   const dailyRows = monthly.filter((r) => !r.isRollup);
 
-  // Today's row: match against M/D/YY or M/D/YYYY date strings
-  const todayDate = new Date();
-  const todayStr  = `${todayDate.getMonth() + 1}/${todayDate.getDate()}/${String(todayDate.getFullYear()).slice(-2)}`;
-  const todayRow  = dailyRows.find((r) => r.period === todayStr)
-    ?? dailyRows.find((r) => r.period === `${todayDate.getMonth() + 1}/${todayDate.getDate()}/${todayDate.getFullYear()}`)
-    ?? (dailyRows.length > 0 ? dailyRows[dailyRows.length - 1] : null);  // most recent if today not found
+  // Today's row: match against M/D/YY or M/D/YYYY date strings.
+  // If today's row exists but has no spend yet (not yet populated), fall back
+  // to the most recent day that has actual data.
+  const todayDate    = new Date();
+  const todayStrShort = `${todayDate.getMonth() + 1}/${todayDate.getDate()}/${String(todayDate.getFullYear()).slice(-2)}`;
+  const todayStrFull  = `${todayDate.getMonth() + 1}/${todayDate.getDate()}/${todayDate.getFullYear()}`;
+  const exactToday   = dailyRows.find((r) => r.period === todayStrShort || r.period === todayStrFull) ?? null;
+  const lastPopulated = [...dailyRows].reverse().find((r) => r.amountSpent > 0) ?? dailyRows[dailyRows.length - 1] ?? null;
+  const todayRow     = (exactToday && exactToday.amountSpent > 0) ? exactToday : lastPopulated;  // most recent if today not found
 
   const kpi =
     period === "today" ? todayRow :
@@ -476,6 +479,14 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
           </button>
         ))}
       </div>
+
+      {/* ── Today date label ── */}
+      {isToday && todayRow && (
+        <div style={{ fontSize: 11, color: "#475569" }}>
+          Showing data for <span style={{ color: "#94a3b8", fontWeight: 600 }}>{todayRow.period}</span>
+          {todayRow !== exactToday && <span style={{ color: "#f59e0b", marginLeft: 6 }}>· today not yet populated</span>}
+        </div>
+      )}
 
       {/* ── Pace banner ── */}
       {isPacing && (
