@@ -33,8 +33,9 @@ function normalizeCreativeName(name: string): string {
   // Strip "PREFIX | identifier" → keep identifier
   const pipeIdx = t.indexOf(" | ");
   if (pipeIdx >= 0) return t.slice(pipeIdx + 3).trim();
-  // Strip leading all-caps abbreviation before a dotted/plain number: "TOF 1002.1.7.3.1" → "1002.1.7.3.1"
-  t = t.replace(/^[A-Z]+\s+(?=[\d])/, "");
+  // Strip leading all-caps abbreviation (TOF, CBO, MBA, etc.) before anything
+  // "TOF Blurred Email" → "Blurred Email"  "TOF 1002.1.7.3.1" → "1002.1.7.3.1"
+  t = t.replace(/^[A-Z]{2,}\s+/, "");
   return t;
 }
 
