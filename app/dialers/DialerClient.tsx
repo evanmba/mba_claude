@@ -172,28 +172,67 @@ function TeamTab({
                 <span className="text-sm font-bold flex-shrink-0" style={{ width: 28, textAlign: "right", color: "var(--foreground)" }}>
                   {bar.booked}
                 </span>
-                {/* Bar track */}
-                <div className="flex-1 relative rounded-full overflow-visible" style={{ height: 20, background: "var(--secondary)" }}>
-                  {/* Actual fill */}
+                {/* Bar track — overflow-visible so tooltip above isn't clipped */}
+                <div className="flex-1 relative rounded-full" style={{ height: 20, background: "var(--secondary)", overflow: "visible" }}>
+                  {/* Actual fill — clipped to rounded corners via its own border-radius */}
                   <div
                     className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(pct, 100)}%`, background: bar.color, opacity: 0.85 }}
+                    style={{ width: `${Math.min(pct, 100)}%`, background: bar.color, opacity: 0.85, overflow: "hidden" }}
                   />
                   {/* Projected dashed line — monthly only */}
                   {projPct !== null && projPct > pct && (
                     <div
-                      title={`Projected: ${monthlyProjected}`}
+                      className="group"
                       style={{
                         position: "absolute",
                         top: -3,
                         bottom: -3,
                         left: `${projPct}%`,
+                        width: 14,
+                        transform: "translateX(-50%)",
+                        cursor: "default",
+                        zIndex: 10,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {/* Dashed line */}
+                      <div style={{
                         width: 2,
+                        height: "100%",
                         background: "repeating-linear-gradient(to bottom, #94a3b8 0px, #94a3b8 4px, transparent 4px, transparent 8px)",
                         borderRadius: 1,
-                        transform: "translateX(-50%)",
-                      }}
-                    />
+                      }} />
+                      {/* Tooltip */}
+                      <div
+                        className="pointer-events-none absolute opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                        style={{
+                          bottom: "calc(100% + 6px)",
+                          left: "50%",
+                          transform: "translateX(-50%)",
+                          background: "#1e293b",
+                          border: "1px solid #334155",
+                          borderRadius: 6,
+                          padding: "4px 8px",
+                          whiteSpace: "nowrap",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                        }}
+                      >
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>Projected </span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#e2e8f0" }}>{monthlyProjected}</span>
+                        {/* Arrow */}
+                        <div style={{
+                          position: "absolute",
+                          top: "100%",
+                          left: "50%",
+                          transform: "translateX(-50%)",
+                          borderLeft: "5px solid transparent",
+                          borderRight: "5px solid transparent",
+                          borderTop: "5px solid #334155",
+                        }} />
+                      </div>
+                    </div>
                   )}
                 </div>
                 {/* Goal */}
