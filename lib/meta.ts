@@ -105,3 +105,48 @@ export async function fetchMetaSpend(
     };
   }
 }
+
+// ─── CBO Winners ad-level spend for a given time window ───────────────────────
+// Returns spend per ad creative filtered to campaign names containing "cbo".
+
+export type AdWindow = "4d" | "7d" | "14d" | "month";
+
+function windowToDateParam(window: AdWindow): string {
+  if (window === "month") return "date_preset=this_month";
+  const days = window === "4d" ? 4 : window === "7d" ? 7 : 14;
+  const until = new Date();
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  return `time_range=${encodeURIComponent(JSON.stringify({ since: fmt(since), until: fmt(until) }))}`;
+}
+
+export async function fetchCBOAdSpend(
+  window: AdWindow,
+): Promise<{ adName: string; spend: number }[]> {
+  const token     = process.env.META_ADS_ACCESS_TOKEN;
+  const accountId = process.env.META_ADS_ACCOUNT_ID;
+  if (!token || !accountId) return [];
+
+  const acct      = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
+  const datePart  = windowToDateParam(window);
+  const fields    = "ad_id,ad_name,campaign_name,spend";
+  const url       = `${GRAPH}/${acct}/insights?level=ad&${datePart}&fields=${fields}&limit=500&access_token=${token}`;
+
+  try {
+    const raw = await fetchAll(url);
+    return raw
+      .filter((r) =>
+        ((r["campaign_name"] as string) ?? "").toLowerCase().includes("cbo") &&
+        parseFloat((r["spend"] as string) ?? "0") > 0
+      )
+      .map((r) => ({
+        adName: (r["ad_name"] as string) ?? "",
+        spend:  parseFloat((r["spend"] as string) ?? "0"),
+      }))
+      .sort((a, b) => b.spend - a.spend);
+  } catch {
+    return [];
+  }
+}
+

@@ -1,40 +1,24 @@
-import { toNum } from "./sheets";
 import { FUNNEL_SHEET_ID, fetchSheetValues } from "./funnel";
-import { fetchMetaSpend, MetaLevel, MetaInsightRow } from "./meta";
+import { fetchCBOAdSpend, AdWindow } from "./meta";
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-export interface SourceRow {
-  source: string;
+// ─── Types ─────────────────────────────────────────────────────────────────────
+
+export interface CreativeRow {
+  adName: string;
   spend: number;
   bookedCalls: number;
-  takenCalls: number;
+  shownAppointments: number;
   deals: number;
-  cashCollected: number;
-  revenue: number;
-  costPerBooked: number;
-  costPerTaken: number;
-  cpa: number;
-  cashRoas: number;
-  revenueRoas: number;
-  metaStatus?: string;
 }
 
-export interface AttributionData {
-  rows: SourceRow[];
-  hasSpend: boolean;
-  metaConnected: boolean;
-  usesCallSource: boolean;
-  level: MetaLevel;
-  datePreset: string;
-  lastUpdated: string;
+export interface CreativeAttribution {
+  rows: CreativeRow[];
+  windowLabel: string;
   error?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
 const fi = (hdrs: string[], kws: string[]) =>
   hdrs.findIndex((h) => kws.every((k) => h.toLowerCase().includes(k.toLowerCase())));
 const cv = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "").trim() : "");
@@ -43,14 +27,9 @@ const toBool = (s: string) => {
   return u === "TRUE" || u === "YES" || u === "1" || u === "X";
 };
 
-function normName(s: string): string {
-  return s.toLowerCase().trim().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ");
-}
-
-// "1002.1.7.3.1" → "1002"   "TOF Winners 1.0.0.2" → "TOF Winners"
+// Strip trailing version numbers: "TOF 1002.1.7.3.1" → "TOF 1002", "1002.1.7.3.1" → "1002"
 function normalizeCreativeName(name: string): string {
   const t = name.trim();
-  // Entire name is dotted numbers (e.g. "1002.1.7.3.1") — take first segment only
   if (/^\d+(\.\d+)+$/.test(t)) return t.split(".")[0];
   return t
     .replace(/\s+[-–]?\s*v\d+(\.\d+)*\s*$/i, "")
@@ -59,161 +38,157 @@ function normalizeCreativeName(name: string): string {
     .trim();
 }
 
-type CallEntry = { booked: number; taken: number; deals: number; cash: number; revenue: number };
+function normName(s: string): string {
+  return s.toLowerCase().trim().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ");
+}
 
-// ---------------------------------------------------------------------------
-// "Call Source" tab — groups by campaign / ad set / ad column
-// Columns: first name, last name, booked date, ID, campaign, ad set, ad,
-//          source, showed (col I), closed (col J), cash collected, revenue
-// ---------------------------------------------------------------------------
-function aggregateCallSource(
+// Parse "M/D/YY" or "M/D/YYYY" → Date (midnight local). Returns null on failure.
+function parseSheetDate(s: string): Date | null {
+  const parts = s.split("/");
+  if (parts.length < 3) return null;
+  const m = parseInt(parts[0], 10);
+  const d = parseInt(parts[1], 10);
+  let y   = parseInt(parts[2], 10);
+  if (isNaN(m) || isNaN(d) || isNaN(y)) return null;
+  if (y < 100) y += 2000;
+  return new Date(y, m - 1, d);
+}
+
+// Compute [sinceDate, untilDate] for the window (inclusive, local midnight).
+function windowDates(window: AdWindow): { since: Date; until: Date } {
+  const until = new Date();
+  until.setHours(23, 59, 59, 999);
+  const since = new Date();
+  since.setHours(0, 0, 0, 0);
+  if (window === "month") {
+    since.setDate(1);
+  } else {
+    const days = window === "4d" ? 4 : window === "7d" ? 7 : 14;
+    since.setDate(since.getDate() - days);
+  }
+  return { since, until };
+}
+
+const WINDOW_LABELS: Record<AdWindow, string> = {
+  "4d": "Last 4 Days", "7d": "Last 7 Days", "14d": "Last 14 Days", "month": "This Month",
+};
+
+// ─── Call Source sheet parser ──────────────────────────────────────────────────
+
+type CallEntry = { booked: number; shown: number; deals: number };
+
+function parseCallSource(
   rows: string[][],
-  groupBy: "campaign" | "adset" | "ad",
+  since: Date,
+  until: Date,
 ): Map<string, CallEntry> {
   const map = new Map<string, CallEntry>();
   if (rows.length < 2) return map;
 
+  // Find header row
   const hdrIdx = rows.findIndex((r) =>
-    r.some((c) => /campaign|ad set|first name/i.test(c))
+    r.some((c) => /campaign|ad set|first name|booked date/i.test(c))
   );
   if (hdrIdx < 0) return map;
 
   const hdrs = rows[hdrIdx].map((h) => h.toLowerCase().trim());
 
-  // Pick the right key column
-  let keyCol: number;
-  if (groupBy === "campaign") {
-    keyCol = fi(hdrs, ["campaign"]);
-  } else if (groupBy === "adset") {
-    keyCol = hdrs.findIndex((h) => h === "ad set" || h === "adset" || h === "ad set name");
-    if (keyCol < 0) keyCol = fi(hdrs, ["ad set"]);
-  } else {
-    // "ad" — must not accidentally match "ad set"
-    keyCol = hdrs.findIndex((h) => h === "ad" || h === "ad name");
-    if (keyCol < 0) keyCol = hdrs.findIndex((h) => /^ad$/.test(h));
-  }
+  // Ad creative column: look for exact "ad" first, then "ad name", fallback "source"
+  let adCol = hdrs.findIndex((h) => h === "ad" || h === "ad name");
+  if (adCol < 0) adCol = fi(hdrs, ["ad"]);
+  if (adCol < 0) adCol = fi(hdrs, ["source"]);
 
-  if (keyCol < 0) return map;
+  const bookedDateCol = fi(hdrs, ["booked date"]);
+  const firstCol      = fi(hdrs, ["first name"]);
+  const showedCol     = fi(hdrs, ["showed"]);
+  const closedCol     = fi(hdrs, ["closed"]);
+  const cashCol       = fi(hdrs, ["cash collected"]);
 
-  const cols = {
-    first:   fi(hdrs, ["first name"]),
-    showed:  fi(hdrs, ["showed"]),
-    closed:  fi(hdrs, ["closed"]),
-    cash:    fi(hdrs, ["cash collected"]),
-    revenue: fi(hdrs, ["revenue"]),
-  };
+  if (adCol < 0) return map;
 
   for (const row of rows.slice(hdrIdx + 1)) {
-    if (cols.first >= 0 && !cv(row, cols.first)) continue;
+    // Require a name entry so empty rows are skipped
+    if (firstCol >= 0 && !cv(row, firstCol)) continue;
 
-    let key = cv(row, keyCol) || "Unknown";
-    if (groupBy === "ad") key = normalizeCreativeName(key) || key;
+    // Date filter
+    if (bookedDateCol >= 0) {
+      const d = parseSheetDate(cv(row, bookedDateCol));
+      if (!d || d < since || d > until) continue;
+    }
 
-    if (!map.has(key)) map.set(key, { booked: 0, taken: 0, deals: 0, cash: 0, revenue: 0 });
+    const rawName = cv(row, adCol);
+    if (!rawName) continue;
+    const key = normalizeCreativeName(rawName) || rawName;
+
+    if (!map.has(key)) map.set(key, { booked: 0, shown: 0, deals: 0 });
     const e = map.get(key)!;
     e.booked += 1;
-    if (toBool(cv(row, cols.showed))) e.taken += 1;
-    const cash = toNum(cv(row, cols.cash));
-    const rev  = toNum(cv(row, cols.revenue));
-    if (toBool(cv(row, cols.closed)) || cash > 0) e.deals += 1;
-    e.cash    += cash;
-    e.revenue += rev;
+    if (showedCol >= 0 && toBool(cv(row, showedCol))) e.shown += 1;
+    const cash = parseFloat(cv(row, cashCol).replace(/[$,]/g, "")) || 0;
+    if ((closedCol >= 0 && toBool(cv(row, closedCol))) || cash > 0) e.deals += 1;
   }
+
   return map;
 }
 
-// ---------------------------------------------------------------------------
-// Match name → sum spend from all Meta rows containing that name
-// ---------------------------------------------------------------------------
-function sumMetaSpend(
-  name: string,
-  metaRows: MetaInsightRow[],
-): { spend: number; status: string } {
-  const needle = normName(name);
-  let spend = 0;
-  let status = "UNKNOWN";
-  for (const r of metaRows) {
-    const hay = normName(r.name);
-    if (hay.includes(needle) || needle.includes(hay)) {
-      spend += r.spend;
-      if (r.status === "ACTIVE") status = "ACTIVE";
-      else if (status === "UNKNOWN") status = r.status;
-    }
-  }
-  return { spend, status };
-}
+// ─── Main export ───────────────────────────────────────────────────────────────
 
-// ---------------------------------------------------------------------------
-// Build SourceRow
-// ---------------------------------------------------------------------------
-function buildRow(
-  source: string,
-  spend: number,
-  c: CallEntry,
-  metaStatus?: string,
-): SourceRow {
-  return {
-    source,
-    spend,
-    bookedCalls:   c.booked,
-    takenCalls:    c.taken,
-    deals:         c.deals,
-    cashCollected: c.cash,
-    revenue:       c.revenue,
-    costPerBooked: spend > 0 && c.booked > 0 ? spend / c.booked : 0,
-    costPerTaken:  spend > 0 && c.taken  > 0 ? spend / c.taken  : 0,
-    cpa:           spend > 0 && c.deals  > 0 ? spend / c.deals  : 0,
-    cashRoas:      spend > 0 ? c.cash    / spend : 0,
-    revenueRoas:   spend > 0 ? c.revenue / spend : 0,
-    metaStatus,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Main export
-// ---------------------------------------------------------------------------
-export async function fetchAttributionData(
-  level: MetaLevel = "adset",
-  datePreset = "this_month",
-): Promise<AttributionData> {
-  const apiKey = process.env.SHEETS_API_KEY ?? process.env.GOOGLE_SHEETS_API_KEY ?? "";
-  const lastUpdated = new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-
-  const groupBy: "campaign" | "adset" | "ad" =
-    level === "campaign" ? "campaign" : level === "adset" ? "adset" : "ad";
+export async function fetchCreativeAttribution(
+  window: AdWindow,
+): Promise<CreativeAttribution> {
+  const apiKey = process.env.SHEETS_API_KEY ?? process.env.GOOGLE_SHEETS_API_KEY ?? process.env.GOOGLE_MASTER_SHEETS_API_KEY ?? "";
+  const { since, until } = windowDates(window);
+  const windowLabel = WINDOW_LABELS[window];
 
   try {
-    const [callSourceRows, metaData] = await Promise.all([
+    const [callSourceRows, metaSpend] = await Promise.all([
       fetchSheetValues(FUNNEL_SHEET_ID, "Call Source", apiKey).catch(() => [] as string[][]),
-      fetchMetaSpend(level === "ad" ? "ad" : level, datePreset),
+      fetchCBOAdSpend(window),
     ]);
 
-    const usesCallSource = callSourceRows.length > 2;
-    if (!usesCallSource) {
-      return { rows: [], hasSpend: false, metaConnected: false, usesCallSource: false, level, datePreset, lastUpdated, error: "Call Source tab not found or empty" };
-    }
+    const callsMap = parseCallSource(callSourceRows, since, until);
 
-    const callsMap      = aggregateCallSource(callSourceRows, groupBy);
-    const metaConnected = !metaData.error && metaData.rows.length > 0;
+    // Build a combined set of ad names from both Meta and calls
+    const allNames = new Set<string>([
+      ...metaSpend.map((r) => normalizeCreativeName(r.adName) || r.adName),
+      ...callsMap.keys(),
+    ]);
 
-    const rows: SourceRow[] = [...callsMap.entries()].map(([name, calls]) => {
-      let spend  = 0;
-      let status: string | undefined;
-      if (metaConnected) {
-        const m = sumMetaSpend(name, metaData.rows);
-        spend  = m.spend;
-        status = m.status !== "UNKNOWN" ? m.status : undefined;
+    const rows: CreativeRow[] = [...allNames].map((name) => {
+      // Sum Meta spend for this creative (bidirectional substring match after normalization)
+      const needle = normName(name);
+      let spend = 0;
+      for (const m of metaSpend) {
+        const hay = normName(normalizeCreativeName(m.adName) || m.adName);
+        if (hay.includes(needle) || needle.includes(hay)) spend += m.spend;
       }
-      return buildRow(name, spend, calls, status);
-    })
-    .filter((r) => r.bookedCalls >= 1)
-    .sort((a, b) => b.bookedCalls - a.bookedCalls || b.spend - a.spend);
 
-    return { rows, hasSpend: metaConnected, metaConnected, usesCallSource, level, datePreset, lastUpdated };
+      // Find calls entry — try exact key first, then normalized match
+      let calls = callsMap.get(name);
+      if (!calls) {
+        for (const [k, v] of callsMap) {
+          const kn = normName(k);
+          if (kn.includes(needle) || needle.includes(kn)) { calls = v; break; }
+        }
+      }
+
+      return {
+        adName:            name,
+        spend,
+        bookedCalls:       calls?.booked ?? 0,
+        shownAppointments: calls?.shown  ?? 0,
+        deals:             calls?.deals  ?? 0,
+      };
+    })
+    // Only show rows that have spend OR at least 1 booked call
+    .filter((r) => r.spend > 0 || r.bookedCalls > 0)
+    .sort((a, b) => b.spend - a.spend || b.bookedCalls - a.bookedCalls);
+
+    return { rows, windowLabel };
   } catch (err) {
     return {
-      rows: [], hasSpend: false, metaConnected: false, usesCallSource: false,
-      level, datePreset, lastUpdated,
+      rows: [],
+      windowLabel,
       error: err instanceof Error ? err.message : String(err),
     };
   }
