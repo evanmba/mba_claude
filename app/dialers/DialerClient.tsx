@@ -106,9 +106,9 @@ function TeamTab({
   const { monthly, weekly, daily, currentWeek } = goals;
 
   const progBars = [
-    { label: "Monthly", ...monthly, color: "#3b82f6" },
+    { label: "Monthly", ...monthly, color: "#22c55e" },
     { label: "Weekly",  ...weekly,  color: "#22c55e" },
-    { label: "Daily",   ...daily,   color: "#d946ef" },
+    { label: "Daily",   ...daily,   color: "#22c55e" },
   ];
 
   // Projection for current week
@@ -127,37 +127,45 @@ function TeamTab({
         className="rounded-xl border p-5"
         style={{ background: "var(--card)", borderColor: "var(--border)" }}
       >
-        <div className="flex items-center gap-2 mb-5">
-          <Target size={16} style={{ color: "#3b82f6" }} />
+        <div className="flex items-center gap-2 mb-4">
+          <Target size={16} style={{ color: "#22c55e" }} />
           <h2 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
             Booked Call Goals
           </h2>
+          {/* Column headers */}
+          <div className="ml-auto flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+            <span style={{ width: 44, textAlign: "right" }}>Goal</span>
+            <span style={{ width: 36, textAlign: "right" }}>%</span>
+          </div>
         </div>
-        <div className="space-y-4">
+        <div className="space-y-3">
           {progBars.map((bar) => {
             const pct = bar.goal > 0 ? Math.round((bar.booked / bar.goal) * 100) : 0;
             return (
-              <div key={bar.label}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
-                    {bar.label}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold" style={{ color: bar.color }}>
-                      {bar.booked}
-                      <span className="font-normal text-xs" style={{ color: "var(--muted-foreground)" }}>
-                        {" "}/ {bar.goal}
-                      </span>
-                    </span>
-                    <span
-                      className="text-xs font-semibold px-2 py-0.5 rounded"
-                      style={{ background: bar.color + "22", color: bar.color, minWidth: 42, textAlign: "center" }}
-                    >
-                      {pct}%
-                    </span>
-                  </div>
+              <div key={bar.label} className="flex items-center gap-3">
+                {/* Label */}
+                <span className="text-sm font-medium flex-shrink-0" style={{ width: 56, color: "var(--foreground)" }}>
+                  {bar.label}
+                </span>
+                {/* Current value */}
+                <span className="text-sm font-bold flex-shrink-0" style={{ width: 28, textAlign: "right", color: "var(--foreground)" }}>
+                  {bar.booked}
+                </span>
+                {/* Bar */}
+                <div className="flex-1 rounded-full overflow-hidden" style={{ height: 20, background: "var(--secondary)" }}>
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(pct, 100)}%`, background: bar.color, opacity: 0.85 }}
+                  />
                 </div>
-                <ProgressBar value={bar.booked} max={bar.goal} color={bar.color} height={10} />
+                {/* Goal */}
+                <span className="text-sm flex-shrink-0" style={{ width: 44, textAlign: "right", color: "var(--muted-foreground)" }}>
+                  {bar.goal}
+                </span>
+                {/* % */}
+                <span className="text-sm font-semibold flex-shrink-0" style={{ width: 36, textAlign: "right", color: pct >= 80 ? "#22c55e" : pct >= 50 ? "#f59e0b" : "var(--muted-foreground)" }}>
+                  {pct}%
+                </span>
               </div>
             );
           })}
