@@ -17,12 +17,19 @@ const WINDOWS: { key: AdWindow; label: string }[] = [
   { key: "month", label: "30 Days" },
 ];
 
-function StatRow({ label, value, color }: { label: string; value: string | number; color?: string }) {
+const fmt$int = (n: number) =>
+  n === 0 ? "—" : `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+
+function StatRow({ label, count, spend, color }: { label: string; count: number; spend: number; color?: string }) {
+  const cost = count > 0 && spend > 0 ? spend / count : 0;
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-      <span style={{ fontSize: 12, color: MUTED }}>{label}</span>
-      <span style={{ fontSize: 14, fontWeight: 600, color: color ?? "#e2e8f0" }}>
-        {typeof value === "number" && value === 0 ? "—" : value}
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <span style={{ fontSize: 12, color: MUTED, flex: 1 }}>{label}</span>
+      <span style={{ fontSize: 14, fontWeight: 600, color: color ?? "#e2e8f0", minWidth: 28, textAlign: "right" }}>
+        {count === 0 ? "—" : count}
+      </span>
+      <span style={{ fontSize: 12, color: "#334155", minWidth: 72, textAlign: "right" }}>
+        {cost > 0 ? fmt$int(cost) : "—"}
       </span>
     </div>
   );
@@ -48,9 +55,13 @@ function SpendCard({ data }: { data: CreativeSpend }) {
 
       {/* Call metrics */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <StatRow label="Booked Calls" value={data.bookedCalls} color="#60a5fa" />
-        <StatRow label="Taken Calls"  value={data.takenCalls}  color="#4ade80" />
-        <StatRow label="Deals"        value={data.deals}        color="#a78bfa" />
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 2 }}>
+          <span style={{ fontSize: 10, color: "#1e3a5f", minWidth: 28, textAlign: "right" }}>#</span>
+          <span style={{ fontSize: 10, color: "#1e3a5f", minWidth: 72, textAlign: "right" }}>Cost/ea</span>
+        </div>
+        <StatRow label="Booked Calls" count={data.bookedCalls} spend={data.spend} color="#60a5fa" />
+        <StatRow label="Taken Calls"  count={data.takenCalls}  spend={data.spend} color="#4ade80" />
+        <StatRow label="Deals"        count={data.deals}        spend={data.spend} color="#a78bfa" />
       </div>
 
       <div style={{ height: 2, borderRadius: 1, background: ACCENT, opacity: 0.35 }} />
