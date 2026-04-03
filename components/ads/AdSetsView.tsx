@@ -20,7 +20,10 @@ const WINDOWS: { key: AdWindow; label: string }[] = [
 const fmt$int = (n: number) =>
   n === 0 ? "—" : `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 
-function StatRow({ label, count, spend, color }: { label: string; count: number; spend: number; color?: string }) {
+function StatRow({ label, count, spend, color, showPct }: {
+  label: string; count: number; spend: number; color?: string;
+  showPct?: number; // taken / booked %
+}) {
   const cost = count > 0 && spend > 0 ? spend / count : 0;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -30,6 +33,9 @@ function StatRow({ label, count, spend, color }: { label: string; count: number;
       </span>
       <span style={{ fontSize: 12, color: "#334155", minWidth: 72, textAlign: "right" }}>
         {cost > 0 ? fmt$int(cost) : "—"}
+      </span>
+      <span style={{ fontSize: 12, minWidth: 44, textAlign: "right", color: showPct != null ? (showPct >= 60 ? "#4ade80" : showPct >= 40 ? "#f59e0b" : "#f87171") : "transparent" }}>
+        {showPct != null ? `${showPct.toFixed(0)}%` : "—"}
       </span>
     </div>
   );
@@ -58,9 +64,11 @@ function SpendCard({ data }: { data: CreativeSpend }) {
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 2 }}>
           <span style={{ fontSize: 10, color: "#1e3a5f", minWidth: 28, textAlign: "right" }}>#</span>
           <span style={{ fontSize: 10, color: "#1e3a5f", minWidth: 72, textAlign: "right" }}>Cost/ea</span>
+          <span style={{ fontSize: 10, color: "#1e3a5f", minWidth: 44, textAlign: "right" }}>Show%</span>
         </div>
         <StatRow label="Booked Calls" count={data.bookedCalls} spend={data.spend} color="#60a5fa" />
-        <StatRow label="Taken Calls"  count={data.takenCalls}  spend={data.spend} color="#4ade80" />
+        <StatRow label="Taken Calls"  count={data.takenCalls}  spend={data.spend} color="#4ade80"
+          showPct={data.bookedCalls > 0 ? (data.takenCalls / data.bookedCalls) * 100 : undefined} />
         <StatRow label="Deals"        count={data.deals}        spend={data.spend} color="#a78bfa" />
       </div>
 
