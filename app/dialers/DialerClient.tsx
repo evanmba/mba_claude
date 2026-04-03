@@ -111,6 +111,23 @@ function TeamTab({
     { label: "Daily",   ...daily,   color: "#22c55e" },
   ];
 
+  // Monthly pace projection — based on workdays elapsed vs total workdays this month
+  const monthlyProjected = (() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    let elapsed = 0, total = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dow = new Date(year, month, d).getDay();
+      if (dow !== 0 && dow !== 6) {
+        total++;
+        if (d <= today.getDate()) elapsed++;
+      }
+    }
+    return elapsed > 0 ? Math.round((monthly.booked / elapsed) * total) : monthly.booked;
+  })();
+
   // Projection for current week
   const totalBooked = currentWeek.setters.reduce((sum, s) => sum + s.booked, 0);
   const projected = currentWeek.daysElapsed > 0
@@ -141,6 +158,10 @@ function TeamTab({
         <div className="space-y-3">
           {progBars.map((bar) => {
             const pct = bar.goal > 0 ? Math.round((bar.booked / bar.goal) * 100) : 0;
+            const isMonthly = bar.label === "Monthly";
+            const projPct = isMonthly && bar.goal > 0
+              ? Math.min((monthlyProjected / bar.goal) * 100, 100)
+              : null;
             return (
               <div key={bar.label} className="flex items-center gap-3">
                 {/* Label */}
@@ -151,12 +172,29 @@ function TeamTab({
                 <span className="text-sm font-bold flex-shrink-0" style={{ width: 28, textAlign: "right", color: "var(--foreground)" }}>
                   {bar.booked}
                 </span>
-                {/* Bar */}
-                <div className="flex-1 rounded-full overflow-hidden" style={{ height: 20, background: "var(--secondary)" }}>
+                {/* Bar track */}
+                <div className="flex-1 relative rounded-full overflow-visible" style={{ height: 20, background: "var(--secondary)" }}>
+                  {/* Actual fill */}
                   <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{ width: `${Math.min(pct, 100)}%`, background: bar.color, opacity: 0.85 }}
                   />
+                  {/* Projected dashed line — monthly only */}
+                  {projPct !== null && projPct > pct && (
+                    <div
+                      title={`Projected: ${monthlyProjected}`}
+                      style={{
+                        position: "absolute",
+                        top: -3,
+                        bottom: -3,
+                        left: `${projPct}%`,
+                        width: 2,
+                        background: "repeating-linear-gradient(to bottom, #94a3b8 0px, #94a3b8 4px, transparent 4px, transparent 8px)",
+                        borderRadius: 1,
+                        transform: "translateX(-50%)",
+                      }}
+                    />
+                  )}
                 </div>
                 {/* Goal */}
                 <span className="text-sm flex-shrink-0" style={{ width: 44, textAlign: "right", color: "var(--muted-foreground)" }}>
