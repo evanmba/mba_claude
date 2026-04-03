@@ -1,11 +1,14 @@
 import { FUNNEL_SHEET_ID, fetchSheetValues } from "./funnel";
-import { fetchCBOAdSpend, AdWindow } from "./meta";
+import { fetchCBOAdSpend } from "./meta";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface CreativeRow {
   adName: string;
-  spend: number;
+  spend4d: number;
+  spend7d: number;
+  spend14d: number;
+  spend30d: number;
   bookedCalls: number;
   shownAppointments: number;
   deals: number;
@@ -13,7 +16,6 @@ export interface CreativeRow {
 
 export interface CreativeAttribution {
   rows: CreativeRow[];
-  windowLabel: string;
   error?: string;
 }
 
@@ -30,11 +32,8 @@ const toBool = (s: string) => {
 // "TOF 1002.1.7.3.1" → "1002.1.7.3.1"   "MBA | 1007.5" → "1007.5"
 function normalizeCreativeName(name: string): string {
   let t = name.trim();
-  // Strip "PREFIX | identifier" → keep identifier
   const pipeIdx = t.indexOf(" | ");
   if (pipeIdx >= 0) return t.slice(pipeIdx + 3).trim();
-  // Strip leading all-caps abbreviation (TOF, CBO, MBA, etc.) before anything
-  // "TOF Blurred Email" → "Blurred Email"  "TOF 1002.1.7.3.1" → "1002.1.7.3.1"
   t = t.replace(/^[A-Z]{2,}\s+/, "");
   return t;
 }
@@ -43,7 +42,6 @@ function normName(s: string): string {
   return s.toLowerCase().trim().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ");
 }
 
-// Parse "M/D/YY" or "M/D/YYYY" → Date (midnight local). Returns null on failure.
 function parseSheetDate(s: string): Date | null {
   const parts = s.split("/");
   if (parts.length < 3) return null;
@@ -55,34 +53,14 @@ function parseSheetDate(s: string): Date | null {
   return new Date(y, m - 1, d);
 }
 
-// Compute [sinceDate, untilDate] for the window (inclusive, local midnight).
-function windowDates(window: AdWindow): { since: Date; until: Date } {
-  const until = new Date();
-  until.setHours(23, 59, 59, 999);
-  const since = new Date();
-  since.setHours(0, 0, 0, 0);
-  const days = window === "4d" ? 4 : window === "7d" ? 7 : window === "14d" ? 14 : 30;
-  since.setDate(since.getDate() - days);
-  return { since, until };
-}
-
-const WINDOW_LABELS: Record<AdWindow, string> = {
-  "4d": "Last 4 Days", "7d": "Last 7 Days", "14d": "Last 14 Days", "month": "Last 30 Days",
-};
-
-// ─── Call Source sheet parser ──────────────────────────────────────────────────
+// ─── Call Source sheet parser (30-day window) ──────────────────────────────────
 
 type CallEntry = { booked: number; shown: number; deals: number };
 
-function parseCallSource(
-  rows: string[][],
-  since: Date,
-  until: Date,
-): Map<string, CallEntry> {
+function parseCallSource(rows: string[][]): Map<string, CallEntry> {
   const map = new Map<string, CallEntry>();
   if (rows.length < 2) return map;
 
-  // Find header row
   const hdrIdx = rows.findIndex((r) =>
     r.some((c) => /campaign|ad set|first name|booked date/i.test(c))
   );
@@ -90,10 +68,10 @@ function parseCallSource(
 
   const hdrs = rows[hdrIdx].map((h) => h.toLowerCase().trim());
 
-  // Ad creative column: look for exact "ad" first, then "ad name", fallback "source"
   let adCol = hdrs.findIndex((h) => h === "ad" || h === "ad name");
   if (adCol < 0) adCol = fi(hdrs, ["ad"]);
   if (adCol < 0) adCol = fi(hdrs, ["source"]);
+  if (adCol < 0) return map;
 
   const bookedDateCol = fi(hdrs, ["booked date"]);
   const firstCol      = fi(hdrs, ["first name"]);
@@ -101,22 +79,22 @@ function parseCallSource(
   const closedCol     = fi(hdrs, ["closed"]);
   const cashCol       = fi(hdrs, ["cash collected"]);
 
-  if (adCol < 0) return map;
+  // 30-day window for calls
+  const since = new Date();
+  since.setHours(0, 0, 0, 0);
+  since.setDate(since.getDate() - 30);
+  const until = new Date();
+  until.setHours(23, 59, 59, 999);
 
   for (const row of rows.slice(hdrIdx + 1)) {
-    // Require a name entry so empty rows are skipped
     if (firstCol >= 0 && !cv(row, firstCol)) continue;
-
-    // Date filter
     if (bookedDateCol >= 0) {
       const d = parseSheetDate(cv(row, bookedDateCol));
       if (!d || d < since || d > until) continue;
     }
-
     const rawName = cv(row, adCol);
     if (!rawName) continue;
     const key = normalizeCreativeName(rawName) || rawName;
-
     if (!map.has(key)) map.set(key, { booked: 0, shown: 0, deals: 0 });
     const e = map.get(key)!;
     e.booked += 1;
@@ -128,65 +106,70 @@ function parseCallSource(
   return map;
 }
 
+// ─── Spend matcher ─────────────────────────────────────────────────────────────
+
+function matchSpend(name: string, metaRows: { adName: string; spend: number }[]): number {
+  const needle = normName(name);
+  let total = 0;
+  for (const m of metaRows) {
+    const hay = normName(normalizeCreativeName(m.adName) || m.adName);
+    if (hay.includes(needle) || needle.includes(hay)) total += m.spend;
+  }
+  return total;
+}
+
 // ─── Main export ───────────────────────────────────────────────────────────────
 
-export async function fetchCreativeAttribution(
-  window: AdWindow,
-): Promise<CreativeAttribution> {
+export async function fetchCreativeAttribution(): Promise<CreativeAttribution> {
   const apiKey = process.env.SHEETS_API_KEY ?? process.env.GOOGLE_SHEETS_API_KEY ?? process.env.GOOGLE_MASTER_SHEETS_API_KEY ?? "";
-  const { since, until } = windowDates(window);
-  const windowLabel = WINDOW_LABELS[window];
 
   try {
-    const [callSourceRows, metaSpend] = await Promise.all([
+    // Fetch all 4 Meta windows + Call Source sheet in parallel
+    const [spend4d, spend7d, spend14d, spend30d, callSourceRows] = await Promise.all([
+      fetchCBOAdSpend("4d"),
+      fetchCBOAdSpend("7d"),
+      fetchCBOAdSpend("14d"),
+      fetchCBOAdSpend("month"),
       fetchSheetValues(FUNNEL_SHEET_ID, "Call Source", apiKey).catch(() => [] as string[][]),
-      fetchCBOAdSpend(window),
     ]);
 
-    const callsMap = parseCallSource(callSourceRows, since, until);
+    const callsMap = parseCallSource(callSourceRows);
 
-    // Build a combined set of ad names from both Meta and calls
+    // Union of all ad names across all windows + call source
     const allNames = new Set<string>([
-      ...metaSpend.map((r) => normalizeCreativeName(r.adName) || r.adName),
+      ...[...spend4d, ...spend7d, ...spend14d, ...spend30d].map(
+        (r) => normalizeCreativeName(r.adName) || r.adName
+      ),
       ...callsMap.keys(),
     ]);
 
     const rows: CreativeRow[] = [...allNames].map((name) => {
-      // Sum Meta spend for this creative (bidirectional substring match after normalization)
-      const needle = normName(name);
-      let spend = 0;
-      for (const m of metaSpend) {
-        const hay = normName(normalizeCreativeName(m.adName) || m.adName);
-        if (hay.includes(needle) || needle.includes(hay)) spend += m.spend;
-      }
-
-      // Find calls entry — try exact key first, then normalized match
-      let calls = callsMap.get(name);
-      if (!calls) {
+      const calls = (() => {
+        if (callsMap.has(name)) return callsMap.get(name)!;
+        const needle = normName(name);
         for (const [k, v] of callsMap) {
           const kn = normName(k);
-          if (kn.includes(needle) || needle.includes(kn)) { calls = v; break; }
+          if (kn.includes(needle) || needle.includes(kn)) return v;
         }
-      }
+        return null;
+      })();
 
       return {
         adName:            name,
-        spend,
+        spend4d:           matchSpend(name, spend4d),
+        spend7d:           matchSpend(name, spend7d),
+        spend14d:          matchSpend(name, spend14d),
+        spend30d:          matchSpend(name, spend30d),
         bookedCalls:       calls?.booked ?? 0,
         shownAppointments: calls?.shown  ?? 0,
         deals:             calls?.deals  ?? 0,
       };
     })
-    // Only show rows that have spend OR at least 1 booked call
-    .filter((r) => r.spend > 0 || r.bookedCalls > 0)
-    .sort((a, b) => b.spend - a.spend || b.bookedCalls - a.bookedCalls);
+    .filter((r) => r.spend30d > 0 || r.bookedCalls > 0)
+    .sort((a, b) => b.spend30d - a.spend30d || b.bookedCalls - a.bookedCalls);
 
-    return { rows, windowLabel };
+    return { rows };
   } catch (err) {
-    return {
-      rows: [],
-      windowLabel,
-      error: err instanceof Error ? err.message : String(err),
-    };
+    return { rows: [], error: err instanceof Error ? err.message : String(err) };
   }
 }
