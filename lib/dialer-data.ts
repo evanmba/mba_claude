@@ -154,8 +154,9 @@ export const DIALER_METRICS: Record<string, DialerMonthMetrics[]> = {
     },
     {
       month: "APR 2026",
-      totalDials: 0, linksSent: 0, dialLinkPct: 0, bookedCalls: 0,
-      setPct: 0,     takenCalls: 0, showUpRate: 0, deals: 0, closePct: 0,
+      // From sheet row 4 (Monthly TOTALS) as of early April: C=224, D=5, E=2.2%, F=1, G=20.0%, H=0, I=0.0%
+      totalDials: 224, linksSent: 5, dialLinkPct: 2.2, bookedCalls: 1,
+      setPct: 20.0,    takenCalls: 0, showUpRate: 0.0, deals: 0, closePct: 0,
     },
   ],
   "gabriana-brown": [

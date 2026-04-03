@@ -158,17 +158,18 @@ async function fetchGoalsData(sheetId: string, apiKey: string, noCache = false):
 
 /**
  * Build all plausible sheet-name candidates for a given setter + month.
- * The real sheet may use any spacing/dash variation, e.g.:
- *   "Daneile- APR 2026"  "Daneile -APR 2026"  "Daneile - APR 2026"  "Daneile-APR 2026"
+ * Tries first-name-only and full-name variants with every dash/space combo.
  */
-function sheetNameCandidates(firstName: string, month: string): string[] {
-  return [
-    `${firstName}- ${month}`,   // "Daneile- APR 2026"  ← original pattern
-    `${firstName} - ${month}`,  // "Daneile - APR 2026"
-    `${firstName} -${month}`,   // "Daneile -APR 2026"
-    `${firstName}-${month}`,    // "Daneile-APR 2026"
-    `${firstName} ${month}`,    // "Daneile APR 2026"
+function sheetNameCandidates(firstName: string, fullName: string, month: string): string[] {
+  const variants = (base: string) => [
+    `${base}- ${month}`,   // "Daneile- APR 2026"
+    `${base} - ${month}`,  // "Daneile - APR 2026"
+    `${base} -${month}`,   // "Daneile -APR 2026"
+    `${base}-${month}`,    // "Daneile-APR 2026"
+    `${base} ${month}`,    // "Daneile APR 2026"
   ];
+  // First-name variants first (most common), then full-name variants
+  return [...variants(firstName), ...variants(fullName)];
 }
 
 async function fetchDialerMonthMetrics(
@@ -183,20 +184,21 @@ async function fetchDialerMonthMetrics(
   if (!dialer) return null;
 
   const [firstName] = dialer.name.split(" ");
+  const fullName = dialer.name; // e.g. "Daneile Brown"
 
-  // Try each name variation in order; use the first that returns data rows.
+  // Try each name variation; fetch only row 4 (data row) so we only need 1 row back.
+  // Header row (row 3) is not required — avoids failures when API skips empty header cells.
   // Pass silent=true so 404s on non-matching candidates don't flood the logs.
-  let rows: string[][] = [];
-  for (const candidate of sheetNameCandidates(firstName, month)) {
-    rows = await fetchSheetRange(sheetId, apiKey, candidate, "C3:I4", noCache, true);
-    if (rows.length >= 2) {
+  let data: string[] = [];
+  for (const candidate of sheetNameCandidates(firstName, fullName, month)) {
+    const rows = await fetchSheetRange(sheetId, apiKey, candidate, "C4:I4", noCache, true);
+    if (rows.length >= 1 && rows[0].length >= 1) {
       console.log(`[dialers] Matched sheet "${candidate}" for ${setterId} ${month}`);
+      data = rows[0];
       break;
     }
   }
-  if (rows.length < 2) return null;
-
-  const data = rows[1] ?? [];
+  if (!data.length) return null;
 
   let deals = 0;
   if (dialersSheet.length > 0) {
