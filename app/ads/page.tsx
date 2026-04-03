@@ -1,20 +1,20 @@
 import { Suspense } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { CreativeTable } from "@/components/ads/AdSetsView";
-import { fetchCreativeAttribution } from "@/lib/attribution";
+import { SpendCards } from "@/components/ads/AdSetsView";
+import { fetchMainCreativeSpend } from "@/lib/attribution";
 
 export const dynamic = "force-dynamic";
 
-async function TableLoader() {
-  const data = await fetchCreativeAttribution();
-  return <CreativeTable data={data} />;
+async function Cards() {
+  const data = await fetchMainCreativeSpend();
+  return <SpendCards data={data} />;
 }
 
-function TableSkeleton() {
+function CardsSkeleton() {
   return (
-    <div className="flex flex-col gap-2">
-      {[0, 1, 2, 3, 4].map((i) => (
-        <div key={i} style={{ height: 44, borderRadius: 8, background: "#0b1628", opacity: 1 - i * 0.15 }} />
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
+      {[0, 1, 2].map((i) => (
+        <div key={i} style={{ height: 200, borderRadius: 16, background: "#0b1628" }} />
       ))}
     </div>
   );
@@ -26,14 +26,14 @@ export default async function AdsPage() {
       <div className="p-4 sm:p-8 space-y-5">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-            Ad Creative Performance
+            Ad Creative Spend
           </h1>
           <p className="text-xs sm:text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
-            Spend per window from Meta CBO Winners · booked/shown/deals from Call Source (30 days)
+            CBO Winners campaign · live from Meta
           </p>
         </div>
-        <Suspense fallback={<TableSkeleton />}>
-          <TableLoader />
+        <Suspense fallback={<CardsSkeleton />}>
+          <Cards />
         </Suspense>
       </div>
     </DashboardLayout>
