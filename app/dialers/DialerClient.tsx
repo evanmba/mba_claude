@@ -435,7 +435,14 @@ function IndividualTab({ dialer, metrics }: { dialer: DialerInfo; metrics: Diale
   const currentIdx = metrics.findIndex((m) => m.month === selectedMonth);
   const prev = currentIdx > 0 ? metrics[currentIdx - 1] : null;
 
-  const hasDialData = current && current.totalDials > 0;
+  // Show cards for the current month regardless of zeros (data is still coming in),
+  // or for any past month that has at least one non-zero metric.
+  const isCurrentMonth = selectedMonth === CURRENT_MONTH;
+  const hasAnyData = current && (
+    current.totalDials > 0 || current.bookedCalls > 0 ||
+    current.takenCalls > 0 || current.linksSent > 0 || current.deals > 0
+  );
+  const hasDialData = isCurrentMonth ? !!current : hasAnyData;
 
   return (
     <div className="space-y-5">
