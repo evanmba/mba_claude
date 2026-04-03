@@ -1,50 +1,62 @@
-import { fetchCBOAdSpend } from "./meta";
+import { fetchAdSpendByIds, AdWindow } from "./meta";
 
-// The 3 main ad creatives to track. Spend is summed from any CBO Winners ad
-// whose normalized name contains the pattern (e.g. "1002.1.7.3.4" matches "1002.1.7").
-export const MAIN_CREATIVES = [
-  { label: "1002.1.7", pattern: "1002.1.7" },
-  { label: "1009.6.1", pattern: "1009.6.1" },
-  { label: "1007.5",   pattern: "1007.5"   },
+// ─── The 3 tracked ad creatives ───────────────────────────────────────────────
+
+const TRACKED_ADS = [
+  { id: "120246732599790699", label: "1002.1.7.3.4" },
+  { id: "120246732565570699", label: "1009.6.1.2"   },
+  { id: "120246732664910699", label: "1007.5"        },
 ] as const;
+
+const AD_IDS = TRACKED_ADS.map((a) => a.id);
+
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface CreativeSpend {
   label: string;
+  adName: string;   // actual name returned by Meta
   spend4d: number;
   spend7d: number;
   spend14d: number;
   spend30d: number;
 }
 
-// Strip leading all-caps prefix: "TOF 1002.1.7.3.4" → "1002.1.7.3.4"
-function normalizeName(name: string): string {
-  const pipeIdx = name.indexOf(" | ");
-  if (pipeIdx >= 0) return name.slice(pipeIdx + 3).trim();
-  return name.trim().replace(/^[A-Z]{2,}\s+/, "");
-}
-
-function sumForPattern(
-  rows: { adName: string; spend: number }[],
-  pattern: string,
-): number {
-  return rows
-    .filter((r) => normalizeName(r.adName).includes(pattern))
-    .reduce((s, r) => s + r.spend, 0);
-}
+// ─── Main export ───────────────────────────────────────────────────────────────
 
 export async function fetchMainCreativeSpend(): Promise<CreativeSpend[]> {
+  // Fetch all 4 windows in parallel
   const [s4d, s7d, s14d, s30d] = await Promise.all([
-    fetchCBOAdSpend("4d"),
-    fetchCBOAdSpend("7d"),
-    fetchCBOAdSpend("14d"),
-    fetchCBOAdSpend("month"),
+    fetchAdSpendByIds(AD_IDS, "4d"),
+    fetchAdSpendByIds(AD_IDS, "7d"),
+    fetchAdSpendByIds(AD_IDS, "14d"),
+    fetchAdSpendByIds(AD_IDS, "month"),
   ]);
 
-  return MAIN_CREATIVES.map(({ label, pattern }) => ({
-    label,
-    spend4d:  sumForPattern(s4d,  pattern),
-    spend7d:  sumForPattern(s7d,  pattern),
-    spend14d: sumForPattern(s14d, pattern),
-    spend30d: sumForPattern(s30d, pattern),
-  }));
+  // Index results by ad ID for fast lookup
+  const byId = (rows: { adId: string; adName: string; spend: number }[]) =>
+    new Map(rows.map((r) => [r.adId, r]));
+
+  const m4d  = byId(s4d);
+  const m7d  = byId(s7d);
+  const m14d = byId(s14d);
+  const m30d = byId(s30d);
+
+  return TRACKED_ADS.map(({ id, label }) => {
+    // Use the ad name from whichever window has it (30d most likely to have data)
+    const adName =
+      m30d.get(id)?.adName ??
+      m14d.get(id)?.adName ??
+      m7d.get(id)?.adName  ??
+      m4d.get(id)?.adName  ??
+      label;
+
+    return {
+      label,
+      adName,
+      spend4d:  m4d.get(id)?.spend  ?? 0,
+      spend7d:  m7d.get(id)?.spend  ?? 0,
+      spend14d: m14d.get(id)?.spend ?? 0,
+      spend30d: m30d.get(id)?.spend ?? 0,
+    };
+  });
 }
