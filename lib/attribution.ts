@@ -27,15 +27,15 @@ const toBool = (s: string) => {
   return u === "TRUE" || u === "YES" || u === "1" || u === "X";
 };
 
-// Strip trailing version numbers: "TOF 1002.1.7.3.1" → "TOF 1002", "1002.1.7.3.1" → "1002"
+// "TOF 1002.1.7.3.1" → "1002.1.7.3.1"   "MBA | 1007.5" → "1007.5"
 function normalizeCreativeName(name: string): string {
-  const t = name.trim();
-  if (/^\d+(\.\d+)+$/.test(t)) return t.split(".")[0];
-  return t
-    .replace(/\s+[-–]?\s*v\d+(\.\d+)*\s*$/i, "")
-    .replace(/\s+\d+(\.\d+)+\s*$/, "")
-    .replace(/\s*\(\s*v?\d+(\.\d+)*\s*\)\s*$/, "")
-    .trim();
+  let t = name.trim();
+  // Strip "PREFIX | identifier" → keep identifier
+  const pipeIdx = t.indexOf(" | ");
+  if (pipeIdx >= 0) return t.slice(pipeIdx + 3).trim();
+  // Strip leading all-caps abbreviation before a dotted/plain number: "TOF 1002.1.7.3.1" → "1002.1.7.3.1"
+  t = t.replace(/^[A-Z]+\s+(?=[\d])/, "");
+  return t;
 }
 
 function normName(s: string): string {
