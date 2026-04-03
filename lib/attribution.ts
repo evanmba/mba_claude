@@ -15,7 +15,6 @@ const AD_IDS = TRACKED_ADS.map((a) => a.id);
 export interface CreativeSpend {
   label: string;
   adName: string;   // actual name returned by Meta
-  spend4d: number;
   spend7d: number;
   spend14d: number;
   spend30d: number;
@@ -24,36 +23,24 @@ export interface CreativeSpend {
 // ─── Main export ───────────────────────────────────────────────────────────────
 
 export async function fetchMainCreativeSpend(): Promise<CreativeSpend[]> {
-  // Fetch all 4 windows in parallel
-  const [s4d, s7d, s14d, s30d] = await Promise.all([
-    fetchAdSpendByIds(AD_IDS, "4d"),
+  const [s7d, s14d, s30d] = await Promise.all([
     fetchAdSpendByIds(AD_IDS, "7d"),
     fetchAdSpendByIds(AD_IDS, "14d"),
     fetchAdSpendByIds(AD_IDS, "month"),
   ]);
 
-  // Index results by ad ID for fast lookup
   const byId = (rows: { adId: string; adName: string; spend: number }[]) =>
     new Map(rows.map((r) => [r.adId, r]));
 
-  const m4d  = byId(s4d);
   const m7d  = byId(s7d);
   const m14d = byId(s14d);
   const m30d = byId(s30d);
 
   return TRACKED_ADS.map(({ id, label }) => {
-    // Use the ad name from whichever window has it (30d most likely to have data)
-    const adName =
-      m30d.get(id)?.adName ??
-      m14d.get(id)?.adName ??
-      m7d.get(id)?.adName  ??
-      m4d.get(id)?.adName  ??
-      label;
-
+    const adName = m30d.get(id)?.adName ?? m14d.get(id)?.adName ?? m7d.get(id)?.adName ?? label;
     return {
       label,
       adName,
-      spend4d:  m4d.get(id)?.spend  ?? 0,
       spend7d:  m7d.get(id)?.spend  ?? 0,
       spend14d: m14d.get(id)?.spend ?? 0,
       spend30d: m30d.get(id)?.spend ?? 0,

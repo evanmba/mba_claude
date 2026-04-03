@@ -11,7 +11,6 @@ const MUTED  = "#475569";
 const ACCENT = "#3b82f6";
 
 const ROWS: { key: keyof CreativeSpend; label: string }[] = [
-  { key: "spend4d",  label: "4 Days"  },
   { key: "spend7d",  label: "7 Days"  },
   { key: "spend14d", label: "14 Days" },
   { key: "spend30d", label: "30 Days" },
