@@ -152,6 +152,11 @@ export const DIALER_METRICS: Record<string, DialerMonthMetrics[]> = {
       totalDials: 1580, linksSent: 52, dialLinkPct: 3.3, bookedCalls: 33,
       setPct: 63.5,     takenCalls: 10, showUpRate: 30.3, deals: 0, closePct: 0,
     },
+    {
+      month: "APR 2026",
+      totalDials: 0, linksSent: 0, dialLinkPct: 0, bookedCalls: 0,
+      setPct: 0,     takenCalls: 0, showUpRate: 0, deals: 0, closePct: 0,
+    },
   ],
   "gabriana-brown": [
     {
@@ -168,6 +173,11 @@ export const DIALER_METRICS: Record<string, DialerMonthMetrics[]> = {
       month: "MAR 2026",
       totalDials: 620, linksSent: 21, dialLinkPct: 3.4, bookedCalls: 3,
       setPct: 14.3,    takenCalls: 2, showUpRate: 66.7, deals: 0, closePct: 0,
+    },
+    {
+      month: "APR 2026",
+      totalDials: 0, linksSent: 0, dialLinkPct: 0, bookedCalls: 0,
+      setPct: 0,     takenCalls: 0, showUpRate: 0, deals: 0, closePct: 0,
     },
   ],
   "julio-capellan": [
@@ -187,6 +197,11 @@ export const DIALER_METRICS: Record<string, DialerMonthMetrics[]> = {
       totalDials: 2515, linksSent: 83, dialLinkPct: 3.3, bookedCalls: 11,
       setPct: 13.3,     takenCalls: 4, showUpRate: 36.4, deals: 0, closePct: 0,
     },
+    {
+      month: "APR 2026",
+      totalDials: 0, linksSent: 0, dialLinkPct: 0, bookedCalls: 0,
+      setPct: 0,     takenCalls: 0, showUpRate: 0, deals: 0, closePct: 0,
+    },
   ],
   "allieandra-alexander": [
     {
@@ -204,6 +219,11 @@ export const DIALER_METRICS: Record<string, DialerMonthMetrics[]> = {
       totalDials: 1380, linksSent: 47, dialLinkPct: 3.4, bookedCalls: 13,
       setPct: 27.7,     takenCalls: 5, showUpRate: 38.5, deals: 0, closePct: 0,
     },
+    {
+      month: "APR 2026",
+      totalDials: 0, linksSent: 0, dialLinkPct: 0, bookedCalls: 0,
+      setPct: 0,     takenCalls: 0, showUpRate: 0, deals: 0, closePct: 0,
+    },
   ],
   "teagan-brown": [
     {
@@ -220,6 +240,11 @@ export const DIALER_METRICS: Record<string, DialerMonthMetrics[]> = {
       month: "MAR 2026",
       totalDials: 0,   linksSent: 0,  dialLinkPct: 0, bookedCalls: 0,
       setPct: 0,       takenCalls: 0, showUpRate: 0,  deals: 0, closePct: 0,
+    },
+    {
+      month: "APR 2026",
+      totalDials: 0, linksSent: 0, dialLinkPct: 0, bookedCalls: 0,
+      setPct: 0,     takenCalls: 0, showUpRate: 0, deals: 0, closePct: 0,
     },
   ],
 };
@@ -242,7 +267,7 @@ export const TEAM_MONTHLY: TeamMonthRow[] = [
   { month: "December",  date: "12/1/26", booked: 0,  taken: 0,  sitPct: 0,  deals: 0, closePct: 0  },
 ];
 
-export const AVAILABLE_MONTHS = ["JAN 2026", "FEB 2026", "MAR 2026"] as const;
+export const AVAILABLE_MONTHS = ["JAN 2026", "FEB 2026", "MAR 2026", "APR 2026"] as const;
 export type AvailableMonth = typeof AVAILABLE_MONTHS[number];
 
 // ─── Helper ───────────────────────────────────────────────────────────────────

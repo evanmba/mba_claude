@@ -15,12 +15,13 @@ const SETTERS = [
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-const START_HOUR  = 9;
-const END_HOUR    = 18;
-const TOTAL_HOURS = END_HOUR - START_HOUR; // 9
+const START_HOUR  = 8;
+const END_HOUR    = 20;
+const TOTAL_HOURS = END_HOUR - START_HOUR; // 12
 
-const SUN_IDX       = 6;
-const SUN_BLOCK_END = 14;
+const SUN_IDX         = 6;
+const SUN_BLOCK_START = 9;   // Sunday no-calls starts 9am (not 8am)
+const SUN_BLOCK_END   = 14;
 
 const STORAGE_KEY = "mba-coverage-v2";
 
@@ -68,7 +69,7 @@ function overlapLayout(block: Block, all: Block[]) {
 }
 
 function isSunBlocked(day: number, hour: number) {
-  return day === SUN_IDX && hour >= START_HOUR && hour < SUN_BLOCK_END;
+  return day === SUN_IDX && hour >= SUN_BLOCK_START && hour < SUN_BLOCK_END;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -98,7 +99,7 @@ export default function CoverageCalendar() {
     if (!bodyRef.current) return;
     const ro = new ResizeObserver(([entry]) => {
       const h = entry.contentRect.height;
-      if (h > 0) setRowH(Math.max(36, Math.floor(h / (TOTAL_HOURS + 1))));
+      if (h > 0) setRowH(Math.max(28, Math.floor(h / (TOTAL_HOURS + 1))));
     });
     ro.observe(bodyRef.current);
     return () => ro.disconnect();
@@ -246,7 +247,7 @@ export default function CoverageCalendar() {
   const hourLabels = Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => START_HOUR + i);
 
   return (
-    <div ref={outerRef} style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 228px)", minHeight: 440, gap: 12 }}>
+    <div ref={outerRef} style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 228px)", minHeight: 380, gap: 12 }}>
 
       {/* Top bar */}
       <div className="flex items-center justify-between flex-wrap gap-3" style={{ flexShrink: 0 }}>
@@ -256,7 +257,7 @@ export default function CoverageCalendar() {
             style={{ background: "rgba(34,197,94,0.12)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.3)" }}
           >
             <Clock size={12} />
-            Eastern Time (ET) · 9am – 6pm
+            Eastern Time (ET) · 8am – 8pm
           </div>
           <span className="text-xs hidden sm:block" style={{ color: "var(--muted-foreground)" }}>
             Drag setters onto grid · Drag blocks to move · Pull bottom edge to resize
@@ -306,33 +307,105 @@ export default function CoverageCalendar() {
 
         {/* Day headers */}
         {isMobile ? (
-          <div
-            className="flex items-center justify-between px-3 py-2"
-            style={{ borderBottom: "1px solid var(--border)", background: "rgba(10,15,30,0.6)", flexShrink: 0 }}
-          >
-            <button
-              onClick={() => setMobileDay(d => Math.max(d - 1, 0))}
-              disabled={mobileDay === 0}
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold"
-              style={{ color: mobileDay === 0 ? "var(--muted-foreground)" : "var(--foreground)", background: "var(--secondary)", opacity: mobileDay === 0 ? 0.4 : 1 }}
-            >
-              ‹
-            </button>
+          <>
+            {/* Day nav row */}
             <div
-              className="text-sm font-bold uppercase tracking-widest"
-              style={{ color: mobileDay >= 5 ? "#f59e0b" : "var(--foreground)" }}
+              className="flex items-center justify-between px-3 py-2"
+              style={{ borderBottom: "1px solid var(--border)", background: "rgba(10,15,30,0.6)", flexShrink: 0 }}
             >
-              {DAYS[mobileDay]}
+              <button
+                onClick={() => setMobileDay(d => Math.max(d - 1, 0))}
+                disabled={mobileDay === 0}
+                className="flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold"
+                style={{ color: mobileDay === 0 ? "var(--muted-foreground)" : "var(--foreground)", background: "var(--secondary)", opacity: mobileDay === 0 ? 0.4 : 1 }}
+              >
+                ‹
+              </button>
+              <div
+                className="text-sm font-bold uppercase tracking-widest"
+                style={{ color: mobileDay >= 5 ? "#f59e0b" : "var(--foreground)" }}
+              >
+                {DAYS[mobileDay]}
+              </div>
+              <button
+                onClick={() => setMobileDay(d => Math.min(d + 1, DAYS.length - 1))}
+                disabled={mobileDay === DAYS.length - 1}
+                className="flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold"
+                style={{ color: mobileDay === DAYS.length - 1 ? "var(--muted-foreground)" : "var(--foreground)", background: "var(--secondary)", opacity: mobileDay === DAYS.length - 1 ? 0.4 : 1 }}
+              >
+                ›
+              </button>
             </div>
-            <button
-              onClick={() => setMobileDay(d => Math.min(d + 1, DAYS.length - 1))}
-              disabled={mobileDay === DAYS.length - 1}
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-sm font-bold"
-              style={{ color: mobileDay === DAYS.length - 1 ? "var(--muted-foreground)" : "var(--foreground)", background: "var(--secondary)", opacity: mobileDay === DAYS.length - 1 ? 0.4 : 1 }}
-            >
-              ›
-            </button>
-          </div>
+
+            {/* At-a-glance coverage strip — shows each setter's hours for the day */}
+            {(() => {
+              const dayBlocks = blocks.filter(b => b.day === mobileDay);
+              if (!dayBlocks.length) return (
+                <div className="px-4 py-2 text-xs" style={{ color: "var(--muted-foreground)", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+                  No shifts scheduled
+                </div>
+              );
+              return (
+                <div
+                  className="px-3 py-2"
+                  style={{ borderBottom: "1px solid var(--border)", background: "rgba(10,15,30,0.35)", flexShrink: 0 }}
+                >
+                  {/* Mini horizontal timeline */}
+                  <div className="relative" style={{ height: 6, marginBottom: 6, borderRadius: 3, background: "var(--secondary)" }}>
+                    {dayBlocks.map(block => {
+                      const setter = SETTERS.find(s => s.id === block.setterId);
+                      if (!setter) return null;
+                      const leftPct = ((block.startHour - START_HOUR) / TOTAL_HOURS) * 100;
+                      const widthPct = (block.duration / TOTAL_HOURS) * 100;
+                      return (
+                        <div key={block.id} style={{
+                          position: "absolute",
+                          left: `${leftPct}%`, width: `${widthPct}%`,
+                          top: 0, height: "100%",
+                          background: setter.color,
+                          borderRadius: 3,
+                          opacity: 0.85,
+                        }} />
+                      );
+                    })}
+                    {/* Hour tick marks */}
+                    {Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => (
+                      <div key={i} style={{
+                        position: "absolute",
+                        left: `${(i / TOTAL_HOURS) * 100}%`,
+                        top: "100%", marginTop: 2,
+                        fontSize: 8,
+                        color: "var(--muted-foreground)",
+                        transform: "translateX(-50%)",
+                        whiteSpace: "nowrap",
+                      }}>
+                        {i % 2 === 0 ? fmtHour(START_HOUR + i) : ""}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Setter chips */}
+                  <div className="flex flex-wrap gap-1.5 mt-4">
+                    {SETTERS.map(setter => {
+                      const sb = dayBlocks.filter(b => b.setterId === setter.id);
+                      if (!sb.length) return null;
+                      const totalH = sb.reduce((s, b) => s + b.duration, 0);
+                      const earliest = Math.min(...sb.map(b => b.startHour));
+                      const latest   = Math.max(...sb.map(b => b.startHour + b.duration));
+                      return (
+                        <div key={setter.id}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium"
+                          style={{ background: setter.color + "20", border: `1px solid ${setter.color}40`, color: setter.color }}
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full" style={{ background: setter.color }} />
+                          {setter.short} · {fmtHour(earliest)}–{fmtHour(latest)} ({totalH}h)
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
+          </>
         ) : (
           <div
             className="grid"
@@ -428,13 +501,13 @@ export default function CoverageCalendar() {
                     <div style={{ position: "absolute", top: pad + (hover.hour - START_HOUR) * rowH, left: 0, right: 0, height: rowH, background: "rgba(59,130,246,0.18)", borderTop: "2px solid #3b82f6", pointerEvents: "none", zIndex: 2 }} />
                   )}
 
-                  {/* Sunday blocked zone */}
+                  {/* Sunday blocked zone — 9am to 2pm */}
                   {dayIdx === SUN_IDX && (
                     <div style={{
                       position: "absolute",
-                      top: pad,
+                      top: pad + (SUN_BLOCK_START - START_HOUR) * rowH,
                       left: 0, right: 0,
-                      height: (SUN_BLOCK_END - START_HOUR) * rowH,
+                      height: (SUN_BLOCK_END - SUN_BLOCK_START) * rowH,
                       background: "repeating-linear-gradient(135deg, rgba(239,68,68,0.07) 0px, rgba(239,68,68,0.07) 8px, rgba(239,68,68,0.02) 8px, rgba(239,68,68,0.02) 16px)",
                       borderBottom: "2px solid rgba(239,68,68,0.5)",
                       zIndex: 3, pointerEvents: "none",

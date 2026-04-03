@@ -421,12 +421,15 @@ function SpeedToLeadSection({ data }: { data: SpeedToLeadData }) {
 
 // ─── Individual Dialer Tab ─────────────────────────────────────────────────────
 
-const MONTH_LABELS = ["JAN 2026", "FEB 2026", "MAR 2026"];
+const MONTH_LABELS = ["JAN 2026", "FEB 2026", "MAR 2026", "APR 2026"];
+// Current month — always default to this if it exists in the data
+const CURRENT_MONTH = "APR 2026";
 
 function IndividualTab({ dialer, metrics }: { dialer: DialerInfo; metrics: DialerMonthMetrics[] }) {
-  const [selectedMonth, setSelectedMonth] = useState(
-    metrics.length ? metrics[metrics.length - 1].month : MONTH_LABELS[0]
-  );
+  const defaultMonth = metrics.some(m => m.month === CURRENT_MONTH)
+    ? CURRENT_MONTH
+    : (metrics.length ? metrics[metrics.length - 1].month : MONTH_LABELS[0]);
+  const [selectedMonth, setSelectedMonth] = useState(defaultMonth);
 
   const current = metrics.find((m) => m.month === selectedMonth);
   const currentIdx = metrics.findIndex((m) => m.month === selectedMonth);
