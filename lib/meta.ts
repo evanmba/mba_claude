@@ -111,14 +111,34 @@ export async function fetchMetaSpend(
 
 export type AdWindow = "4d" | "7d" | "14d" | "month";
 
+// Use Meta's official presets where they exist — they match what Ads Manager shows.
+// 4d has no preset so we use a custom time_range (3 days ago → today = 4 days inclusive).
 function windowToDateParam(window: AdWindow): string {
-  if (window === "month") return "date_preset=this_month";
-  const days = window === "4d" ? 4 : window === "7d" ? 7 : 14;
+  if (window === "7d")    return "date_preset=last_7_days";
+  if (window === "14d")   return "date_preset=last_14_days";
+  if (window === "month") return "date_preset=last_30_days";
+  const fmt   = (d: Date) => d.toISOString().slice(0, 10);
   const until = new Date();
   const since = new Date();
-  since.setDate(since.getDate() - days);
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  since.setDate(since.getDate() - 3); // 3 days ago → today = 4 days inclusive
   return `time_range=${encodeURIComponent(JSON.stringify({ since: fmt(since), until: fmt(until) }))}`;
+}
+
+// Fresh fetch — no caching so spend numbers always match current Meta Ads Manager values.
+async function fetchAllFresh(url: string): Promise<Record<string, unknown>[]> {
+  const all: Record<string, unknown>[] = [];
+  let next: string | null = url;
+  while (next) {
+    const res = await fetch(next, { cache: "no-store" } as RequestInit);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({})) as Record<string, unknown>;
+      throw new Error((err?.error as Record<string, unknown>)?.message as string ?? `HTTP ${res.status}`);
+    }
+    const json = await res.json() as { data: Record<string, unknown>[]; paging?: { next?: string } };
+    all.push(...(json.data ?? []));
+    next = json.paging?.next ?? null;
+  }
+  return all;
 }
 
 export async function fetchCBOAdSpend(
@@ -128,13 +148,13 @@ export async function fetchCBOAdSpend(
   const accountId = process.env.META_ADS_ACCOUNT_ID;
   if (!token || !accountId) return [];
 
-  const acct      = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
-  const datePart  = windowToDateParam(window);
-  const fields    = "ad_id,ad_name,campaign_name,spend";
-  const url       = `${GRAPH}/${acct}/insights?level=ad&${datePart}&fields=${fields}&limit=500&access_token=${token}`;
+  const acct     = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
+  const datePart = windowToDateParam(window);
+  const fields   = "ad_id,ad_name,campaign_name,spend";
+  const url      = `${GRAPH}/${acct}/insights?level=ad&${datePart}&fields=${fields}&limit=500&access_token=${token}`;
 
   try {
-    const raw = await fetchAll(url);
+    const raw = await fetchAllFresh(url);
     return raw
       .filter((r) =>
         ((r["campaign_name"] as string) ?? "").toLowerCase().includes("cbo") &&

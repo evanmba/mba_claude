@@ -10,7 +10,7 @@ const WINDOWS: { key: AdWindow; label: string }[] = [
   { key: "4d",    label: "4 Days"  },
   { key: "7d",    label: "7 Days"  },
   { key: "14d",   label: "14 Days" },
-  { key: "month", label: "Month"   },
+  { key: "month", label: "30 Days" },
 ];
 
 async function TableLoader({ window }: { window: AdWindow }) {

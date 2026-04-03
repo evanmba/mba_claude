@@ -61,17 +61,13 @@ function windowDates(window: AdWindow): { since: Date; until: Date } {
   until.setHours(23, 59, 59, 999);
   const since = new Date();
   since.setHours(0, 0, 0, 0);
-  if (window === "month") {
-    since.setDate(1);
-  } else {
-    const days = window === "4d" ? 4 : window === "7d" ? 7 : 14;
-    since.setDate(since.getDate() - days);
-  }
+  const days = window === "4d" ? 4 : window === "7d" ? 7 : window === "14d" ? 14 : 30;
+  since.setDate(since.getDate() - days);
   return { since, until };
 }
 
 const WINDOW_LABELS: Record<AdWindow, string> = {
-  "4d": "Last 4 Days", "7d": "Last 7 Days", "14d": "Last 14 Days", "month": "This Month",
+  "4d": "Last 4 Days", "7d": "Last 7 Days", "14d": "Last 14 Days", "month": "Last 30 Days",
 };
 
 // ─── Call Source sheet parser ──────────────────────────────────────────────────
