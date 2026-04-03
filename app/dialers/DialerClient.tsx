@@ -442,7 +442,7 @@ function IndividualTab({ dialer, metrics }: { dialer: DialerInfo; metrics: Diale
     current.totalDials > 0 || current.bookedCalls > 0 ||
     current.takenCalls > 0 || current.linksSent > 0 || current.deals > 0
   );
-  const hasDialData = isCurrentMonth ? !!current : hasAnyData;
+  const hasDialData = !!current && (isCurrentMonth || !!hasAnyData);
 
   return (
     <div className="space-y-5">
