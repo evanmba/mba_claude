@@ -41,12 +41,13 @@ async function fetchSheetRange(
   sheetName: string,
   range: string,
   noCache = false,
+  silent = false,
 ): Promise<string[][]> {
   const encodedSheet = encodeURIComponent(`'${sheetName}'!${range}`);
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodedSheet}?key=${apiKey}`;
   const res = await fetch(url, noCache ? { cache: "no-store" } : { next: { revalidate: 300 } });
   if (!res.ok) {
-    console.warn(`[dialers] Sheet fetch failed for "${sheetName}" ${range}: ${res.status}`);
+    if (!silent) console.warn(`[dialers] Sheet fetch failed for "${sheetName}" ${range}: ${res.status}`);
     return [];
   }
   const json = await res.json();
@@ -155,6 +156,21 @@ async function fetchGoalsData(sheetId: string, apiKey: string, noCache = false):
 
 // ─── Parse individual dialer sheet ────────────────────────────────────────────
 
+/**
+ * Build all plausible sheet-name candidates for a given setter + month.
+ * The real sheet may use any spacing/dash variation, e.g.:
+ *   "Daneile- APR 2026"  "Daneile -APR 2026"  "Daneile - APR 2026"  "Daneile-APR 2026"
+ */
+function sheetNameCandidates(firstName: string, month: string): string[] {
+  return [
+    `${firstName}- ${month}`,   // "Daneile- APR 2026"  ← original pattern
+    `${firstName} - ${month}`,  // "Daneile - APR 2026"
+    `${firstName} -${month}`,   // "Daneile -APR 2026"
+    `${firstName}-${month}`,    // "Daneile-APR 2026"
+    `${firstName} ${month}`,    // "Daneile APR 2026"
+  ];
+}
+
 async function fetchDialerMonthMetrics(
   sheetId: string,
   apiKey: string,
@@ -167,7 +183,17 @@ async function fetchDialerMonthMetrics(
   if (!dialer) return null;
 
   const [firstName] = dialer.name.split(" ");
-  const rows = await fetchSheetRange(sheetId, apiKey, `${firstName}- ${month}`, "C3:I4", noCache);
+
+  // Try each name variation in order; use the first that returns data rows.
+  // Pass silent=true so 404s on non-matching candidates don't flood the logs.
+  let rows: string[][] = [];
+  for (const candidate of sheetNameCandidates(firstName, month)) {
+    rows = await fetchSheetRange(sheetId, apiKey, candidate, "C3:I4", noCache, true);
+    if (rows.length >= 2) {
+      console.log(`[dialers] Matched sheet "${candidate}" for ${setterId} ${month}`);
+      break;
+    }
+  }
   if (rows.length < 2) return null;
 
   const data = rows[1] ?? [];
