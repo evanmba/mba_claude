@@ -281,8 +281,8 @@ function TeamTab({
           {currentWeek.setters.map((s) => {
             const dialer = dialers.find((d) => d.id === s.id);
             const color = dialer?.color ?? "#3b82f6";
-            // Progress bar shows each setter relative to projected total
-            const barPct = projected > 0 ? (s.booked / projected) * 100 : 0;
+            const fillPct = Math.min((s.booked / WEEKLY_BAR_MAX) * 100, 100);
+            const hitGoal = s.booked >= WEEKLY_GOAL;
             return (
               <div key={s.id} className="px-5 py-3 flex items-center gap-4">
                 <div
@@ -296,11 +296,43 @@ function TeamTab({
                     <span className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
                       {s.name}
                     </span>
-                    <span className="text-sm font-bold flex-shrink-0 ml-2" style={{ color: s.booked > 0 ? color : "var(--muted-foreground)" }}>
-                      {s.booked} booked
+                    <span className="text-sm font-bold flex-shrink-0 ml-2" style={{ color: hitGoal ? "#22c55e" : s.booked > 0 ? color : "var(--muted-foreground)" }}>
+                      {s.booked} booked{hitGoal ? " ✓" : ""}
                     </span>
                   </div>
-                  <ProgressBar value={barPct} max={100} color={color} height={5} />
+                  {/* Bar with dotted goal line at 75% */}
+                  <div className="relative rounded-full" style={{ height: 8, background: "var(--secondary)", overflow: "visible" }}>
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${fillPct}%`, background: color, opacity: 0.85 }} />
+                    {/* Goal line */}
+                    <div className="group" style={{
+                      position: "absolute", top: -3, bottom: -3,
+                      left: `${WEEKLY_GOAL_PCT}%`, width: 14,
+                      transform: "translateX(-50%)", cursor: "default", zIndex: 10,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <div style={{
+                        width: 2, height: "100%",
+                        background: `repeating-linear-gradient(to bottom, ${color} 0px, ${color} 3px, transparent 3px, transparent 6px)`,
+                        borderRadius: 1, opacity: 0.7,
+                      }} />
+                      <div className="pointer-events-none absolute opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                        style={{
+                          bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)",
+                          background: "#1e293b", border: "1px solid #334155",
+                          borderRadius: 6, padding: "3px 7px", whiteSpace: "nowrap",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                        }}>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: "#94a3b8" }}>Goal </span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "#e2e8f0" }}>{WEEKLY_GOAL}</span>
+                        <div style={{
+                          position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)",
+                          borderLeft: "4px solid transparent", borderRight: "4px solid transparent",
+                          borderTop: "4px solid #334155",
+                        }} />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             );
