@@ -510,7 +510,18 @@ const MONTH_LABELS = ["JAN 2026", "FEB 2026", "MAR 2026", "APR 2026"];
 // Current month — always default to this if it exists in the data
 const CURRENT_MONTH = "APR 2026";
 
-function IndividualTab({ dialer, metrics }: { dialer: DialerInfo; metrics: DialerMonthMetrics[] }) {
+const WEEKLY_GOAL = 6;
+// Goal sits at 75% of the bar; max scale = WEEKLY_GOAL / 0.75
+const WEEKLY_BAR_MAX = WEEKLY_GOAL / 0.75;
+const WEEKLY_GOAL_PCT = (WEEKLY_GOAL / WEEKLY_BAR_MAX) * 100; // 75
+
+function IndividualTab({
+  dialer, metrics, currentWeek,
+}: {
+  dialer: DialerInfo;
+  metrics: DialerMonthMetrics[];
+  currentWeek: GoalsData["currentWeek"];
+}) {
   const defaultMonth = metrics.some(m => m.month === CURRENT_MONTH)
     ? CURRENT_MONTH
     : (metrics.length ? metrics[metrics.length - 1].month : MONTH_LABELS[0]);
@@ -528,6 +539,14 @@ function IndividualTab({ dialer, metrics }: { dialer: DialerInfo; metrics: Diale
     current.takenCalls > 0 || current.linksSent > 0 || current.deals > 0
   );
   const hasDialData = !!current && (isCurrentMonth || !!hasAnyData);
+
+  // Goals from current month's sheet row 5 (fallback to APR if current has none)
+  const goals = current?.goals
+    ?? metrics.find(m => m.goals)?.goals;
+
+  // This setter's weekly booked from currentWeek
+  const weeklyBooked = currentWeek.setters.find(s => s.id === dialer.id)?.booked ?? 0;
+  const weeklyFillPct = Math.min((weeklyBooked / WEEKLY_BAR_MAX) * 100, 100);
 
   return (
     <div className="space-y-5">
@@ -556,6 +575,109 @@ function IndividualTab({ dialer, metrics }: { dialer: DialerInfo; metrics: Diale
           );
         })}
       </div>
+
+      {/* ── Weekly Tracker ─────────────────────────────────────────────── */}
+      <div className="rounded-xl border p-4" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <BarChart3 size={14} style={{ color: dialer.color }} />
+            <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+              Week #{currentWeek.weekNum} · Booked Calls
+            </span>
+          </div>
+          <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+            {currentWeek.start} – {currentWeek.end}
+          </span>
+        </div>
+        {/* Bar with goal dotted line */}
+        <div className="flex items-center gap-3">
+          <span className="text-2xl font-bold flex-shrink-0" style={{ width: 28, color: weeklyBooked >= WEEKLY_GOAL ? "#22c55e" : dialer.color }}>
+            {weeklyBooked}
+          </span>
+          <div className="flex-1 relative rounded-full" style={{ height: 22, background: "var(--secondary)", overflow: "visible" }}>
+            {/* Actual fill */}
+            <div className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${weeklyFillPct}%`, background: dialer.color, opacity: 0.85 }} />
+            {/* Goal dotted line at 75% */}
+            <div
+              className="group"
+              style={{
+                position: "absolute", top: -4, bottom: -4,
+                left: `${WEEKLY_GOAL_PCT}%`,
+                width: 16, transform: "translateX(-50%)",
+                cursor: "default", zIndex: 10,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}
+            >
+              <div style={{
+                width: 2, height: "100%",
+                background: `repeating-linear-gradient(to bottom, ${dialer.color} 0px, ${dialer.color} 4px, transparent 4px, transparent 8px)`,
+                borderRadius: 1, opacity: 0.8,
+              }} />
+              {/* Tooltip */}
+              <div className="pointer-events-none absolute opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                style={{
+                  bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)",
+                  background: "#1e293b", border: "1px solid #334155",
+                  borderRadius: 6, padding: "4px 8px", whiteSpace: "nowrap",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: "#94a3b8" }}>Goal </span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#e2e8f0" }}>{WEEKLY_GOAL}</span>
+                <div style={{
+                  position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)",
+                  borderLeft: "5px solid transparent", borderRight: "5px solid transparent",
+                  borderTop: "5px solid #334155",
+                }} />
+              </div>
+            </div>
+          </div>
+          <span className="text-xs flex-shrink-0" style={{ color: "var(--muted-foreground)", width: 52 }}>
+            Goal: {WEEKLY_GOAL}
+          </span>
+        </div>
+        {weeklyBooked >= WEEKLY_GOAL && (
+          <p className="text-xs mt-2 font-semibold" style={{ color: "#22c55e" }}>
+            Goal hit! {weeklyBooked > WEEKLY_GOAL ? `+${weeklyBooked - WEEKLY_GOAL} above goal` : ""}
+          </p>
+        )}
+      </div>
+
+      {/* ── Monthly Goals ──────────────────────────────────────────────── */}
+      {goals && (
+        <div className="rounded-xl border p-4" style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Target size={14} style={{ color: dialer.color }} />
+            <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>Monthly Goals — {selectedMonth}</span>
+            <div className="ml-auto flex gap-1 text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+              <span style={{ width: 44, textAlign: "right" }}>Goal</span>
+              <span style={{ width: 36, textAlign: "right" }}>%</span>
+            </div>
+          </div>
+          <div className="space-y-2.5">
+            {[
+              { label: "Dials",  actual: current?.totalDials ?? 0, goal: goals.dials },
+              { label: "Links",  actual: current?.linksSent  ?? 0, goal: goals.links },
+              { label: "Booked", actual: current?.bookedCalls ?? 0, goal: goals.booked },
+              { label: "Taken",  actual: current?.takenCalls  ?? 0, goal: goals.taken },
+            ].map(({ label, actual, goal }) => {
+              const pct = goal > 0 ? Math.round((actual / goal) * 100) : 0;
+              return (
+                <div key={label} className="flex items-center gap-3">
+                  <span className="text-xs font-medium flex-shrink-0" style={{ width: 44, color: "var(--foreground)" }}>{label}</span>
+                  <span className="text-xs font-bold flex-shrink-0" style={{ width: 32, textAlign: "right", color: "var(--foreground)" }}>{actual.toLocaleString()}</span>
+                  <div className="flex-1 relative rounded-full" style={{ height: 16, background: "var(--secondary)" }}>
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(pct, 100)}%`, background: dialer.color, opacity: 0.8 }} />
+                  </div>
+                  <span className="text-xs flex-shrink-0" style={{ width: 44, textAlign: "right", color: "var(--muted-foreground)" }}>{goal.toLocaleString()}</span>
+                  <span className="text-xs font-semibold flex-shrink-0" style={{ width: 36, textAlign: "right", color: pct >= 80 ? "#22c55e" : pct >= 50 ? "#f59e0b" : "var(--muted-foreground)" }}>{pct}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Metric Cards */}
       {hasDialData ? (
@@ -835,7 +957,7 @@ export default function DialerClient({ data }: { data: DialerDashboardData }) {
         (() => {
           const dialer = data.dialers.find((d) => d.id === activeTab);
           if (!dialer) return null;
-          return <IndividualTab dialer={dialer} metrics={data.dialerMetrics[dialer.id] ?? []} />;
+          return <IndividualTab dialer={dialer} metrics={data.dialerMetrics[dialer.id] ?? []} currentWeek={data.goals.currentWeek} />;
         })()
       )}
     </div>

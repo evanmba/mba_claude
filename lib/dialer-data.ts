@@ -23,6 +23,16 @@ export interface DialerMonthMetrics {
   showUpRate: number;   // taken / booked * 100
   deals: number;
   closePct: number;
+  /** Monthly goals from row 5 of the setter's sheet (C5:I5) */
+  goals?: {
+    dials: number;
+    links: number;
+    dialLinkPct: number;
+    booked: number;
+    setPct: number;
+    taken: number;
+    showRate: number;
+  };
 }
 
 /** Team monthly row — from "2026 - Dialers" sheet */
@@ -157,6 +167,8 @@ export const DIALER_METRICS: Record<string, DialerMonthMetrics[]> = {
       // From sheet row 4 (Monthly TOTALS) as of early April: C=224, D=5, E=2.2%, F=1, G=20.0%, H=0, I=0.0%
       totalDials: 224, linksSent: 5, dialLinkPct: 2.2, bookedCalls: 1,
       setPct: 20.0,    takenCalls: 0, showUpRate: 0.0, deals: 0, closePct: 0,
+      // From sheet row 5 (GOALS): C=3000, D=100, E=3.3%, F=15, G=15.0%, H=5, I=33.3%
+      goals: { dials: 3000, links: 100, dialLinkPct: 3.3, booked: 15, setPct: 15.0, taken: 5, showRate: 33.3 },
     },
   ],
   "gabriana-brown": [

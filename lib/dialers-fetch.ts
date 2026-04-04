@@ -186,15 +186,17 @@ async function fetchDialerMonthMetrics(
   const [firstName] = dialer.name.split(" ");
   const fullName = dialer.name; // e.g. "Daneile Brown"
 
-  // Try each name variation; fetch only row 4 (data row) so we only need 1 row back.
-  // Header row (row 3) is not required — avoids failures when API skips empty header cells.
+  // Try each name variation; fetch rows 4–5 (Monthly TOTALS + GOALS).
+  // Only row 4 is required — avoids failures when API skips empty cells.
   // Pass silent=true so 404s on non-matching candidates don't flood the logs.
   let data: string[] = [];
+  let goalsRow: string[] = [];
   for (const candidate of sheetNameCandidates(firstName, fullName, month)) {
-    const rows = await fetchSheetRange(sheetId, apiKey, candidate, "C4:I4", noCache, true);
+    const rows = await fetchSheetRange(sheetId, apiKey, candidate, "C4:I5", noCache, true);
     if (rows.length >= 1 && rows[0].length >= 1) {
       console.log(`[dialers] Matched sheet "${candidate}" for ${setterId} ${month}`);
-      data = rows[0];
+      data     = rows[0];
+      goalsRow = rows[1] ?? [];
       break;
     }
   }
@@ -226,6 +228,17 @@ async function fetchDialerMonthMetrics(
     showUpRate:  toNum(data[6]),
     deals,
     closePct: 0,
+    ...(goalsRow.length ? {
+      goals: {
+        dials:      toNum(goalsRow[0]),
+        links:      toNum(goalsRow[1]),
+        dialLinkPct: toNum(goalsRow[2]),
+        booked:     toNum(goalsRow[3]),
+        setPct:     toNum(goalsRow[4]),
+        taken:      toNum(goalsRow[5]),
+        showRate:   toNum(goalsRow[6]),
+      },
+    } : {}),
   };
 }
 
