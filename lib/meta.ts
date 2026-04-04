@@ -107,9 +107,9 @@ export async function fetchMetaSpend(
 export type AdWindow = "4d" | "7d" | "14d" | "month";
 
 function windowToDateParam(window: AdWindow): string {
-  if (window === "7d")    return "date_preset=last_7_days";
-  if (window === "14d")   return "date_preset=last_14_days";
-  if (window === "month") return "date_preset=last_30_days";
+  if (window === "7d")    return "date_preset=last_7d";
+  if (window === "14d")   return "date_preset=last_14d";
+  if (window === "month") return "date_preset=last_30d";
   // 4d: 3 days ago → today = 4 days inclusive
   const fmt   = (d: Date) => d.toISOString().slice(0, 10);
   const until = new Date();

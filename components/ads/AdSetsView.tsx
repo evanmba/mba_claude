@@ -71,7 +71,8 @@ function SpendCard({ data }: { data: CreativeSpend }) {
         <StatRow label="Booked Calls" count={data.bookedCalls} spend={data.spend} color="#60a5fa" />
         <StatRow label="Taken Calls"  count={data.takenCalls}  spend={data.spend} color="#4ade80"
           showPct={data.bookedCalls > 0 ? (data.takenCalls / data.bookedCalls) * 100 : undefined} />
-        <StatRow label="Deals"        count={data.deals}        spend={data.spend} color="#a78bfa" />
+        <StatRow label="Deals"        count={data.deals}        spend={data.spend} color="#a78bfa"
+          showPct={data.takenCalls > 0 ? (data.deals / data.takenCalls) * 100 : undefined} />
       </div>
 
       <div style={{ height: 2, borderRadius: 1, background: ACCENT, opacity: 0.35 }} />
