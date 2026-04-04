@@ -89,13 +89,14 @@ async function fetchGoalsData(sheetId: string, apiKey: string, noCache = false):
     ]);
 
     // A2:H4 → row 0 = monthly, row 1 = weekly, row 2 = daily
-    // Columns: A=label, B=booked, C=goal
+    // Columns: A=label, B=booked, C-F=bar chart cells (skip), G=goal, H=%
+    // Indices:  0        1         2-5                           6       7
     const monthlyRow = summaryRows[0] ?? [];
     const weeklyRow  = summaryRows[1] ?? [];
     const dailyRow   = summaryRows[2] ?? [];
-    const monthly = { booked: toNum(monthlyRow[1]), goal: toNum(monthlyRow[2]) };
-    const weekly  = { booked: toNum(weeklyRow[1]),  goal: toNum(weeklyRow[2])  };
-    const daily   = { booked: toNum(dailyRow[1]),   goal: toNum(dailyRow[2])   };
+    const monthly = { booked: toNum(monthlyRow[1]), goal: toNum(monthlyRow[6]) };
+    const weekly  = { booked: toNum(weeklyRow[1]),  goal: toNum(weeklyRow[6])  };
+    const daily   = { booked: toNum(dailyRow[1]),   goal: toNum(dailyRow[6])   };
 
     // C6:E7 → row 0 = headers, row 1 = values (weekNum, startDate, endDate)
     const weekVals = weekMetaRows[1] ?? [];

@@ -95,9 +95,9 @@ export const DIALERS: DialerInfo[] = [
 // Week #13: Sun 3/22/26 – Sat 3/28/26 (7-day week), today = Thu 3/26 = day 5 of 7
 
 export const GOALS_DATA: GoalsData = {
-  monthly: { booked: 12,  goal: 180 },
-  weekly:  { booked: 35,  goal: 45  },
-  daily:   { booked: 3,   goal: 7   },
+  monthly: { booked: 17,  goal: 180 },
+  weekly:  { booked: 40,  goal: 45  },
+  daily:   { booked: 4,   goal: 7   },
   currentWeek: {
     weekNum: 13,
     start: "3/22/26",
