@@ -64,9 +64,10 @@ function SpendCard({ data }: { data: CreativeSpend }) {
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 2 }}>
           <span style={{ fontSize: 10, color: "#1e3a5f", minWidth: 28, textAlign: "right" }}>#</span>
           <span style={{ fontSize: 10, color: "#1e3a5f", minWidth: 72, textAlign: "right" }}>Cost/ea</span>
-          <span style={{ fontSize: 10, color: "#1e3a5f", minWidth: 44, textAlign: "right" }}>Show%</span>
+          <span style={{ fontSize: 10, color: "#1e3a5f", minWidth: 44, textAlign: "right" }}>Conv%</span>
         </div>
-        <StatRow label="Leads"        count={data.leads}        spend={data.spend} color="#f59e0b" />
+        <StatRow label="Leads"        count={data.leads}        spend={data.spend} color="#f59e0b"
+          showPct={data.leads > 0 && data.bookedCalls > 0 ? (data.bookedCalls / data.leads) * 100 : undefined} />
         <StatRow label="Booked Calls" count={data.bookedCalls} spend={data.spend} color="#60a5fa" />
         <StatRow label="Taken Calls"  count={data.takenCalls}  spend={data.spend} color="#4ade80"
           showPct={data.bookedCalls > 0 ? (data.takenCalls / data.bookedCalls) * 100 : undefined} />
@@ -78,11 +79,17 @@ function SpendCard({ data }: { data: CreativeSpend }) {
   );
 }
 
-export function SpendCards({ data, window }: { data: CreativeSpend[]; window: AdWindow }) {
+export function SpendCards({ data, window, metaError }: { data: CreativeSpend[]; window: AdWindow; metaError?: string }) {
   const router = useRouter();
 
   return (
     <div className="flex flex-col gap-5">
+      {/* Meta API error banner */}
+      {metaError && (
+        <div style={{ padding: "10px 14px", borderRadius: 8, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", fontSize: 12, color: "#fca5a5" }}>
+          <span style={{ fontWeight: 700 }}>Meta API error: </span>{metaError}
+        </div>
+      )}
       {/* Period selector */}
       <div className="flex rounded-lg overflow-hidden self-start" style={{ border: "1px solid var(--border)" }}>
         {WINDOWS.map((w) => (

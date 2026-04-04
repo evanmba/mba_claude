@@ -131,14 +131,10 @@ export async function fetchAdSpendByIds(
   const filtering = encodeURIComponent(JSON.stringify([{ field: "ad.id", operator: "IN", value: adIds }]));
   const url       = `${GRAPH}/${acct}/insights?level=ad&${datePart}&fields=ad_id,ad_name,spend&filtering=${filtering}&limit=500&access_token=${token}`;
 
-  try {
-    const raw = await fetchAllFresh(url);
-    return raw.map((r) => ({
-      adId:   (r["ad_id"]   as string) ?? "",
-      adName: (r["ad_name"] as string) ?? "",
-      spend:  parseFloat((r["spend"]  as string) ?? "0"),
-    }));
-  } catch {
-    return [];
-  }
+  const raw = await fetchAllFresh(url);
+  return raw.map((r) => ({
+    adId:   (r["ad_id"]   as string) ?? "",
+    adName: (r["ad_name"] as string) ?? "",
+    spend:  parseFloat((r["spend"]  as string) ?? "0"),
+  }));
 }

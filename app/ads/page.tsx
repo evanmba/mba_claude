@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic";
 const VALID_WINDOWS: AdWindow[] = ["7d", "14d", "month"];
 
 async function Cards({ window }: { window: AdWindow }) {
-  const data = await fetchMainCreativeSpend(window);
-  return <SpendCards data={data} window={window} />;
+  const { cards, metaError } = await fetchMainCreativeSpend(window);
+  return <SpendCards data={cards} window={window} metaError={metaError} />;
 }
 
 function CardsSkeleton() {
