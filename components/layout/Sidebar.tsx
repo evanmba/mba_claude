@@ -3,12 +3,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Settings, Bell, Phone, CalendarDays, TrendingUp } from "lucide-react";
+import { Settings, Bell, Phone, CalendarDays, TrendingUp, Bot } from "lucide-react";
 
 const mainItems = [
-  { label: "Setter Dashboard", href: "/dialers",  icon: Phone,        color: "#3b82f6" },
-  { label: "Sales Dashboard",  href: "/sales",    icon: TrendingUp,   color: "#10b981" },
-  { label: "Coverage",         href: "/coverage", icon: CalendarDays, color: "#22c55e" },
+  { label: "Setter Dashboard", href: "/dialers",       icon: Phone,        color: "#3b82f6" },
+  { label: "Sales Dashboard",  href: "/sales",         icon: TrendingUp,   color: "#10b981" },
+  { label: "Coverage",         href: "/coverage",      icon: CalendarDays, color: "#22c55e" },
+  { label: "AI DM Setter",     href: "/ai-dm-setter",  icon: Bot,          color: "#a855f7" },
 ];
 
 const bottomNavItems = [
