@@ -24,6 +24,7 @@ export interface CreativeSpend {
   bookedCalls: number;
   takenCalls: number;
   deals: number;
+  leads: number;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -55,6 +56,46 @@ function windowDates(window: AdWindow): { since: Date; until: Date } {
   const since = new Date(); since.setHours(0, 0, 0, 0);
   since.setDate(since.getDate() - days);
   return { since, until };
+}
+
+// ─── Leads sheet parser ───────────────────────────────────────────────────────
+
+function parseLeadsSource(
+  rows: string[][],
+  since: Date,
+  until: Date,
+): Map<string, number> {
+  const map = new Map<string, number>();
+  if (rows.length < 2) return map;
+
+  const hdrIdx = rows.findIndex((r) =>
+    r.some((c) => c.toLowerCase().includes("first name"))
+  );
+  if (hdrIdx < 0) return map;
+
+  const hdrs = rows[hdrIdx].map((h) => h.toLowerCase().trim());
+  const dateCol   = fi(hdrs, ["date"]);
+  const sourceCol = fi(hdrs, ["source"]);
+  const firstCol  = fi(hdrs, ["first name"]);
+
+  if (sourceCol < 0) return map;
+
+  for (const row of rows.slice(hdrIdx + 1)) {
+    if (firstCol >= 0 && !cv(row, firstCol)) continue;
+    if (dateCol >= 0) {
+      const d = parseSheetDate(cv(row, dateCol));
+      if (!d || d < since || d > until) continue;
+    }
+    const source = cv(row, sourceCol);
+    if (!source) continue;
+
+    for (const { callPattern } of TRACKED_ADS) {
+      if (source.includes(callPattern)) {
+        map.set(callPattern, (map.get(callPattern) ?? 0) + 1);
+      }
+    }
+  }
+  return map;
 }
 
 // ─── Call Source parser ────────────────────────────────────────────────────────
@@ -118,13 +159,15 @@ export async function fetchMainCreativeSpend(window: AdWindow): Promise<Creative
   const apiKey = process.env.SHEETS_API_KEY ?? process.env.GOOGLE_SHEETS_API_KEY ?? process.env.GOOGLE_MASTER_SHEETS_API_KEY ?? "";
   const { since, until } = windowDates(window);
 
-  const [spendRows, callSourceRows] = await Promise.all([
+  const [spendRows, callSourceRows, leadsRows] = await Promise.all([
     fetchAdSpendByIds(AD_IDS, window),
     fetchSheetValues(FUNNEL_SHEET_ID, "Call Source", apiKey).catch(() => [] as string[][]),
+    fetchSheetValues(FUNNEL_SHEET_ID, "LEADS", apiKey).catch(() => [] as string[][]),
   ]);
 
   const spendById = new Map(spendRows.map((r) => [r.adId, r]));
   const callsMap  = parseCallSource(callSourceRows, since, until);
+  const leadsMap  = parseLeadsSource(leadsRows, since, until);
 
   return TRACKED_ADS.map(({ id, label, callPattern }) => {
     const meta   = spendById.get(id);
@@ -136,6 +179,7 @@ export async function fetchMainCreativeSpend(window: AdWindow): Promise<Creative
       bookedCalls: calls?.booked ?? 0,
       takenCalls:  calls?.taken  ?? 0,
       deals:       calls?.deals  ?? 0,
+      leads:       leadsMap.get(callPattern) ?? 0,
     };
   });
 }
