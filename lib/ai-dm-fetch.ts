@@ -66,11 +66,6 @@ function parseDate(raw: string): string | null {
   return d.toISOString().slice(0, 10);
 }
 
-/** Return today's date as "YYYY-MM-DD" (UTC) */
-function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 /** Return a date N days before today as "YYYY-MM-DD" */
 function daysAgo(n: number): string {
   const d = new Date();
@@ -106,54 +101,85 @@ function generateMockData(): DailyMetrics[] {
 
 // ─── Aggregators ───────────────────────────────────────────────────────────────
 
-/** Given rows from the DATA tab, count events per date for last 30 days. */
-function aggregateDataSheet(
+// ─── Event types written by n8n ───────────────────────────────────────────────
+// Column layout: A=Date(ISO) | B=Contact_ID | C=Event | D=Channel
+// Event values:  "conversation_started" | "qualified" | "link_sent" | "booked"
+//
+// Additionally, "Booked Call on:" dates from the DATA sheet supplement
+// any "booked" events from AI_DM_EVENTS for historical data.
+
+interface DayBucket {
+  conversations: number;
+  qualifiedLeads: number;
+  linksSent: number;
+  bookedCalls: number;
+}
+
+function emptyBucket(): DayBucket {
+  return { conversations: 0, qualifiedLeads: 0, linksSent: 0, bookedCalls: 0 };
+}
+
+/**
+ * Aggregate all events from the AI_DM_EVENTS tab.
+ * Columns: A=Date/Timestamp | B=Contact_ID | C=Event | D=Channel
+ * (Column order matches what n8n will write.)
+ */
+function aggregateEventsSheet(
   rows: string[][],
   cutoff: string,
-): Map<string, { qualifiedLeads: number; linksSent: number; bookedCalls: number }> {
-  const map = new Map<string, { qualifiedLeads: number; linksSent: number; bookedCalls: number }>();
+): Map<string, DayBucket> {
+  const map = new Map<string, DayBucket>();
 
-  // Skip header row (first row) — detect by checking if first col looks like a header
-  const dataRows = rows[0] && isNaN(Date.parse(rows[0][3] ?? "")) ? rows.slice(1) : rows;
+  // Skip header row if col C looks like the word "event"
+  const dataRows =
+    rows[0] && (rows[0][2] ?? "").toLowerCase().includes("event")
+      ? rows.slice(1)
+      : rows;
 
   for (const row of dataRows) {
-    // col index: 0=Leads, 1=ContactID, 2=Setter, 3=BecameLeadOn, 4=VSLSentOn, 5=OfferedCallOn, 6=BookedCallOn
-    const qualDate   = parseDate(row[3] ?? "");
-    const linkDate   = parseDate(row[4] ?? "");
-    const bookedDate = parseDate(row[6] ?? "");
+    const timestamp = (row[0] ?? "").trim();
+    const event     = (row[2] ?? "").toLowerCase().trim();
+    const dateStr   = parseDate(timestamp);
+    if (!dateStr || dateStr < cutoff) continue;
 
-    const bump = (dateStr: string | null, field: "qualifiedLeads" | "linksSent" | "bookedCalls") => {
-      if (!dateStr || dateStr < cutoff) return;
-      const entry = map.get(dateStr) ?? { qualifiedLeads: 0, linksSent: 0, bookedCalls: 0 };
-      entry[field]++;
-      map.set(dateStr, entry);
-    };
-
-    bump(qualDate,   "qualifiedLeads");
-    bump(linkDate,   "linksSent");
-    bump(bookedDate, "bookedCalls");
+    const bucket = map.get(dateStr) ?? emptyBucket();
+    switch (event) {
+      case "conversation_started": bucket.conversations++;   break;
+      case "qualified":            bucket.qualifiedLeads++;  break;
+      case "link_sent":            bucket.linksSent++;       break;
+      case "booked":               bucket.bookedCalls++;     break;
+    }
+    map.set(dateStr, bucket);
   }
 
   return map;
 }
 
-/** Given rows from AI_DM_EVENTS tab, count conversations per date. */
-function aggregateEventsSheet(rows: string[][], cutoff: string): Map<string, number> {
-  const map = new Map<string, number>();
-
-  // Skip header row if present (col B should be "event_type" text)
-  const dataRows = rows[0] && rows[0][1]?.toLowerCase().includes("event") ? rows.slice(1) : rows;
+/**
+ * Supplement booked-call counts from the existing DATA sheet
+ * ("Booked Call on:" column G) for historical data before n8n logging began.
+ * Only adds to dates that have zero booked events from AI_DM_EVENTS.
+ */
+function supplementBookedFromData(
+  rows: string[][],
+  cutoff: string,
+  map: Map<string, DayBucket>,
+): void {
+  // Skip header: first row col D is likely the text "Became A Lead on:"
+  const dataRows =
+    rows[0] && isNaN(Date.parse(rows[0][6] ?? "")) ? rows.slice(1) : rows;
 
   for (const row of dataRows) {
-    const eventType = (row[1] ?? "").toLowerCase().trim();
-    if (eventType !== "conversation") continue;
-    const timestamp = (row[0] ?? "").trim();
-    const dateStr = parseDate(timestamp);
-    if (!dateStr || dateStr < cutoff) continue;
-    map.set(dateStr, (map.get(dateStr) ?? 0) + 1);
+    // col 6 = G = "Booked Call on:"
+    const bookedDate = parseDate(row[6] ?? "");
+    if (!bookedDate || bookedDate < cutoff) continue;
+    const bucket = map.get(bookedDate) ?? emptyBucket();
+    // Only supplement if n8n hasn't logged any booked events for this date yet
+    if (bucket.bookedCalls === 0) {
+      bucket.bookedCalls++;
+      map.set(bookedDate, bucket);
+    }
   }
-
-  return map;
 }
 
 // ─── Main export ───────────────────────────────────────────────────────────────
@@ -162,48 +188,44 @@ export async function getAIDMDashboardData(noCache = false): Promise<AIDMDashboa
   const sheetId = process.env.SETTER_DASHBOARD_SHEET_ID ?? "";
   const apiKey  = process.env.GOOGLE_SHEETS_API_KEY ?? "";
 
-  const cutoff = daysAgo(30);   // only keep last 30 days
-  const today  = todayStr();
+  const cutoff = daysAgo(30); // only keep last 30 days
 
-  // Build the 30-day date array
+  // Build the 30-day date array (oldest → newest)
   const dates: string[] = [];
   for (let i = 29; i >= 0; i--) {
     dates.push(daysAgo(i));
   }
 
   if (!sheetId || !apiKey) {
-    // No credentials → use mock data
     return { daily: generateMockData(), lastFetched: "" };
   }
 
-  // Fetch in parallel
-  const [dataRows, eventRows] = await Promise.all([
-    fetchSheetRange(sheetId, apiKey, "DATA", "A:G", noCache),
+  // Fetch both sheets in parallel
+  const [eventRows, dataRows] = await Promise.all([
     fetchSheetRange(sheetId, apiKey, "AI_DM_EVENTS", "A:D", noCache),
+    fetchSheetRange(sheetId, apiKey, "DATA",          "A:G", noCache),
   ]);
 
-  // If both sheets came back empty, fall back to mock
-  if (!dataRows.length && !eventRows.length) {
+  // Fall back to mock data if neither sheet has returned anything
+  if (!eventRows.length && !dataRows.length) {
     return { daily: generateMockData(), lastFetched: "" };
   }
 
-  const dataMap   = aggregateDataSheet(dataRows, cutoff);
-  const eventsMap = aggregateEventsSheet(eventRows, cutoff);
+  const bucketMap = aggregateEventsSheet(eventRows, cutoff);
+  if (dataRows.length) {
+    supplementBookedFromData(dataRows, cutoff, bucketMap);
+  }
 
   const daily: DailyMetrics[] = dates.map((date) => {
-    const d = dataMap.get(date)   ?? { qualifiedLeads: 0, linksSent: 0, bookedCalls: 0 };
-    const c = eventsMap.get(date) ?? 0;
-    return {
-      date,
-      conversations:  c,
-      qualifiedLeads: d.qualifiedLeads,
-      linksSent:      d.linksSent,
-      bookedCalls:    d.bookedCalls,
-    };
+    const b = bucketMap.get(date) ?? emptyBucket();
+    return { date, ...b };
   });
 
   return {
     daily,
-    lastFetched: new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }),
+    lastFetched: new Date().toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    }),
   };
 }

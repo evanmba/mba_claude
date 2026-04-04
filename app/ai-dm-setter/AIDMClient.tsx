@@ -558,39 +558,34 @@ export function AIDMClient({ data }: { data: AIDMDashboardData }) {
                 marginBottom: 6,
               }}
             >
-              n8n Setup — Track Conversations
+              n8n Setup — AI_DM_EVENTS Tab
             </p>
             <p style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.65 }}>
-              Add a{" "}
-              <strong style={{ color: "var(--foreground)" }}>
-                Google Sheets → Append Row
-              </strong>{" "}
-              node at the start of each workflow (SMS, FB, IG) writing to the{" "}
-              <code
-                style={{
-                  background: "var(--card)",
-                  padding: "1px 5px",
-                  borderRadius: 4,
-                  fontSize: 11,
-                }}
-              >
+              Create an{" "}
+              <code style={{ background: "var(--card)", padding: "1px 5px", borderRadius: 4, fontSize: 11 }}>
                 AI_DM_EVENTS
               </code>{" "}
-              tab with columns:{" "}
-              <code
-                style={{
-                  background: "var(--card)",
-                  padding: "1px 5px",
-                  borderRadius: 4,
-                  fontSize: 11,
-                }}
-              >
-                Timestamp · event_type="conversation" · Contact_ID · Channel
-              </code>
-              . Qualified leads, links sent, and booked calls are read automatically from
-              your existing{" "}
-              <strong style={{ color: "var(--foreground)" }}>DATA</strong> sheet.
+              tab in your existing sheet with 4 columns:{" "}
+              <strong style={{ color: "var(--foreground)" }}>Date · Contact_ID · Event · Channel</strong>
+              . Add a{" "}
+              <strong style={{ color: "var(--foreground)" }}>Google Sheets → Append Row</strong>{" "}
+              node at each trigger point in your SMS / FB / IG workflows:
             </p>
+            <ul style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 2.2, listStyle: "none", padding: 0 }}>
+              {[
+                { event: "conversation_started", when: "after each incoming webhook trigger" },
+                { event: "qualified",            when: "after your bot's HS baseball parent filter" },
+                { event: "link_sent",            when: "after VSL or Book follow-up sequence fires" },
+                { event: "booked",               when: "when GHL confirms an appointment (optional)" },
+              ].map(({ event, when }) => (
+                <li key={event}>
+                  <code style={{ background: "var(--card)", padding: "1px 5px", borderRadius: 4, fontSize: 11 }}>
+                    {event}
+                  </code>
+                  {" — "}{when}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </div>
