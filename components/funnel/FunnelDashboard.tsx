@@ -165,6 +165,7 @@ export function FunnelDashboard({ data, error }: Props) {
         ytd2025={data?.ytd2025 ?? []}
         monthLabel={data?.monthLabel ?? ""}
         prevMonthLabel={data?.prevMonthLabel ?? ""}
+        calls={data?.calls ?? []}
       />
     </div>
   );
