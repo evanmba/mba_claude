@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { type ScoreboardRow, type MonthlyRow, type YTDRow, type Call } from "@/lib/funnel";
+import { type ScoreboardRow, type MonthlyRow, type YTDRow } from "@/lib/funnel";
 import { YTDView } from "./YTDView";
-import { SetterView } from "./SetterView";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 const $$ = (n: number) =>
@@ -283,11 +282,10 @@ interface Props {
   ytd2025: YTDRow[];
   monthLabel: string;
   prevMonthLabel: string;
-  calls?: Call[];
 }
 
-export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025, monthLabel, prevMonthLabel, calls = [] }: Props) {
-  const [period, setPeriod] = useState<"today" | "4d" | "14d" | "month" | "ytd" | "setters">("month");
+export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025, monthLabel, prevMonthLabel }: Props) {
+  const [period, setPeriod] = useState<"today" | "4d" | "14d" | "month" | "ytd">("month");
 
   const dailyRows = monthly.filter((r) => !r.isRollup);
 
@@ -421,34 +419,12 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
   void prevMonthLabel; // available for display if needed
 
   const TABS = [
-    { key: "today",   label: "Today" },
-    { key: "4d",      label: "4 Days" },
-    { key: "14d",     label: "14 Days" },
-    { key: "month",   label: monthName },
-    { key: "ytd",     label: "YTD" },
-    { key: "setters", label: "Setters" },
+    { key: "today", label: "Today" },
+    { key: "4d",    label: "4 Days" },
+    { key: "14d",   label: "14 Days" },
+    { key: "month", label: monthName },
+    { key: "ytd",   label: "YTD" },
   ] as const;
-
-  // ── Setters view ──────────────────────────────────────────────────────────
-  if (period === "setters") {
-    return (
-      <div className="flex flex-col gap-4">
-        <div className="flex rounded-lg overflow-hidden self-start" style={{ border: "1px solid var(--border)" }}>
-          {TABS.map((t) => (
-            <button key={t.key} onClick={() => setPeriod(t.key)}
-              className="px-4 py-1.5 text-xs font-semibold transition-colors"
-              style={{
-                background: period === t.key ? "#3b82f6" : "var(--card)",
-                color: period === t.key ? "#fff" : "var(--muted-foreground)",
-              }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <SetterView calls={calls} />
-      </div>
-    );
-  }
 
   // ── YTD view ──────────────────────────────────────────────────────────────
   if (period === "ytd") {
