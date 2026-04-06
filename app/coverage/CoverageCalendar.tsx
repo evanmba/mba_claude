@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { X, Clock, Users, RotateCcw, GripVertical, Ban } from "lucide-react";
+import { X, Clock, Users, RotateCcw, GripVertical, Ban, Cloud, CloudOff, Check } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -19,10 +19,7 @@ const START_HOUR  = 8;
 const END_HOUR    = 20;
 const TOTAL_HOURS = END_HOUR - START_HOUR; // 12
 
-const SUN_IDX         = 6;
-const SUN_BLOCK_START = 9;   // Sunday no-calls starts 9am (not 8am)
-const SUN_BLOCK_END   = 14;
-
+const SUN_IDX    = 6;
 const STORAGE_KEY = "mba-coverage-v2";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -68,20 +65,31 @@ function overlapLayout(block: Block, all: Block[]) {
   return { left: (idx / total) * 100, width: (1 / total) * 100 };
 }
 
-function isSunBlocked(day: number, hour: number) {
-  return day === SUN_IDX && hour >= SUN_BLOCK_START && hour < SUN_BLOCK_END;
+/**
+ * Returns true if the given day/hour slot is a no-calls zone:
+ *   - All of Sunday (any hour)
+ *   - 8am–9am on Mon–Sat  (hour === START_HOUR)
+ *   - 7pm–8pm on Mon–Sat  (hour === END_HOUR - 1)
+ */
+function isBlocked(day: number, hour: number): boolean {
+  if (day === SUN_IDX) return true;
+  return hour === START_HOUR || hour === END_HOUR - 1;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function CoverageCalendar() {
-  const [blocks,    setBlocks]    = useState<Block[]>([]);
-  const [hover,     setHover]     = useState<{ day: number; hour: number } | null>(null);
-  const [dragging,  setDragging]  = useState<string | null>(null);
-  const [resizing,  setResizing]  = useState<ResizeState | null>(null);
-  const [hydrated,  setHydrated]  = useState(false);
-  const [mobileDay, setMobileDay] = useState(0);   // 0=Mon … 6=Sun on mobile
-  const [isMobile,  setIsMobile]  = useState(false);
+  type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+  const [blocks,     setBlocks]     = useState<Block[]>([]);
+  const [hover,      setHover]      = useState<{ day: number; hour: number } | null>(null);
+  const [dragging,   setDragging]   = useState<string | null>(null);
+  const [resizing,   setResizing]   = useState<ResizeState | null>(null);
+  const [hydrated,   setHydrated]   = useState(false);
+  const [mobileDay,  setMobileDay]  = useState(0);
+  const [isMobile,   setIsMobile]   = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Dynamic row height ─────────────────────────────────────────────────────
   // Measures the calendar body container and fills it exactly, with a half-row
@@ -133,18 +141,55 @@ export default function CoverageCalendar() {
     );
   }, []);
 
-  // ── Persist ────────────────────────────────────────────────────────────────
+  // ── Load (API first, localStorage fallback) ───────────────────────────────
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setBlocks(JSON.parse(raw));
-    } catch {}
-    setHydrated(true);
+    async function load() {
+      try {
+        const res = await fetch("/api/coverage");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setBlocks(data);
+            setHydrated(true);
+            return;
+          }
+        }
+      } catch {}
+      // Fallback: localStorage
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) setBlocks(JSON.parse(raw));
+      } catch {}
+      setHydrated(true);
+    }
+    load();
   }, []);
 
+  // ── Autosave (debounced 1s → API + localStorage) ───────────────────────────
+
   useEffect(() => {
-    if (hydrated) localStorage.setItem(STORAGE_KEY, JSON.stringify(blocks));
+    if (!hydrated) return;
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(blocks)); } catch {}
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    setSaveStatus("saving");
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/coverage", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(blocks),
+        });
+        if (res.ok) {
+          setSaveStatus("saved");
+          setTimeout(() => setSaveStatus("idle"), 2500);
+        } else {
+          setSaveStatus("error");
+        }
+      } catch {
+        setSaveStatus("error");
+      }
+    }, 1000);
   }, [blocks, hydrated]);
 
   // ── Vertical resize (mouse events on document) ─────────────────────────────
@@ -217,7 +262,7 @@ export default function CoverageCalendar() {
     setDragging(null);
     const y         = e.clientY - e.currentTarget.getBoundingClientRect().top - pad;
     const startHour = Math.max(START_HOUR, Math.min(START_HOUR + Math.floor(y / rowH), END_HOUR - 1));
-    if (isSunBlocked(day, startHour)) return;
+    if (isBlocked(day, startHour)) return;
     try {
       const payload: DragPayload = JSON.parse(e.dataTransfer.getData("text/plain"));
       if (payload.type === "new") {
@@ -263,15 +308,33 @@ export default function CoverageCalendar() {
             Drag setters onto grid · Drag blocks to move · Pull bottom edge to resize
           </span>
         </div>
-        <button
-          onClick={() => setBlocks([])}
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium"
-          style={{ color: "var(--muted-foreground)", background: "var(--secondary)" }}
-          onMouseEnter={e => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.background = "rgba(239,68,68,0.1)"; }}
-          onMouseLeave={e => { e.currentTarget.style.color = "var(--muted-foreground)"; e.currentTarget.style.background = "var(--secondary)"; }}
-        >
-          <RotateCcw size={12} /> Clear all
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Save status */}
+          {saveStatus === "saving" && (
+            <span className="flex items-center gap-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
+              <Cloud size={12} className="animate-pulse" /> Saving…
+            </span>
+          )}
+          {saveStatus === "saved" && (
+            <span className="flex items-center gap-1 text-xs" style={{ color: "#22c55e" }}>
+              <Check size={12} /> Saved
+            </span>
+          )}
+          {saveStatus === "error" && (
+            <span className="flex items-center gap-1 text-xs" style={{ color: "#ef4444" }}>
+              <CloudOff size={12} /> Save failed
+            </span>
+          )}
+          <button
+            onClick={() => setBlocks([])}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium"
+            style={{ color: "var(--muted-foreground)", background: "var(--secondary)" }}
+            onMouseEnter={e => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.background = "rgba(239,68,68,0.1)"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = "var(--muted-foreground)"; e.currentTarget.style.background = "var(--secondary)"; }}
+          >
+            <RotateCcw size={12} /> Clear all
+          </button>
+        </div>
       </div>
 
       {/* Setter Palette */}
@@ -497,26 +560,56 @@ export default function CoverageCalendar() {
                   ))}
 
                   {/* Drop hover band */}
-                  {hoveringHere && hover && !isSunBlocked(dayIdx, hover.hour) && (
+                  {hoveringHere && hover && !isBlocked(dayIdx, hover.hour) && (
                     <div style={{ position: "absolute", top: pad + (hover.hour - START_HOUR) * rowH, left: 0, right: 0, height: rowH, background: "rgba(59,130,246,0.18)", borderTop: "2px solid #3b82f6", pointerEvents: "none", zIndex: 2 }} />
                   )}
 
-                  {/* Sunday blocked zone — 9am to 2pm */}
+                  {/* ── Blocked zones ── */}
+
+                  {/* Sunday — entire column no-calls */}
                   {dayIdx === SUN_IDX && (
                     <div style={{
-                      position: "absolute",
-                      top: pad + (SUN_BLOCK_START - START_HOUR) * rowH,
-                      left: 0, right: 0,
-                      height: (SUN_BLOCK_END - SUN_BLOCK_START) * rowH,
-                      background: "repeating-linear-gradient(135deg, rgba(239,68,68,0.07) 0px, rgba(239,68,68,0.07) 8px, rgba(239,68,68,0.02) 8px, rgba(239,68,68,0.02) 16px)",
-                      borderBottom: "2px solid rgba(239,68,68,0.5)",
+                      position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                      background: "repeating-linear-gradient(135deg, rgba(239,68,68,0.08) 0px, rgba(239,68,68,0.08) 8px, rgba(239,68,68,0.03) 8px, rgba(239,68,68,0.03) 16px)",
                       zIndex: 3, pointerEvents: "none",
                     }}>
                       <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)", display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                        <Ban size={24} style={{ color: "rgba(239,68,68,0.55)", strokeWidth: 2.5 }} />
-                        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.12em", color: "rgba(239,68,68,0.7)", textTransform: "uppercase", whiteSpace: "nowrap" }}>No Calls</span>
-                        <span style={{ fontSize: 9, color: "rgba(239,68,68,0.5)", whiteSpace: "nowrap" }}>9am – 2pm</span>
+                        <Ban size={22} style={{ color: "rgba(239,68,68,0.6)", strokeWidth: 2.5 }} />
+                        <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.12em", color: "rgba(239,68,68,0.75)", textTransform: "uppercase", whiteSpace: "nowrap" }}>No Calls</span>
+                        <span style={{ fontSize: 9, color: "rgba(239,68,68,0.55)", whiteSpace: "nowrap" }}>All Day</span>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Mon–Sat: 8am–9am blocked */}
+                  {dayIdx !== SUN_IDX && (
+                    <div style={{
+                      position: "absolute",
+                      top: pad,
+                      left: 0, right: 0,
+                      height: rowH,
+                      background: "rgba(239,68,68,0.10)",
+                      borderBottom: "1px solid rgba(239,68,68,0.25)",
+                      zIndex: 3, pointerEvents: "none",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(239,68,68,0.6)", letterSpacing: "0.06em", textTransform: "uppercase" }}>No Calls</span>
+                    </div>
+                  )}
+
+                  {/* Mon–Sat: 7pm–8pm blocked */}
+                  {dayIdx !== SUN_IDX && (
+                    <div style={{
+                      position: "absolute",
+                      top: pad + (END_HOUR - 1 - START_HOUR) * rowH,
+                      left: 0, right: 0,
+                      height: rowH,
+                      background: "rgba(239,68,68,0.10)",
+                      borderTop: "1px solid rgba(239,68,68,0.25)",
+                      zIndex: 3, pointerEvents: "none",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <span style={{ fontSize: 8, fontWeight: 700, color: "rgba(239,68,68,0.6)", letterSpacing: "0.06em", textTransform: "uppercase" }}>No Calls</span>
                     </div>
                   )}
 
