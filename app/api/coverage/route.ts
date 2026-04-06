@@ -26,7 +26,8 @@ export async function POST(req: Request) {
     const blocks = await req.json();
     fs.writeFileSync(DATA_FILE, JSON.stringify(blocks), "utf-8");
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false }, { status: 500 });
+  } catch (err) {
+    console.error("[coverage] write failed:", err);
+    return NextResponse.json({ ok: false, error: String(err) }, { status: 500 });
   }
 }
