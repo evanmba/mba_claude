@@ -59,14 +59,30 @@ const TZ = "America/New_York";
 /**
  * Parse a cell value to "YYYY-MM-DD" in Eastern time.
  * Handles: "M/D/YYYY", "M/D/YY", "YYYY-MM-DD", ISO timestamps.
- * Returns null if empty or unparseable.
+ *
+ * IMPORTANT: date-only strings (no time component) are returned as-is after
+ * normalising to YYYY-MM-DD. JavaScript parses them as UTC midnight, which
+ * shifts them to the previous day in EDT — so we never feed them through Date.
+ * Full ISO timestamps (with Z / offset) ARE converted to Eastern date correctly.
  */
 function parseDate(raw: string): string | null {
   const s = (raw ?? "").trim();
   if (!s) return null;
+
+  // M/D/YYYY or M/D/YY — date-only, no UTC conversion
+  const slashMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (slashMatch) {
+    const [, m, day, yr] = slashMatch;
+    const year = yr.length === 2 ? "20" + yr : yr;
+    return `${year}-${m.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  // YYYY-MM-DD — date-only, return as-is
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  // Full timestamp (ISO with Z, offset, or space-separated) — convert to Eastern date
   const d = new Date(s);
   if (isNaN(d.getTime())) return null;
-  // Convert to Eastern date (en-CA gives ISO YYYY-MM-DD format)
   return d.toLocaleDateString("en-CA", { timeZone: TZ });
 }
 
