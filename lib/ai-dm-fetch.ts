@@ -20,6 +20,7 @@ export interface DailyMetrics {
 
 export interface AIDMDashboardData {
   daily: DailyMetrics[];  // last 30 days, sorted ascending (oldest → newest)
+  today: string;          // "YYYY-MM-DD" in UTC — server's current date
   lastFetched: string;
 }
 
@@ -155,23 +156,24 @@ export async function getAIDMDashboardData(noCache = false): Promise<AIDMDashboa
   const sheetId = process.env.SETTER_DASHBOARD_SHEET_ID ?? "";
   const apiKey  = process.env.GOOGLE_SHEETS_API_KEY ?? "";
 
-  const cutoff = daysAgo(30); // only keep last 30 days
+  const today  = daysAgo(0);
+  const cutoff = daysAgo(30);
 
-  // Build the 30-day date array (oldest → newest)
+  // Build the 30-day date array (oldest → newest), ending with today
   const dates: string[] = [];
   for (let i = 29; i >= 0; i--) {
     dates.push(daysAgo(i));
   }
 
   if (!sheetId || !apiKey) {
-    return { daily: generateMockData(), lastFetched: "" };
+    return { daily: generateMockData(), today, lastFetched: "" };
   }
 
   // Fetch AI_DM_EVENTS — sole source of truth for all 4 metrics
   const eventRows = await fetchSheetRange(sheetId, apiKey, "AI_DM_EVENTS", "A:D", noCache);
 
   if (!eventRows.length) {
-    return { daily: generateMockData(), lastFetched: "" };
+    return { daily: generateMockData(), today, lastFetched: "" };
   }
 
   const bucketMap = aggregateEventsSheet(eventRows, cutoff);
@@ -183,6 +185,7 @@ export async function getAIDMDashboardData(noCache = false): Promise<AIDMDashboa
 
   return {
     daily,
+    today,
     lastFetched: new Date().toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",

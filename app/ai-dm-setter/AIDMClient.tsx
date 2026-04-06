@@ -13,7 +13,7 @@ import type { AIDMDashboardData, DailyMetrics } from "@/lib/ai-dm-fetch";
 
 type Window = 1 | 4 | 7 | 14 | 30;
 const WINDOWS: Window[] = [1, 4, 7, 14, 30];
-const WINDOW_LABELS: Record<Window, string> = { 1: "1D", 4: "4D", 7: "7D", 14: "14D", 30: "30D" };
+const WINDOW_LABELS: Record<Window, string> = { 1: "TODAY", 4: "4D", 7: "7D", 14: "14D", 30: "30D" };
 
 type Metric = "conversations" | "qualifiedLeads" | "linksSent" | "bookedCalls";
 
@@ -33,11 +33,17 @@ const METRICS: MetricDef[] = [
 
 // ─── Rolling window helpers ────────────────────────────────────────────────────
 
-function currSlice(daily: DailyMetrics[], w: Window): DailyMetrics[] {
+function currSlice(daily: DailyMetrics[], w: Window, today?: string): DailyMetrics[] {
+  if (w === 1 && today) return daily.filter(d => d.date === today);
   return daily.slice(Math.max(0, daily.length - w));
 }
 
-function prevSlice(daily: DailyMetrics[], w: Window): DailyMetrics[] {
+function prevSlice(daily: DailyMetrics[], w: Window, today?: string): DailyMetrics[] {
+  if (w === 1 && today) {
+    // "yesterday" for comparison
+    const yIdx = daily.findIndex(d => d.date === today) - 1;
+    return yIdx >= 0 ? [daily[yIdx]] : [];
+  }
   const end = Math.max(0, daily.length - w);
   return daily.slice(Math.max(0, end - w), end);
 }
@@ -143,8 +149,8 @@ function buildFunnelPath(vals: number[], W: number, H: number): string {
   return top + bot;
 }
 
-function PipelineFunnel({ daily, win }: { daily: DailyMetrics[]; win: Window }) {
-  const slice  = currSlice(daily, win);
+function PipelineFunnel({ daily, win, today }: { daily: DailyMetrics[]; win: Window; today: string }) {
+  const slice  = currSlice(daily, win, today);
   const totals = {
     conversations:  sumM(slice, "conversations"),
     qualifiedLeads: sumM(slice, "qualifiedLeads"),
@@ -271,13 +277,15 @@ function KPICard({
   metric,
   daily,
   win,
+  today,
 }: {
   metric: MetricDef;
   daily: DailyMetrics[];
   win: Window;
+  today: string;
 }) {
-  const curr = currSlice(daily, win);
-  const prev = prevSlice(daily, win);
+  const curr = currSlice(daily, win, today);
+  const prev = prevSlice(daily, win, today);
   const currAvg = avgM(curr, metric.key);
   const prevAvg = avgM(prev, metric.key);
   const delta =
@@ -361,12 +369,14 @@ function SparklineCard({
   metric,
   daily,
   win,
+  today,
 }: {
   metric: MetricDef;
   daily: DailyMetrics[];
   win: Window;
+  today: string;
 }) {
-  const slice = currSlice(daily, win);
+  const slice = currSlice(daily, win, today);
   const vals  = slice.map((d) => d[metric.key]);
   const first = slice[0]?.date?.slice(5) ?? "";
   const last  = slice[slice.length - 1]?.date?.slice(5) ?? "";
@@ -418,7 +428,7 @@ export function AIDMClient({ data }: { data: AIDMDashboardData }) {
     });
   }
 
-  const { daily } = data;
+  const { daily, today } = data;
 
   return (
     <div style={{ color: "var(--foreground)" }}>
@@ -490,7 +500,7 @@ export function AIDMClient({ data }: { data: AIDMDashboardData }) {
 
       {/* ── Pipeline funnel ── */}
       <div style={{ marginBottom: 24 }}>
-        <PipelineFunnel daily={daily} win={win} />
+        <PipelineFunnel daily={daily} win={win} today={today} />
       </div>
 
       {/* ── KPI cards ── */}
@@ -502,7 +512,7 @@ export function AIDMClient({ data }: { data: AIDMDashboardData }) {
         }}
       >
         {METRICS.map((m) => (
-          <KPICard key={m.key} metric={m} daily={daily} win={win} />
+          <KPICard key={m.key} metric={m} daily={daily} win={win} today={today} />
         ))}
       </div>
 
@@ -523,7 +533,7 @@ export function AIDMClient({ data }: { data: AIDMDashboardData }) {
           style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
         >
           {METRICS.map((m) => (
-            <SparklineCard key={m.key} metric={m} daily={daily} win={win} />
+            <SparklineCard key={m.key} metric={m} daily={daily} win={win} today={today} />
           ))}
         </div>
       </div>
