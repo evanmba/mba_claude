@@ -104,9 +104,8 @@ function generateMockData(): DailyMetrics[] {
 // ─── Event types written by n8n ───────────────────────────────────────────────
 // Column layout: A=Date(ISO) | B=Contact_ID | C=Event | D=Channel
 // Event values:  "conversation_started" | "qualified" | "link_sent" | "booked"
-//
-// Additionally, "Booked Call on:" dates from the DATA sheet supplement
-// any "booked" events from AI_DM_EVENTS for historical data.
+// All 4 metrics come exclusively from the AI_DM_EVENTS tab.
+// The DATA sheet is not read.
 
 interface DayBucket {
   conversations: number;
@@ -119,18 +118,13 @@ function emptyBucket(): DayBucket {
   return { conversations: 0, qualifiedLeads: 0, linksSent: 0, bookedCalls: 0 };
 }
 
-/**
- * Aggregate all events from the AI_DM_EVENTS tab.
- * Columns: A=Date/Timestamp | B=Contact_ID | C=Event | D=Channel
- * (Column order matches what n8n will write.)
- */
+/** Aggregate all 4 event types from the AI_DM_EVENTS tab. */
 function aggregateEventsSheet(
   rows: string[][],
   cutoff: string,
 ): Map<string, DayBucket> {
   const map = new Map<string, DayBucket>();
 
-  // Skip header row if col C looks like the word "event"
   const dataRows =
     rows[0] && (rows[0][2] ?? "").toLowerCase().includes("event")
       ? rows.slice(1)
@@ -144,42 +138,15 @@ function aggregateEventsSheet(
 
     const bucket = map.get(dateStr) ?? emptyBucket();
     switch (event) {
-      case "conversation_started": bucket.conversations++;   break;
-      case "qualified":            bucket.qualifiedLeads++;  break;
-      case "link_sent":            bucket.linksSent++;       break;
-      case "booked":               bucket.bookedCalls++;     break;
+      case "conversation_started": bucket.conversations++;  break;
+      case "qualified":            bucket.qualifiedLeads++; break;
+      case "link_sent":            bucket.linksSent++;      break;
+      case "booked":               bucket.bookedCalls++;    break;
     }
     map.set(dateStr, bucket);
   }
 
   return map;
-}
-
-/**
- * Supplement booked-call counts from the existing DATA sheet
- * ("Booked Call on:" column G) for historical data before n8n logging began.
- * Only adds to dates that have zero booked events from AI_DM_EVENTS.
- */
-function supplementBookedFromData(
-  rows: string[][],
-  cutoff: string,
-  map: Map<string, DayBucket>,
-): void {
-  // Skip header: first row col D is likely the text "Became A Lead on:"
-  const dataRows =
-    rows[0] && isNaN(Date.parse(rows[0][6] ?? "")) ? rows.slice(1) : rows;
-
-  for (const row of dataRows) {
-    // col 6 = G = "Booked Call on:"
-    const bookedDate = parseDate(row[6] ?? "");
-    if (!bookedDate || bookedDate < cutoff) continue;
-    const bucket = map.get(bookedDate) ?? emptyBucket();
-    // Only supplement if n8n hasn't logged any booked events for this date yet
-    if (bucket.bookedCalls === 0) {
-      bucket.bookedCalls++;
-      map.set(bookedDate, bucket);
-    }
-  }
 }
 
 // ─── Main export ───────────────────────────────────────────────────────────────
@@ -200,21 +167,14 @@ export async function getAIDMDashboardData(noCache = false): Promise<AIDMDashboa
     return { daily: generateMockData(), lastFetched: "" };
   }
 
-  // Fetch both sheets in parallel
-  const [eventRows, dataRows] = await Promise.all([
-    fetchSheetRange(sheetId, apiKey, "AI_DM_EVENTS", "A:D", noCache),
-    fetchSheetRange(sheetId, apiKey, "DATA",          "A:G", noCache),
-  ]);
+  // Fetch AI_DM_EVENTS — sole source of truth for all 4 metrics
+  const eventRows = await fetchSheetRange(sheetId, apiKey, "AI_DM_EVENTS", "A:D", noCache);
 
-  // Fall back to mock data if neither sheet has returned anything
-  if (!eventRows.length && !dataRows.length) {
+  if (!eventRows.length) {
     return { daily: generateMockData(), lastFetched: "" };
   }
 
   const bucketMap = aggregateEventsSheet(eventRows, cutoff);
-  if (dataRows.length) {
-    supplementBookedFromData(dataRows, cutoff, bucketMap);
-  }
 
   const daily: DailyMetrics[] = dates.map((date) => {
     const b = bucketMap.get(date) ?? emptyBucket();

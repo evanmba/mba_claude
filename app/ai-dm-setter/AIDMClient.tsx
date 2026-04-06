@@ -228,45 +228,38 @@ function PipelineFunnel({ daily, win }: { daily: DailyMetrics[]; win: Window }) 
           <path d={funnelPath} fill="url(#funnelFill)" />
         </svg>
 
-        {/* Conversion rate badges — pinned bottom-left of each non-first column */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            pointerEvents: "none",
-          }}
-        >
-          {badges.map((badge, i) => (
+        {/* Conversion rate badges — centered on each divider line */}
+        {badges.map((badge, i) =>
+          badge === null ? null : (
             <div
               key={i}
               style={{
-                display: "flex",
-                alignItems: "flex-end",
-                padding: "0 0 10px 10px",
+                position: "absolute",
+                left: `${(i / 4) * 100}%`,
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+                pointerEvents: "none",
+                zIndex: 2,
               }}
             >
-              {badge !== null && (
-                <span
-                  style={{
-                    background: "rgba(15,23,42,0.80)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 20,
-                    padding: "3px 10px",
-                    fontSize: 11,
-                    color: "var(--foreground)",
-                    fontWeight: 500,
-                    backdropFilter: "blur(4px)",
-                    letterSpacing: "0.01em",
-                  }}
-                >
-                  {badge} →
-                </span>
-              )}
+              <span
+                style={{
+                  background: "rgba(10,15,30,0.85)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 20,
+                  padding: "4px 11px",
+                  fontSize: 11,
+                  color: "var(--foreground)",
+                  fontWeight: 500,
+                  whiteSpace: "nowrap",
+                  backdropFilter: "blur(6px)",
+                }}
+              >
+                {badge} →
+              </span>
             </div>
-          ))}
-        </div>
+          )
+        )}
       </div>
     </div>
   );
