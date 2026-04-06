@@ -88,7 +88,7 @@ async function fetchSpeedToLeadData(
   apiKey: string,
   noCache = false,
 ): Promise<SpeedToLeadData> {
-  const rows = await fetchSheetRange(sheetId, apiKey, "2026 - Dialers", "J1:L120", noCache, true);
+  const rows = await fetchSheetRange(sheetId, apiKey, "GOALS", "J1:L15", noCache, true);
   if (!rows.length) return SPEED_TO_LEAD;
 
   const dateRe = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
