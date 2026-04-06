@@ -112,6 +112,37 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
 
 // ─── Pipeline Funnel ──────────────────────────────────────────────────────────
 
+function buildFunnelPath(vals: number[], W: number, H: number): string {
+  const N      = vals.length;
+  const maxVal = vals[0] || 1;
+  const maxH   = H - 16;
+  const minH   = 12;
+  const cy     = H / 2;
+
+  const xs     = vals.map((_, i) => ((i + 0.5) / N) * W);
+  const getH   = (v: number) => Math.max(minH, (v / maxVal) * maxH);
+  const topYs  = vals.map(v => cy - getH(v) / 2);
+  const botYs  = vals.map(v => cy + getH(v) / 2);
+
+  // Top edge: left → right with cubic bezier transitions
+  let top = `M 0 ${topYs[0]} L ${xs[0]} ${topYs[0]}`;
+  for (let i = 0; i < N - 1; i++) {
+    const midX = (xs[i] + xs[i + 1]) / 2;
+    top += ` C ${midX} ${topYs[i]} ${midX} ${topYs[i + 1]} ${xs[i + 1]} ${topYs[i + 1]}`;
+  }
+  top += ` L ${W} ${topYs[N - 1]}`;
+
+  // Bottom edge: right → left (mirror)
+  let bot = ` L ${W} ${botYs[N - 1]} L ${xs[N - 1]} ${botYs[N - 1]}`;
+  for (let i = N - 1; i > 0; i--) {
+    const midX = (xs[i] + xs[i - 1]) / 2;
+    bot += ` C ${midX} ${botYs[i]} ${midX} ${botYs[i - 1]} ${xs[i - 1]} ${botYs[i - 1]}`;
+  }
+  bot += ` L 0 ${botYs[0]} Z`;
+
+  return top + bot;
+}
+
 function PipelineFunnel({ daily, win }: { daily: DailyMetrics[]; win: Window }) {
   const slice  = currSlice(daily, win);
   const totals = {
@@ -120,51 +151,24 @@ function PipelineFunnel({ daily, win }: { daily: DailyMetrics[]; win: Window }) 
     linksSent:      sumM(slice, "linksSent"),
     bookedCalls:    sumM(slice, "bookedCalls"),
   };
-  const avgs = {
-    conversations:  avgM(slice, "conversations"),
-    qualifiedLeads: avgM(slice, "qualifiedLeads"),
-    linksSent:      avgM(slice, "linksSent"),
-    bookedCalls:    avgM(slice, "bookedCalls"),
-  };
 
-  const maxVal = totals.conversations || 1;
+  const labels   = ["Convos", "Qualified", "Links Sent", "Booked"];
+  const vals     = [totals.conversations, totals.qualifiedLeads, totals.linksSent, totals.bookedCalls];
+
   const convRate = (a: number, b: number) =>
-    b > 0 ? `${Math.round((a / b) * 100)}%` : "—";
+    b > 0 ? `${((a / b) * 100).toFixed(1)}%` : "—";
 
-  const stages = [
-    {
-      key: "conversations" as Metric,
-      label: "Conversations",
-      color: "#3b82f6",
-      total: totals.conversations,
-      avg: avgs.conversations,
-      conv: null as string | null,
-    },
-    {
-      key: "qualifiedLeads" as Metric,
-      label: "Qualified Leads",
-      color: "#22c55e",
-      total: totals.qualifiedLeads,
-      avg: avgs.qualifiedLeads,
-      conv: convRate(totals.qualifiedLeads, totals.conversations),
-    },
-    {
-      key: "linksSent" as Metric,
-      label: "Links Sent",
-      color: "#f59e0b",
-      total: totals.linksSent,
-      avg: avgs.linksSent,
-      conv: convRate(totals.linksSent, totals.qualifiedLeads),
-    },
-    {
-      key: "bookedCalls" as Metric,
-      label: "Booked Calls",
-      color: "#a855f7",
-      total: totals.bookedCalls,
-      avg: avgs.bookedCalls,
-      conv: convRate(totals.bookedCalls, totals.linksSent),
-    },
+  // Conversion rate badges between stages (null = no badge for first stage)
+  const badges = [
+    null,
+    convRate(totals.qualifiedLeads, totals.conversations),
+    convRate(totals.linksSent,      totals.qualifiedLeads),
+    convRate(totals.bookedCalls,    totals.linksSent),
   ];
+
+  const SVG_W = 800;
+  const SVG_H = 160;
+  const funnelPath = buildFunnelPath(vals, SVG_W, SVG_H);
 
   return (
     <div
@@ -172,103 +176,97 @@ function PipelineFunnel({ daily, win }: { daily: DailyMetrics[]; win: Window }) 
         background: "var(--card)",
         borderRadius: 12,
         border: "1px solid var(--border)",
-        padding: "24px",
+        overflow: "hidden",
       }}
     >
-      <h3
-        style={{
-          color: "var(--foreground)",
-          fontWeight: 600,
-          marginBottom: 24,
-          fontSize: 15,
-        }}
-      >
-        Conversion Pipeline
-      </h3>
-
-      {/* Desktop: horizontal flex; Mobile: stacked */}
-      <div className="flex flex-col sm:flex-row items-stretch gap-0">
-        {stages.map((stage, idx) => (
-          <div key={stage.key} className="flex sm:flex-col items-center sm:items-stretch flex-1 min-w-0">
-            {/* Stage block */}
-            <div className="flex-1 min-w-0 py-2 sm:py-0">
-              <div style={{ marginBottom: 4 }}>
-                <span
-                  style={{
-                    color: "var(--muted-foreground)",
-                    fontSize: 11,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
-                    fontWeight: 500,
-                  }}
-                >
-                  {stage.label}
-                </span>
-              </div>
-
-              <div
-                style={{
-                  color: stage.color,
-                  fontSize: 30,
-                  fontWeight: 700,
-                  lineHeight: 1,
-                  marginBottom: 2,
-                }}
-              >
-                {stage.total.toLocaleString()}
-              </div>
-
-              <div style={{ color: "var(--muted-foreground)", fontSize: 12, marginBottom: 10 }}>
-                {win > 1
-                  ? `${stage.avg.toFixed(1)}/day avg`
-                  : "today"}
-              </div>
-
-              {/* Proportional bar */}
-              <div
-                style={{
-                  height: 8,
-                  borderRadius: 4,
-                  background: "var(--secondary)",
-                  marginBottom: 6,
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    borderRadius: 4,
-                    width: `${Math.round((stage.total / maxVal) * 100)}%`,
-                    background: stage.color,
-                    transition: "width 0.4s ease",
-                  }}
-                />
-              </div>
-
-              {/* Conversion rate from previous stage */}
-              {stage.conv !== null ? (
-                <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-                  <span style={{ color: stage.color, fontWeight: 600 }}>{stage.conv}</span>
-                  {" "}from prev stage
-                </div>
-              ) : (
-                <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>
-                  entry point
-                </div>
-              )}
+      {/* Stage headers */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
+        {labels.map((label, i) => (
+          <div
+            key={label}
+            style={{
+              padding: "20px 20px 16px",
+              borderRight: i < 3 ? "1px solid var(--border)" : "none",
+            }}
+          >
+            <div style={{ color: "var(--muted-foreground)", fontSize: 12, marginBottom: 6 }}>
+              {label}
             </div>
-
-            {/* Arrow connector (hidden after last stage) */}
-            {idx < stages.length - 1 && (
-              <div
-                className="flex items-center justify-center px-2 sm:px-0 sm:py-2"
-                style={{ color: "var(--muted-foreground)", fontSize: 18, flexShrink: 0 }}
-              >
-                <span className="sm:hidden">↓</span>
-                <span className="hidden sm:block">→</span>
-              </div>
-            )}
+            <div style={{ color: "var(--foreground)", fontSize: 28, fontWeight: 700, lineHeight: 1 }}>
+              {vals[i].toLocaleString()}
+            </div>
           </div>
         ))}
+      </div>
+
+      {/* SVG funnel stream */}
+      <div style={{ position: "relative", borderTop: "1px solid var(--border)" }}>
+        <svg
+          viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+          preserveAspectRatio="none"
+          style={{ width: "100%", height: SVG_H, display: "block" }}
+        >
+          <defs>
+            <linearGradient id="funnelFill" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%"   stopColor="#3b82f6" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.50" />
+            </linearGradient>
+          </defs>
+
+          {/* Stage divider lines */}
+          {[1, 2, 3].map(i => (
+            <line
+              key={i}
+              x1={(SVG_W / 4) * i} y1={0}
+              x2={(SVG_W / 4) * i} y2={SVG_H}
+              stroke="var(--border)"
+              strokeWidth="1"
+            />
+          ))}
+
+          {/* Flowing funnel path */}
+          <path d={funnelPath} fill="url(#funnelFill)" />
+        </svg>
+
+        {/* Conversion rate badges — pinned bottom-left of each non-first column */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            pointerEvents: "none",
+          }}
+        >
+          {badges.map((badge, i) => (
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                alignItems: "flex-end",
+                padding: "0 0 10px 10px",
+              }}
+            >
+              {badge !== null && (
+                <span
+                  style={{
+                    background: "rgba(15,23,42,0.80)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 20,
+                    padding: "3px 10px",
+                    fontSize: 11,
+                    color: "var(--foreground)",
+                    fontWeight: 500,
+                    backdropFilter: "blur(4px)",
+                    letterSpacing: "0.01em",
+                  }}
+                >
+                  {badge} →
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
