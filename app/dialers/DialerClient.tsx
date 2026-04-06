@@ -425,8 +425,8 @@ function TeamTab({
 // ─── Speed to Lead Section ────────────────────────────────────────────────────
 
 function SpeedToLeadSection({ data }: { data: SpeedToLeadData }) {
-  // Show only the last 5 days
-  const recentDays = data.days.slice(-5);
+  // Show the last 7 days (rolling from today)
+  const recentDays = data.days.slice(-7);
 
   return (
     <div
@@ -454,7 +454,7 @@ function SpeedToLeadSection({ data }: { data: SpeedToLeadData }) {
         <div>
           <div className="px-4 py-2 border-b" style={{ borderColor: "var(--border)" }}>
             <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--muted-foreground)" }}>
-              Daily (last 5 days)
+              Daily (last 7 days)
             </p>
           </div>
           <table className="w-full text-sm">

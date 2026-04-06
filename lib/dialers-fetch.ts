@@ -14,6 +14,8 @@ import {
   TEAM_MONTHLY,
   DIALER_METRICS,
   DIALERS,
+  type SpeedToLeadDay,
+  type SpeedToLeadData,
   type DialerMonthMetrics,
   type TeamMonthRow,
 } from "@/lib/dialer-data";
@@ -52,6 +54,79 @@ async function fetchSheetRange(
   }
   const json = await res.json();
   return (json.values as string[][] | undefined) ?? [];
+}
+
+// ─── Speed to Lead ─────────────────────────────────────────────────────────────
+
+/** Parse "Xh:Ym" → total minutes */
+function parseTimeMins(s: string): number {
+  const m = (s ?? "").match(/(\d+)h:(\d+)m/);
+  if (!m) return 0;
+  return parseInt(m[1]) * 60 + parseInt(m[2]);
+}
+
+/** Parse "94.74%" or "0.9474" → 94.74 */
+function parsePct(s: string): number {
+  const cleaned = (s ?? "").replace("%", "").trim();
+  const n = parseFloat(cleaned);
+  if (isNaN(n)) return 0;
+  return n <= 1 ? n * 100 : n;
+}
+
+/** Minutes → "Xh:Ym" */
+function minsToHM(mins: number): string {
+  return `${Math.floor(mins / 60)}h:${mins % 60}m`;
+}
+
+/**
+ * Fetch Dialing Performance rows from "2026 - Dialers" columns J:L.
+ * Rows whose J cell matches M/D/YYYY are treated as daily data rows.
+ * Rolling averages are computed dynamically from those rows.
+ */
+async function fetchSpeedToLeadData(
+  sheetId: string,
+  apiKey: string,
+  noCache = false,
+): Promise<SpeedToLeadData> {
+  const rows = await fetchSheetRange(sheetId, apiKey, "2026 - Dialers", "J1:L120", noCache, true);
+  if (!rows.length) return SPEED_TO_LEAD;
+
+  const dateRe = /^\d{1,2}\/\d{1,2}\/\d{4}$/;
+  const daily: SpeedToLeadDay[] = [];
+
+  for (const row of rows) {
+    const dateStr = (row[0] ?? "").trim();
+    if (!dateRe.test(dateStr)) continue;
+    const timeToDial = (row[1] ?? "0h:0m").trim();
+    const timeMins   = parseTimeMins(timeToDial);
+    const pctUnder15m = parsePct((row[2] ?? "0").trim());
+    daily.push({ date: dateStr, timeToDial, timeMins, pctUnder15m });
+  }
+
+  if (!daily.length) return SPEED_TO_LEAD;
+
+  // Sort oldest → newest
+  daily.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  // Compute rolling averages from most-recent N days
+  const rollingAvg = (n: number, label: string) => {
+    const slice = daily.slice(-n);
+    if (!slice.length) return { label, timeToDial: "—", timeMins: 0, pctUnder15m: 0 };
+    const avgMins = Math.round(slice.reduce((s, d) => s + d.timeMins, 0) / slice.length);
+    const avgPct  = slice.reduce((s, d) => s + d.pctUnder15m, 0) / slice.length;
+    return { label, timeToDial: minsToHM(avgMins), timeMins: avgMins, pctUnder15m: avgPct };
+  };
+
+  return {
+    days: daily,
+    rolling: [
+      rollingAvg(2,  "2d AVG"),
+      rollingAvg(4,  "4d-AVG"),
+      rollingAvg(7,  "7d-AVG"),
+      rollingAvg(14, "14d-AVG"),
+      rollingAvg(30, "30d-AVG"),
+    ],
+  };
 }
 
 // ─── Parse team totals ─────────────────────────────────────────────────────────
@@ -271,9 +346,10 @@ export async function getDialerDashboardData(noCache = false): Promise<DialerDas
   if (!useSheets) return mock;
 
   try {
-    const [teamMonthly, goals, dialersSheet] = await Promise.all([
+    const [teamMonthly, goals, speedToLead, dialersSheet] = await Promise.all([
       fetchTeamData(sheetId, apiKey, noCache),
       fetchGoalsData(sheetId, apiKey, noCache),
+      fetchSpeedToLeadData(sheetId, apiKey, noCache),
       fetchSheetRange(sheetId, apiKey, "2026 - Dialers", "A1:AZ17", noCache),
     ]);
     const dialerMetrics: Record<string, DialerMonthMetrics[]> = {};
@@ -290,7 +366,7 @@ export async function getDialerDashboardData(noCache = false): Promise<DialerDas
     return {
       source: "google-sheets",
       goals,
-      speedToLead: SPEED_TO_LEAD,
+      speedToLead,
       teamMonthly,
       dialerMetrics,
       dialers: DIALERS,
