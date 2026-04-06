@@ -54,24 +54,27 @@ async function fetchSheetRange(
 
 // ─── Date parsing ──────────────────────────────────────────────────────────────
 
+const TZ = "America/New_York";
+
 /**
- * Parse a cell value to "YYYY-MM-DD". Handles:
- *   "M/D/YYYY", "M/D/YY", "YYYY-MM-DD", ISO timestamps
- * Returns null if the string is empty or unparseable.
+ * Parse a cell value to "YYYY-MM-DD" in Eastern time.
+ * Handles: "M/D/YYYY", "M/D/YY", "YYYY-MM-DD", ISO timestamps.
+ * Returns null if empty or unparseable.
  */
 function parseDate(raw: string): string | null {
   const s = (raw ?? "").trim();
   if (!s) return null;
   const d = new Date(s);
   if (isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
+  // Convert to Eastern date (en-CA gives ISO YYYY-MM-DD format)
+  return d.toLocaleDateString("en-CA", { timeZone: TZ });
 }
 
-/** Return a date N days before today as "YYYY-MM-DD" */
+/** Return a date N days before today as "YYYY-MM-DD" in Eastern time. */
 function daysAgo(n: number): string {
   const d = new Date();
-  d.setUTCDate(d.getUTCDate() - n);
-  return d.toISOString().slice(0, 10);
+  d.setDate(d.getDate() - n);
+  return d.toLocaleDateString("en-CA", { timeZone: TZ });
 }
 
 // ─── Mock data (shown when sheet data is unavailable) ─────────────────────────
@@ -80,9 +83,7 @@ function generateMockData(): DailyMetrics[] {
   const result: DailyMetrics[] = [];
   // Build 30 days ending today
   for (let i = 29; i >= 0; i--) {
-    const d = new Date();
-    d.setUTCDate(d.getUTCDate() - i);
-    const date = d.toISOString().slice(0, 10);
+    const date = daysAgo(i);
 
     // Deterministic pseudo-random based on day offset
     const r = (salt: number) => {
@@ -189,6 +190,8 @@ export async function getAIDMDashboardData(noCache = false): Promise<AIDMDashboa
     lastFetched: new Date().toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
+      timeZone: TZ,
+      timeZoneName: "short",
     }),
   };
 }

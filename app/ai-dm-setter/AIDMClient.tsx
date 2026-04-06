@@ -6,6 +6,7 @@ import {
   Bot, RefreshCw, TrendingUp, TrendingDown, Minus,
   MessageSquare, Star, Link2, CalendarCheck,
 } from "lucide-react";
+// Bot kept for page header icon
 import { refreshAIDMData } from "./actions";
 import type { AIDMDashboardData, DailyMetrics } from "@/lib/ai-dm-fetch";
 
@@ -52,8 +53,12 @@ function sumM(slice: DailyMetrics[], key: Metric): number {
   return slice.reduce((acc, d) => acc + d[key], 0);
 }
 
+/** Divide by days that have ANY data — not the full window size. */
 function avgM(slice: DailyMetrics[], key: Metric): number {
-  return slice.length ? sumM(slice, key) / slice.length : 0;
+  const activeDays = slice.filter(
+    d => d.conversations > 0 || d.qualifiedLeads > 0 || d.linksSent > 0 || d.bookedCalls > 0
+  ).length;
+  return activeDays ? sumM(slice, key) / activeDays : 0;
 }
 
 // ─── Sparkline ─────────────────────────────────────────────────────────────────
@@ -538,58 +543,6 @@ export function AIDMClient({ data }: { data: AIDMDashboardData }) {
         </div>
       </div>
 
-      {/* ── n8n setup callout ── */}
-      <div
-        style={{
-          marginTop: 24,
-          padding: "16px 20px",
-          borderRadius: 12,
-          border: "1px solid var(--border)",
-          background: "var(--secondary)",
-        }}
-      >
-        <div className="flex items-start gap-3">
-          <Bot size={16} style={{ color: "#a855f7", marginTop: 2, flexShrink: 0 }} />
-          <div>
-            <p
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: "var(--foreground)",
-                marginBottom: 6,
-              }}
-            >
-              n8n Setup — AI_DM_EVENTS Tab
-            </p>
-            <p style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.65 }}>
-              Create an{" "}
-              <code style={{ background: "var(--card)", padding: "1px 5px", borderRadius: 4, fontSize: 11 }}>
-                AI_DM_EVENTS
-              </code>{" "}
-              tab in your existing sheet with 4 columns:{" "}
-              <strong style={{ color: "var(--foreground)" }}>Date · Contact_ID · Event · Channel</strong>
-              . Add a{" "}
-              <strong style={{ color: "var(--foreground)" }}>Google Sheets → Append Row</strong>{" "}
-              node at each trigger point in your SMS / FB / IG workflows:
-            </p>
-            <ul style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 8, lineHeight: 2.2, listStyle: "none", padding: 0 }}>
-              {[
-                { event: "conversation_started", when: "after each incoming webhook trigger" },
-                { event: "qualified",            when: "after your bot's HS baseball parent filter" },
-                { event: "link_sent",            when: "after VSL or Book follow-up sequence fires" },
-                { event: "booked",               when: "when GHL confirms an appointment (optional)" },
-              ].map(({ event, when }) => (
-                <li key={event}>
-                  <code style={{ background: "var(--card)", padding: "1px 5px", borderRadius: 4, fontSize: 11 }}>
-                    {event}
-                  </code>
-                  {" — "}{when}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
