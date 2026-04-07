@@ -231,11 +231,12 @@ interface Props {
   initialData: EmailData;
   initialError: boolean;
   serverFetchedAt: string;
+  currentMonth: string;
 }
 
 type RefreshState = "idle" | "loading" | "success" | "error";
 
-export function EmailDashboard({ initialData, initialError, serverFetchedAt }: Props) {
+export function EmailDashboard({ initialData, initialError, serverFetchedAt, currentMonth }: Props) {
   const [data, setData]           = useState<EmailData>(initialData);
   const [hasError, setHasError]   = useState(initialError);
   const [fetchedAt, setFetchedAt] = useState(serverFetchedAt);
@@ -299,31 +300,31 @@ export function EmailDashboard({ initialData, initialError, serverFetchedAt }: P
       {/* KPI cards — current month with MoM comparison */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <KPI
-          label={`Delivered${latest ? ` · ${latest.month}` : ""}`}
+          label={`Delivered · ${currentMonth}`}
           value={latest ? fmtNum(latest.delivered) : "—"}
           sub={latest && prev ? momPct(latest.delivered, prev.delivered) : undefined}
           trend={latest && prev ? trendDir(latest.delivered, prev.delivered) : null}
         />
         <KPI
-          label={`Opens${latest ? ` · ${latest.month}` : ""}`}
+          label={`Opens · ${currentMonth}`}
           value={latest ? fmtNum(latest.opens) : "—"}
           sub={latest && prev ? momPct(latest.opens, prev.opens) : undefined}
           trend={latest && prev ? trendDir(latest.opens, prev.opens) : null}
         />
         <KPI
-          label={`Open %${latest ? ` · ${latest.month}` : ""}`}
+          label={`Open % · ${currentMonth}`}
           value={latest ? `${latest.openPct.toFixed(1)}%` : "—"}
           sub={latest && prev ? momPct(latest.openPct, prev.openPct) : undefined}
           trend={latest && prev ? trendDir(latest.openPct, prev.openPct) : null}
         />
         <KPI
-          label={`Clicks${latest ? ` · ${latest.month}` : ""}`}
+          label={`Clicks · ${currentMonth}`}
           value={latest ? fmtNum(latest.clicks) : "—"}
           sub={latest && prev ? momPct(latest.clicks, prev.clicks) : undefined}
           trend={latest && prev ? trendDir(latest.clicks, prev.clicks) : null}
         />
         <KPI
-          label={`CTR %${latest ? ` · ${latest.month}` : ""}`}
+          label={`CTR % · ${currentMonth}`}
           value={latest ? `${latest.ctrPct.toFixed(2)}%` : "—"}
           sub={latest && prev ? momPct(latest.ctrPct, prev.ctrPct) : undefined}
           trend={latest && prev ? trendDir(latest.ctrPct, prev.ctrPct) : null}

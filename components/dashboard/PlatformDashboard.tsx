@@ -28,8 +28,8 @@ const LEAD_PLATFORMS = [
 
 // Fallback monthly goals (used if sheet doesn't expose a GOALS row yet)
 const FALLBACK_GOALS: PlatformGoals = {
-  ig: 120, email: 25, ytLong: 13, ytShorts: 70,
-  ytPosts: 20, fbPosts: 50, tiktok: 30, x: 30, podcasts: 13,
+  ig: 200, email: 25, ytLong: 13, ytShorts: 70,
+  ytPosts: 20, fbPosts: 30, tiktok: 30, x: 30, podcasts: 13,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

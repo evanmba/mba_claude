@@ -193,7 +193,7 @@ export default async function YouTubePage() {
   const filled = monthly.filter((m) => m.impressions > 0);
   const latest = filled[filled.length - 1];
   const prev   = filled[filled.length - 2];
-  const monthLabel = latest?.month ?? "";
+  const monthLabel = new Date().toLocaleString("en-US", { month: "long" });
 
   return (
     <DashboardLayout>

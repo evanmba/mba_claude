@@ -19,6 +19,8 @@ export default async function EmailPage() {
   let data: EmailData = { monthly: [], campaigns: [], yearlyAvg: null };
   let fetchError = false;
   const fetchedAt = new Date().toISOString();
+  const currentMonth = new Date().toLocaleString("en-US", { month: "long" });
+  const currentMonthYear = new Date().toLocaleString("en-US", { month: "long", year: "numeric" });
 
   try {
     const rows = await fetchCSV(EMAIL_CSV_URL);
@@ -68,7 +70,7 @@ export default async function EmailPage() {
             Email Marketing
           </p>
           <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            2026 campaign analytics — delivered, opens, clicks &amp; rates
+            {currentMonthYear} campaign analytics — delivered, opens, clicks &amp; rates
           </p>
         </div>
       </div>
@@ -77,6 +79,7 @@ export default async function EmailPage() {
         initialData={data}
         initialError={fetchError}
         serverFetchedAt={fetchedAt}
+        currentMonth={currentMonth}
       />
 
       {/* Email log */}
