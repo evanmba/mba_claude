@@ -78,6 +78,41 @@ function GoalBarRow({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
+      {/* Hover tooltip — outside overflow-hidden bar so it isn't clipped */}
+      {hovered && projected !== null && (
+        <div
+          className="absolute bottom-full left-1/2 mb-2 z-20 pointer-events-none"
+          style={{ transform: "translateX(-50%)" }}
+        >
+          <div
+            className="text-xs rounded-lg px-3 py-2 whitespace-nowrap"
+            style={{
+              background: "var(--card)",
+              border: `1px solid ${barColor}`,
+              color: "var(--foreground)",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+            }}
+          >
+            <span style={{ color: barColor, fontWeight: 700 }}>~{projected} projected</span>
+            {projPct !== null && (
+              <span style={{ color: "var(--muted-foreground)" }}> ({projPct}% of goal)</span>
+            )}
+            <div style={{ color: "var(--muted-foreground)", fontSize: 10, marginTop: 2 }}>
+              day {today} of {daysInMonth}
+            </div>
+          </div>
+          <div
+            className="mx-auto"
+            style={{
+              width: 0, height: 0,
+              borderLeft: "5px solid transparent",
+              borderRight: "5px solid transparent",
+              borderTop: `5px solid ${barColor}`,
+            }}
+          />
+        </div>
+      )}
+
       <span className="text-xs w-20 flex-shrink-0 text-right" style={{ color: "var(--muted-foreground)" }}>
         {label}
       </span>
@@ -102,42 +137,6 @@ function GoalBarRow({
           >
             {Math.round(fillPct)}%
           </span>
-        )}
-
-        {/* Hover tooltip */}
-        {hovered && projected !== null && (
-          <div
-            className="absolute bottom-full left-1/2 mb-2 z-10 pointer-events-none"
-            style={{ transform: "translateX(-50%)" }}
-          >
-            <div
-              className="text-xs rounded-lg px-3 py-2 whitespace-nowrap"
-              style={{
-                background: "var(--card)",
-                border: `1px solid ${barColor}`,
-                color: "var(--foreground)",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-              }}
-            >
-              <span style={{ color: barColor, fontWeight: 700 }}>~{projected} projected</span>
-              {projPct !== null && (
-                <span style={{ color: "var(--muted-foreground)" }}> ({projPct}% of goal)</span>
-              )}
-              <div style={{ color: "var(--muted-foreground)", fontSize: 10, marginTop: 2 }}>
-                day {today} of {daysInMonth}
-              </div>
-            </div>
-            {/* Arrow */}
-            <div
-              className="mx-auto"
-              style={{
-                width: 0, height: 0,
-                borderLeft: "5px solid transparent",
-                borderRight: "5px solid transparent",
-                borderTop: `5px solid ${barColor}`,
-              }}
-            />
-          </div>
         )}
       </div>
       {/* current / goal */}
