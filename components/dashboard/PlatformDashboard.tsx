@@ -59,12 +59,25 @@ function fmtValue(n: number) {
 function GoalBarRow({
   label, value, goal, color,
 }: { label: string; value: number; goal: number; color: string }) {
-  const fillPct = goal > 0 ? Math.min((value / goal) * 100, 100) : 0;
-  const done    = fillPct >= 100;
+  const [hovered, setHovered] = useState(false);
+
+  const fillPct  = goal > 0 ? Math.min((value / goal) * 100, 100) : 0;
+  const done     = fillPct >= 100;
   const barColor = done ? "#22c55e" : color;
 
+  // Projection: pace-based end-of-month estimate
+  const now         = new Date();
+  const today       = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const projected   = today > 0 && value > 0 ? Math.round((value / today) * daysInMonth) : null;
+  const projPct     = projected !== null && goal > 0 ? Math.round((projected / goal) * 100) : null;
+
   return (
-    <div className="flex items-center gap-3">
+    <div
+      className="flex items-center gap-3 relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       <span className="text-xs w-20 flex-shrink-0 text-right" style={{ color: "var(--muted-foreground)" }}>
         {label}
       </span>
@@ -89,6 +102,42 @@ function GoalBarRow({
           >
             {Math.round(fillPct)}%
           </span>
+        )}
+
+        {/* Hover tooltip */}
+        {hovered && projected !== null && (
+          <div
+            className="absolute bottom-full left-1/2 mb-2 z-10 pointer-events-none"
+            style={{ transform: "translateX(-50%)" }}
+          >
+            <div
+              className="text-xs rounded-lg px-3 py-2 whitespace-nowrap"
+              style={{
+                background: "var(--card)",
+                border: `1px solid ${barColor}`,
+                color: "var(--foreground)",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+              }}
+            >
+              <span style={{ color: barColor, fontWeight: 700 }}>~{projected} projected</span>
+              {projPct !== null && (
+                <span style={{ color: "var(--muted-foreground)" }}> ({projPct}% of goal)</span>
+              )}
+              <div style={{ color: "var(--muted-foreground)", fontSize: 10, marginTop: 2 }}>
+                day {today} of {daysInMonth}
+              </div>
+            </div>
+            {/* Arrow */}
+            <div
+              className="mx-auto"
+              style={{
+                width: 0, height: 0,
+                borderLeft: "5px solid transparent",
+                borderRight: "5px solid transparent",
+                borderTop: `5px solid ${barColor}`,
+              }}
+            />
+          </div>
         )}
       </div>
       {/* current / goal */}
