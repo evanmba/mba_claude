@@ -285,7 +285,7 @@ interface Props {
 }
 
 export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025, monthLabel, prevMonthLabel }: Props) {
-  const [period, setPeriod] = useState<"today" | "4d" | "14d" | "month" | "ytd">("month");
+  const [period, setPeriod] = useState<"today" | "4d" | "7d" | "14d" | "month" | "ytd">("month");
 
   const dailyRows = monthly.filter((r) => !r.isRollup);
 
@@ -302,6 +302,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
   const kpi =
     period === "today" ? todayRow :
     period === "4d"    ? (monthly.find((r) => r.period === "4 Days")  ?? null) :
+    period === "7d"    ? (monthly.find((r) => r.period === "7 Days")  ?? null) :
     period === "14d"   ? (monthly.find((r) => r.period === "14 Days") ?? null) :
     (monthly.find((r) => r.period === "30 Days") ?? monthly.find((r) => r.isRollup) ?? null);
 
@@ -421,6 +422,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
   const TABS = [
     { key: "today", label: "Today" },
     { key: "4d",    label: "4 Days" },
+    { key: "7d",    label: "7 Days" },
     { key: "14d",   label: "14 Days" },
     { key: "month", label: monthName },
     { key: "ytd",   label: "YTD" },
