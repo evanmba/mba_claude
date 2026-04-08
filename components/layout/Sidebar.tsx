@@ -2,17 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { TrendingUp, DollarSign, Settings, BarChart2 } from "lucide-react";
+import { TrendingUp, DollarSign } from "lucide-react";
 
 const navItems = [
   { label: "Funnel Dashboard", href: "/funnel",     icon: TrendingUp, color: "#22c55e" },
-  { label: "Ad Attribution",   href: "/ads",        icon: BarChart2,  color: "#f59e0b" },
   { label: "Financials",       href: "/financials", icon: DollarSign, color: "#3b82f6" },
 ];
 
-const bottomNavItems = [
-  { label: "Settings", href: "/settings", icon: Settings },
-];
+const bottomNavItems: { label: string; href: string; icon: React.ElementType }[] = [];
 
 function NavLink({
   href,
