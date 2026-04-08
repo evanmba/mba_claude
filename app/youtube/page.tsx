@@ -69,7 +69,7 @@ function MonthlyTable({ monthly, averages }: { monthly: YTMonthlyRow[]; averages
   if (filled.length === 0) return null;
 
   const cols = ["Month", "CTR @ 24h", "Watch Time (min)", "Impressions", "Watch:Impressions"];
-  const rows = averages ? [...filled, averages] : filled;
+  const rows = averages ? [...monthly, averages] : monthly;
 
   const heat = {
     ctr:           heatStats(filled.map((m) => parsePct(m.ctr))),

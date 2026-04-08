@@ -74,9 +74,9 @@ function MonthlyTable({ monthly, averages }: { monthly: IGMonthlyRow[]; averages
     "Avg Follows", "Reach:Like", "Reach:Shares", "Reach:Follows",
   ];
 
-  const rows = averages ? [...filled, averages] : filled;
+  const rows = averages ? [...monthly, averages] : monthly;
 
-  // Compute heat stats from data rows only (exclude averages row)
+  // Compute heat stats from data rows only (exclude averages row and zero-rows)
   const heat = {
     reach:          mStats(filled.map((m) => m.reach)),
     watchTime:      mStats(filled.map((m) => m.watchTime)),

@@ -138,7 +138,7 @@ function MonthlyTable({ monthly, yearlyAvg }: { monthly: EmailMonthlyRow[]; year
   };
 
   const filled = monthly.filter((m) => m.delivered > 0);
-  const sorted: EmailMonthlyRow[] = sortCol ? sortRows(filled, sortCol, sortDir) : filled;
+  const sorted: EmailMonthlyRow[] = sortCol ? sortRows(monthly, sortCol, sortDir) : monthly;
   const rows: Array<EmailMonthlyRow & { _isAvg?: true }> = yearlyAvg
     ? [...sorted, { ...yearlyAvg, _isAvg: true }]
     : sorted;
