@@ -292,7 +292,7 @@ export default function CoverageCalendar() {
   const hourLabels = Array.from({ length: TOTAL_HOURS + 1 }, (_, i) => START_HOUR + i);
 
   return (
-    <div ref={outerRef} style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 228px)", minHeight: 380, gap: 12 }}>
+    <div ref={outerRef} style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 145px)", minHeight: 380, gap: 12 }}>
 
       {/* Top bar */}
       <div className="flex items-center justify-between flex-wrap gap-3" style={{ flexShrink: 0 }}>
