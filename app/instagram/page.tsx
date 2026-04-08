@@ -19,6 +19,7 @@ export default async function InstagramPage() {
   let data: IGData = { monthly: [], averages: null, posts: [] };
   let fetchError = false;
   const fetchedAt = new Date().toISOString();
+  const currentMonth = new Date().toLocaleString("en-US", { month: "long" });
 
   let mainRows: string[][] = [];
 
@@ -68,6 +69,7 @@ export default async function InstagramPage() {
         initialData={data}
         initialFetchError={fetchError}
         serverFetchedAt={fetchedAt}
+        currentMonth={currentMonth}
       />
     </DashboardLayout>
   );

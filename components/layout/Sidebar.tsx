@@ -7,12 +7,10 @@ import {
   Instagram,
   Youtube,
   Mail,
-  Users,
   LayoutDashboard,
   Settings,
   Bell,
   X,
-  Target,
 } from "lucide-react";
 
 const socialItems = [
@@ -20,11 +18,6 @@ const socialItems = [
   { label: "Instagram",  href: "/instagram", icon: Instagram, color: "#d946ef" },
   { label: "YouTube",    href: "/youtube",   icon: Youtube,   color: "#ef4444" },
   { label: "Email",      href: "/email",     icon: Mail,      color: "#22c55e" },
-];
-
-const toolsItems = [
-  { label: "Meta Ads", href: "/meta-ads", icon: Target, color: "#1877F2" },
-  { label: "Competitor Tracker", href: "/competitors", icon: Users },
 ];
 
 const bottomNavItems = [
@@ -141,24 +134,6 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           ))}
         </ul>
 
-        <p
-          className="px-3 mb-2 text-xs font-semibold uppercase tracking-wider"
-          style={{ color: "var(--muted-foreground)" }}
-        >
-          Tools
-        </p>
-        <ul className="space-y-1">
-          {toolsItems.map((item) => (
-            <NavLink
-              key={item.href}
-              href={item.href}
-              icon={item.icon}
-              label={item.label}
-              isActive={pathname === item.href}
-              onClick={onClose}
-            />
-          ))}
-        </ul>
       </nav>
 
       {/* Bottom */}

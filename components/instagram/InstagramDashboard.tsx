@@ -181,11 +181,12 @@ interface Props {
   initialData: IGData;
   initialFetchError: boolean;
   serverFetchedAt: string;
+  currentMonth: string;
 }
 
 type RefreshState = "idle" | "loading" | "success" | "error";
 
-export function InstagramDashboard({ initialData, initialFetchError, serverFetchedAt }: Props) {
+export function InstagramDashboard({ initialData, initialFetchError, serverFetchedAt, currentMonth }: Props) {
   const [data, setData]           = useState<IGData>(initialData);
   const [fetchError, setFetchError] = useState(initialFetchError);
   const [fetchedAt, setFetchedAt] = useState(serverFetchedAt);
@@ -215,7 +216,7 @@ export function InstagramDashboard({ initialData, initialFetchError, serverFetch
   const filled  = monthly.filter((m) => m.reach > 0);
   const latest  = filled[filled.length - 1];
   const prev    = filled[filled.length - 2];
-  const mon     = latest?.month ?? "";
+  const mon     = currentMonth;
 
   return (
     <>
