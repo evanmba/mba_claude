@@ -143,28 +143,44 @@ export default function CoverageCalendar() {
 
   // ── Load (API first, localStorage fallback) ───────────────────────────────
 
+  const loadFromAPI = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/coverage", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setBlocks(data);
+          return true;
+        }
+      }
+    } catch {}
+    return false;
+  }, []);
+
   useEffect(() => {
     async function load() {
-      try {
-        const res = await fetch("/api/coverage");
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            setBlocks(data);
-            setHydrated(true);
-            return;
-          }
-        }
-      } catch {}
-      // Fallback: localStorage
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) setBlocks(JSON.parse(raw));
-      } catch {}
+      const fromAPI = await loadFromAPI();
+      if (!fromAPI) {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) setBlocks(JSON.parse(raw));
+        } catch {}
+      }
       setHydrated(true);
     }
     load();
-  }, []);
+  }, [loadFromAPI]);
+
+  // ── Poll for changes every 30s (so other users' saves appear) ─────────────
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const interval = setInterval(() => {
+      if (saveTimer.current) return; // skip if local save pending
+      loadFromAPI();
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [hydrated, loadFromAPI]);
 
   // ── Autosave (debounced 1s → API + localStorage) ───────────────────────────
 
