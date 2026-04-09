@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bot, RefreshCw, TrendingUp, TrendingDown, Minus,
@@ -432,6 +432,16 @@ export function AIDMClient({ data }: { data: AIDMDashboardData }) {
       router.refresh();
     });
   }
+
+  // Refresh on page load and whenever the tab becomes visible
+  useEffect(() => {
+    handleRefresh();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") handleRefresh();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { daily, today } = data;
 
