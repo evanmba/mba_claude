@@ -41,6 +41,22 @@ function normalizeName(name: string): string {
   return name.trim().replace(/^[A-Z]{2,}\s+/, "");
 }
 
+/**
+ * Returns true when `source` contains `pattern` as a standalone token.
+ * "1007.5" matches "1007.5", "MBA | 1007.5", "TOF 1007.5"
+ * but NOT "1007.5.42" or "1007.5.1" (guarded: pattern must not be
+ * immediately followed by '.' or a digit).
+ */
+function matchesPattern(source: string, pattern: string): boolean {
+  const normalized = normalizeName(source).toLowerCase();
+  const pat = pattern.toLowerCase();
+  if (normalized === pat) return true;
+  const idx = normalized.indexOf(pat);
+  if (idx < 0) return false;
+  const after = normalized[idx + pat.length];
+  return after === undefined || (after !== "." && !/\d/.test(after));
+}
+
 function parseSheetDate(s: string): Date | null {
   const parts = s.split("/");
   if (parts.length < 3) return null;
@@ -89,11 +105,9 @@ function parseLeadsSource(
     }
     const source = cv(row, sourceCol);
     if (!source) continue;
-    const normalizedSource = normalizeName(source).toLowerCase();
 
     for (const { callPattern } of TRACKED_ADS) {
-      const pat = callPattern.toLowerCase();
-      if (normalizedSource === pat || source.toLowerCase() === pat) {
+      if (matchesPattern(source, callPattern)) {
         map.set(callPattern, (map.get(callPattern) ?? 0) + 1);
       }
     }
@@ -139,12 +153,9 @@ function parseCallSource(
     }
     const rawName = cv(row, adCol);
     if (!rawName) continue;
-    const normalized = normalizeName(rawName).toLowerCase();
-
-    // Exact match only — "1007.5" will NOT match "1007.5.42"
+    // Token match — "1007.5" will NOT match "1007.5.42"
     for (const { callPattern } of TRACKED_ADS) {
-      const pat = callPattern.toLowerCase();
-      if (normalized === pat || rawName.toLowerCase() === pat) {
+      if (matchesPattern(rawName, callPattern)) {
         if (!map.has(callPattern)) map.set(callPattern, { booked: 0, taken: 0, deals: 0 });
         const e = map.get(callPattern)!;
         e.booked += 1;

@@ -66,9 +66,9 @@ function SpendCard({ data }: { data: CreativeSpend }) {
           <span style={{ fontSize: 10, color: "#1e3a5f", minWidth: 72, textAlign: "right" }}>Cost/ea</span>
           <span style={{ fontSize: 10, color: "#1e3a5f", minWidth: 44, textAlign: "right" }}>Conv%</span>
         </div>
-        <StatRow label="Leads"        count={data.leads}        spend={data.spend} color="#f59e0b"
+        <StatRow label="Leads"        count={data.leads}        spend={data.spend} color="#f59e0b" />
+        <StatRow label="Booked Calls" count={data.bookedCalls} spend={data.spend} color="#60a5fa"
           showPct={data.leads > 0 && data.bookedCalls > 0 ? (data.bookedCalls / data.leads) * 100 : undefined} />
-        <StatRow label="Booked Calls" count={data.bookedCalls} spend={data.spend} color="#60a5fa" />
         <StatRow label="Taken Calls"  count={data.takenCalls}  spend={data.spend} color="#4ade80"
           showPct={data.bookedCalls > 0 ? (data.takenCalls / data.bookedCalls) * 100 : undefined} />
         <StatRow label="Deals"        count={data.deals}        spend={data.spend} color="#a78bfa"
