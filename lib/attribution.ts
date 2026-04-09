@@ -2,13 +2,14 @@ import { fetchAdSpendByIds, AdWindow } from "./meta";
 import { FUNNEL_SHEET_ID, fetchSheetValues } from "./funnel";
 
 // ─── The 3 tracked ad creatives ───────────────────────────────────────────────
-// callPattern is a substring matched against the normalized "ad" column in
-// Call Source — e.g. "1002.1.7.3" matches "1002.1.7.3.4" and "1002.1.7.3.1".
+// callPattern must match the normalized ad name EXACTLY — "1007.5" will NOT
+// match "1007.5.42". Normalization strips leading prefixes like "TOF ", "CBO ",
+// or "MBA | " before comparing.
 
 const TRACKED_ADS = [
-  { id: "120246732599790699", label: "1002.1.7.3.4", callPattern: "1002.1.7.3" },
-  { id: "120246732565570699", label: "1009.6.1.2",   callPattern: "1009.6.1"   },
-  { id: "120246732664910699", label: "1007.5",        callPattern: "1007.5"     },
+  { id: "120247302027810699", label: "1002.1.7.3.4", callPattern: "1002.1.7.3.4" },
+  { id: "120247302027770699", label: "1009.6.1.2",   callPattern: "1009.6.1.2"   },
+  { id: "120246732664910699", label: "1007.5",        callPattern: "1007.5"       },
 ] as const;
 
 const AD_IDS = TRACKED_ADS.map((a) => a.id);
@@ -88,9 +89,11 @@ function parseLeadsSource(
     }
     const source = cv(row, sourceCol);
     if (!source) continue;
+    const normalizedSource = normalizeName(source).toLowerCase();
 
     for (const { callPattern } of TRACKED_ADS) {
-      if (source.includes(callPattern)) {
+      const pat = callPattern.toLowerCase();
+      if (normalizedSource === pat || source.toLowerCase() === pat) {
         map.set(callPattern, (map.get(callPattern) ?? 0) + 1);
       }
     }
@@ -136,11 +139,12 @@ function parseCallSource(
     }
     const rawName = cv(row, adCol);
     if (!rawName) continue;
-    const normalized = normalizeName(rawName);
+    const normalized = normalizeName(rawName).toLowerCase();
 
-    // Add to every pattern that matches this row
+    // Exact match only — "1007.5" will NOT match "1007.5.42"
     for (const { callPattern } of TRACKED_ADS) {
-      if (normalized.includes(callPattern) || rawName.includes(callPattern)) {
+      const pat = callPattern.toLowerCase();
+      if (normalized === pat || rawName.toLowerCase() === pat) {
         if (!map.has(callPattern)) map.set(callPattern, { booked: 0, taken: 0, deals: 0 });
         const e = map.get(callPattern)!;
         e.booked += 1;
