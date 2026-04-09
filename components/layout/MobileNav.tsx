@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { TrendingUp, DollarSign } from "lucide-react";
+import { TrendingUp, DollarSign, BarChart2 } from "lucide-react";
 
 const navItems = [
   { label: "Funnel",     href: "/funnel",     icon: TrendingUp, color: "#22c55e" },
+  { label: "Ads",        href: "/ads",        icon: BarChart2,  color: "#f59e0b" },
   { label: "Financials", href: "/financials", icon: DollarSign, color: "#3b82f6" },
 ];
 
