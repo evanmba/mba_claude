@@ -214,8 +214,8 @@ export function InstagramDashboard({ initialData, initialFetchError, serverFetch
 
   const { monthly, averages, posts } = data;
   const filled  = monthly.filter((m) => m.reach > 0);
-  const latest  = filled[filled.length - 1];
-  const prev    = filled[filled.length - 2];
+  const latest  = monthly.find((m) => m.month.toLowerCase() === currentMonth.toLowerCase()) ?? null;
+  const prev    = filled.filter((m) => m.month.toLowerCase() !== currentMonth.toLowerCase()).at(-1) ?? null;
   const mon     = currentMonth;
 
   return (
@@ -266,37 +266,37 @@ export function InstagramDashboard({ initialData, initialFetchError, serverFetch
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         <StatCard
           title={`Avg Reach${mon ? ` · ${mon}` : ""}`}
-          value={latest ? latest.reach.toLocaleString() : "—"}
-          change={latest && prev ? pct(latest.reach, prev.reach) : ""}
-          trend={latest && prev ? trendDir(latest.reach, prev.reach) : "neutral"}
+          value={latest?.reach ? latest.reach.toLocaleString() : "—"}
+          change={latest?.reach && prev ? pct(latest.reach, prev.reach) : ""}
+          trend={latest?.reach && prev ? trendDir(latest.reach, prev.reach) : "neutral"}
           icon={Eye}
         />
         <StatCard
           title={`Avg Watch Time${mon ? ` · ${mon}` : ""}`}
-          value={latest ? `${latest.watchTime.toFixed(1)}s` : "—"}
-          change={latest && prev ? pct(latest.watchTime, prev.watchTime) : ""}
-          trend={latest && prev ? trendDir(latest.watchTime, prev.watchTime) : "neutral"}
+          value={latest?.watchTime ? `${latest.watchTime.toFixed(1)}s` : "—"}
+          change={latest?.watchTime && prev ? pct(latest.watchTime, prev.watchTime) : ""}
+          trend={latest?.watchTime && prev ? trendDir(latest.watchTime, prev.watchTime) : "neutral"}
           icon={Timer}
         />
         <StatCard
           title={`Avg Likes${mon ? ` · ${mon}` : ""}`}
-          value={latest ? latest.likes.toFixed(1) : "—"}
-          change={latest && prev ? pct(latest.likes, prev.likes) : ""}
-          trend={latest && prev ? trendDir(latest.likes, prev.likes) : "neutral"}
+          value={latest?.likes ? latest.likes.toFixed(1) : "—"}
+          change={latest?.likes && prev ? pct(latest.likes, prev.likes) : ""}
+          trend={latest?.likes && prev ? trendDir(latest.likes, prev.likes) : "neutral"}
           icon={Heart}
         />
         <StatCard
           title={`Avg Shares${mon ? ` · ${mon}` : ""}`}
-          value={latest ? latest.shares.toFixed(1) : "—"}
-          change={latest && prev ? pct(latest.shares, prev.shares) : ""}
-          trend={latest && prev ? trendDir(latest.shares, prev.shares) : "neutral"}
+          value={latest?.shares ? latest.shares.toFixed(1) : "—"}
+          change={latest?.shares && prev ? pct(latest.shares, prev.shares) : ""}
+          trend={latest?.shares && prev ? trendDir(latest.shares, prev.shares) : "neutral"}
           icon={Share2}
         />
         <StatCard
           title={`Avg Follows${mon ? ` · ${mon}` : ""}`}
-          value={latest ? latest.follows.toFixed(2) : "—"}
-          change={latest && prev ? pct(latest.follows, prev.follows) : ""}
-          trend={latest && prev ? trendDir(latest.follows, prev.follows) : "neutral"}
+          value={latest?.follows ? latest.follows.toFixed(2) : "—"}
+          change={latest?.follows && prev ? pct(latest.follows, prev.follows) : ""}
+          trend={latest?.follows && prev ? trendDir(latest.follows, prev.follows) : "neutral"}
           icon={UserPlus}
         />
       </div>

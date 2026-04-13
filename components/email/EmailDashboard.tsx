@@ -262,8 +262,8 @@ export function EmailDashboard({ initialData, initialError, serverFetchedAt, cur
 
   const { monthly, yearlyAvg } = data;
   const filled = monthly.filter((m) => m.delivered > 0);
-  const latest = filled[filled.length - 1];
-  const prev   = filled[filled.length - 2];
+  const latest = monthly.find((m) => m.month.toLowerCase() === currentMonth.toLowerCase()) ?? null;
+  const prev   = filled.filter((m) => m.month.toLowerCase() !== currentMonth.toLowerCase()).at(-1) ?? null;
 
   return (
     <>
@@ -301,33 +301,33 @@ export function EmailDashboard({ initialData, initialError, serverFetchedAt, cur
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
         <KPI
           label={`Delivered · ${currentMonth}`}
-          value={latest ? fmtNum(latest.delivered) : "—"}
-          sub={latest && prev ? momPct(latest.delivered, prev.delivered) : undefined}
-          trend={latest && prev ? trendDir(latest.delivered, prev.delivered) : null}
+          value={latest?.delivered ? fmtNum(latest.delivered) : "—"}
+          sub={latest?.delivered && prev ? momPct(latest.delivered, prev.delivered) : undefined}
+          trend={latest?.delivered && prev ? trendDir(latest.delivered, prev.delivered) : null}
         />
         <KPI
           label={`Opens · ${currentMonth}`}
-          value={latest ? fmtNum(latest.opens) : "—"}
-          sub={latest && prev ? momPct(latest.opens, prev.opens) : undefined}
-          trend={latest && prev ? trendDir(latest.opens, prev.opens) : null}
+          value={latest?.opens ? fmtNum(latest.opens) : "—"}
+          sub={latest?.opens && prev ? momPct(latest.opens, prev.opens) : undefined}
+          trend={latest?.opens && prev ? trendDir(latest.opens, prev.opens) : null}
         />
         <KPI
           label={`Open % · ${currentMonth}`}
-          value={latest ? `${latest.openPct.toFixed(1)}%` : "—"}
-          sub={latest && prev ? momPct(latest.openPct, prev.openPct) : undefined}
-          trend={latest && prev ? trendDir(latest.openPct, prev.openPct) : null}
+          value={latest?.openPct ? `${latest.openPct.toFixed(1)}%` : "—"}
+          sub={latest?.openPct && prev ? momPct(latest.openPct, prev.openPct) : undefined}
+          trend={latest?.openPct && prev ? trendDir(latest.openPct, prev.openPct) : null}
         />
         <KPI
           label={`Clicks · ${currentMonth}`}
-          value={latest ? fmtNum(latest.clicks) : "—"}
-          sub={latest && prev ? momPct(latest.clicks, prev.clicks) : undefined}
-          trend={latest && prev ? trendDir(latest.clicks, prev.clicks) : null}
+          value={latest?.clicks ? fmtNum(latest.clicks) : "—"}
+          sub={latest?.clicks && prev ? momPct(latest.clicks, prev.clicks) : undefined}
+          trend={latest?.clicks && prev ? trendDir(latest.clicks, prev.clicks) : null}
         />
         <KPI
           label={`CTR % · ${currentMonth}`}
-          value={latest ? `${latest.ctrPct.toFixed(2)}%` : "—"}
-          sub={latest && prev ? momPct(latest.ctrPct, prev.ctrPct) : undefined}
-          trend={latest && prev ? trendDir(latest.ctrPct, prev.ctrPct) : null}
+          value={latest?.ctrPct ? `${latest.ctrPct.toFixed(2)}%` : "—"}
+          sub={latest?.ctrPct && prev ? momPct(latest.ctrPct, prev.ctrPct) : undefined}
+          trend={latest?.ctrPct && prev ? trendDir(latest.ctrPct, prev.ctrPct) : null}
         />
       </div>
 

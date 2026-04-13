@@ -191,9 +191,9 @@ export default async function YouTubePage() {
   }
 
   const filled = monthly.filter((m) => m.impressions > 0);
-  const latest = filled[filled.length - 1];
-  const prev   = filled[filled.length - 2];
   const monthLabel = new Date().toLocaleString("en-US", { month: "long" });
+  const latest = monthly.find((m) => m.month.toLowerCase() === monthLabel.toLowerCase()) ?? null;
+  const prev   = filled.filter((m) => m.month.toLowerCase() !== monthLabel.toLowerCase()).at(-1) ?? null;
 
   return (
     <DashboardLayout>
@@ -241,30 +241,30 @@ export default async function YouTubePage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <StatCard
           title={`Avg CTR${monthLabel ? ` · ${monthLabel}` : ""}`}
-          value={latest ? latest.ctr : "—"}
-          change={latest && prev ? pct(parseFloat(latest.ctr), parseFloat(prev.ctr)) : ""}
-          trend={latest && prev ? trendDir(parseFloat(latest.ctr), parseFloat(prev.ctr)) : "neutral"}
+          value={latest?.ctr ? latest.ctr : "—"}
+          change={latest?.ctr && prev ? pct(parseFloat(latest.ctr), parseFloat(prev.ctr)) : ""}
+          trend={latest?.ctr && prev ? trendDir(parseFloat(latest.ctr), parseFloat(prev.ctr)) : "neutral"}
           icon={MousePointerClick}
         />
         <StatCard
           title={`Watch Time (min)${monthLabel ? ` · ${monthLabel}` : ""}`}
-          value={latest ? latest.watchTime.toFixed(1) : "—"}
-          change={latest && prev ? pct(latest.watchTime, prev.watchTime) : ""}
-          trend={latest && prev ? trendDir(latest.watchTime, prev.watchTime) : "neutral"}
+          value={latest?.watchTime ? latest.watchTime.toFixed(1) : "—"}
+          change={latest?.watchTime && prev ? pct(latest.watchTime, prev.watchTime) : ""}
+          trend={latest?.watchTime && prev ? trendDir(latest.watchTime, prev.watchTime) : "neutral"}
           icon={Clock}
         />
         <StatCard
           title={`Impressions${monthLabel ? ` · ${monthLabel}` : ""}`}
-          value={latest ? latest.impressions.toLocaleString() : "—"}
-          change={latest && prev ? pct(latest.impressions, prev.impressions) : ""}
-          trend={latest && prev ? trendDir(latest.impressions, prev.impressions) : "neutral"}
+          value={latest?.impressions ? latest.impressions.toLocaleString() : "—"}
+          change={latest?.impressions && prev ? pct(latest.impressions, prev.impressions) : ""}
+          trend={latest?.impressions && prev ? trendDir(latest.impressions, prev.impressions) : "neutral"}
           icon={Eye}
         />
         <StatCard
           title={`Watch:Impressions${monthLabel ? ` · ${monthLabel}` : ""}`}
-          value={latest ? latest.wtImpressions : "—"}
-          change={latest && prev ? pct(parseFloat(latest.wtImpressions), parseFloat(prev.wtImpressions)) : ""}
-          trend={latest && prev ? trendDir(parseFloat(latest.wtImpressions), parseFloat(prev.wtImpressions)) : "neutral"}
+          value={latest?.wtImpressions ? latest.wtImpressions : "—"}
+          change={latest?.wtImpressions && prev ? pct(parseFloat(latest.wtImpressions), parseFloat(prev.wtImpressions)) : ""}
+          trend={latest?.wtImpressions && prev ? trendDir(parseFloat(latest.wtImpressions), parseFloat(prev.wtImpressions)) : "neutral"}
           icon={Youtube}
         />
       </div>
