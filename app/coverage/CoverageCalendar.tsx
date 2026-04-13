@@ -13,6 +13,11 @@ const SETTERS = [
   { id: "teagan-brown",         name: "Teagan Brown",         short: "Teagan",   color: "#ef4444" },
 ];
 
+// Active setters shown in the drag palette (Teagan + Julio removed but their data is preserved)
+const PALETTE_SETTERS = SETTERS.filter(
+  s => s.id !== "teagan-brown" && s.id !== "julio-capellan"
+);
+
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const START_HOUR  = 8;
@@ -362,7 +367,7 @@ export default function CoverageCalendar() {
           </span>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {SETTERS.map(s => (
+          {PALETTE_SETTERS.map(s => (
             <div
               key={s.id}
               draggable
