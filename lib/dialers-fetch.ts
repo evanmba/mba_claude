@@ -194,6 +194,7 @@ async function fetchGoalsData(sheetId: string, apiKey: string, noCache = false):
 
     // C8:F20 → row 0 = headers, rows 1+ = setter name (col 0) + booked (col 1)
     const setters: { name: string; id: string; booked: number }[] = [];
+    const activeDialerIds = new Set(DIALERS.map((d) => d.id));
     for (let i = 1; i < setterRows.length; i++) {
       const row = setterRows[i];
       if (!row?.[0]) continue;
@@ -207,7 +208,10 @@ async function fetchGoalsData(sheetId: string, apiKey: string, noCache = false):
       if (dialer) {
         setters.push({ name: dialer.name, id: dialer.id, booked });
       } else {
-        setters.push({ name, id: name.toLowerCase().replace(/\s+/g, "-"), booked });
+        const id = name.toLowerCase().replace(/\s+/g, "-");
+        if (activeDialerIds.has(id)) {
+          setters.push({ name, id, booked });
+        }
       }
     }
 
