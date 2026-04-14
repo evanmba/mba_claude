@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { AdWindow } from "@/lib/attribution";
 import { AdsAIChat } from "./AdsAIChat";
+import { LandingPageView } from "./LandingPageView";
 
 const BORDER = "rgba(255,255,255,0.07)";
 
@@ -11,19 +12,22 @@ interface Props {
   children: React.ReactNode; // the SpendCards (already rendered server-side)
 }
 
-export function AdsPageClient({ window, children }: Props) {
-  const [tab, setTab] = useState<"overview" | "ai">("overview");
+type Tab = "overview" | "landing" | "ai";
 
-  const tabs: { key: "overview" | "ai"; label: string }[] = [
-    { key: "overview", label: "Overview" },
-    { key: "ai",       label: "AI Chat"  },
-  ];
+const TABS: { key: Tab; label: string }[] = [
+  { key: "overview", label: "Overview"               },
+  { key: "landing",  label: "Landing Page Split Test" },
+  { key: "ai",       label: "AI Chat"                },
+];
+
+export function AdsPageClient({ window, children }: Props) {
+  const [tab, setTab] = useState<Tab>("overview");
 
   return (
     <>
       {/* Tab bar */}
       <div style={{ display: "flex", gap: 0, borderBottom: `1px solid ${BORDER}`, marginBottom: 20 }}>
-        {tabs.map((t) => (
+        {TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
@@ -40,6 +44,7 @@ export function AdsPageClient({ window, children }: Props) {
       </div>
 
       {tab === "overview" && children}
+      {tab === "landing"  && <LandingPageView />}
       {tab === "ai"       && <AdsAIChat window={window} />}
     </>
   );
