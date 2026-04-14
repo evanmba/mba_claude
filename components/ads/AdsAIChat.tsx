@@ -20,10 +20,11 @@ const SUGGESTIONS = [
   "What's the cost per deal for each creative?",
 ];
 
-export function AdsAIChat({ window }: { window: AdWindow }) {
+export function AdsAIChat({ window: windowProp }: { window?: AdWindow }) {
   const [messages, setMessages]   = useState<Message[]>([]);
   const [input, setInput]         = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [window, setWindow]       = useState<AdWindow>(windowProp ?? "7d");
   const bottomRef                 = useRef<HTMLDivElement>(null);
   const textareaRef               = useRef<HTMLTextAreaElement>(null);
 
@@ -109,6 +110,23 @@ export function AdsAIChat({ window }: { window: AdWindow }) {
       minHeight: 400, background: BG, borderRadius: 16, border: `1px solid ${BORDER}`,
       overflow: "hidden",
     }}>
+      {/* Period selector (shown when used standalone, i.e. no windowProp) */}
+      {!windowProp && (
+        <div style={{ display: "flex", gap: 0, padding: "10px 16px 0", borderBottom: `1px solid ${BORDER}` }}>
+          {(["7d", "14d", "month"] as AdWindow[]).map((w) => (
+            <button key={w} onClick={() => setWindow(w)}
+              style={{
+                padding: "6px 14px", fontSize: 11, fontWeight: 600, border: "none",
+                background: "transparent", cursor: "pointer",
+                color: window === w ? "#3b82f6" : MUTED,
+                borderBottom: window === w ? "2px solid #3b82f6" : "2px solid transparent",
+                marginBottom: -1,
+              }}>
+              {w === "7d" ? "7 Days" : w === "14d" ? "14 Days" : "30 Days"}
+            </button>
+          ))}
+        </div>
+      )}
       {/* Messages area */}
       <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
         {messages.length === 0 && (
