@@ -300,7 +300,7 @@ const cv = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "").trim() : "");
 const ROLLUP_LABELS = new Set(["4 days", "7 days", "14 days", "30 days"]);
 const DATE_RE = /^\d{1,2}\/\d{1,2}\/\d{2,4}$/;
 
-function parseMonthly(rows: string[][]): { monthly: MonthlyRow[]; salesDashboard: SalesDashboard | null } {
+export function parseMonthly(rows: string[][]): { monthly: MonthlyRow[]; salesDashboard: SalesDashboard | null } {
   if (rows.length < 2) return { monthly: [], salesDashboard: null };
 
   const hdrIdx = rows.findIndex((r) => r.some((c) => c.replace(/\n/g, " ").toLowerCase().includes("amount spent")));

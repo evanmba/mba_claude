@@ -10,7 +10,7 @@ export default function AIPage() {
             AI Assistant
           </h1>
           <p className="text-xs sm:text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
-            Chat about your ad creative performance data
+            Funnel, ad attribution, landing page split test, and sales
           </p>
         </div>
         <div style={{ flex: 1, minHeight: 0 }}>

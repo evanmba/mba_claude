@@ -14,10 +14,10 @@ const BORDER = "rgba(255,255,255,0.07)";
 const MUTED  = "#475569";
 
 const SUGGESTIONS = [
-  "Which creative has the best cost per lead?",
-  "Compare book-to-take rates across creatives",
-  "Which ad is most efficient overall?",
-  "What's the cost per deal for each creative?",
+  "What's our overall funnel performance this month?",
+  "Which ad creative has the best cost per deal?",
+  "How is the landing page split test going?",
+  "What's our show rate and close rate this month?",
 ];
 
 export function AdsAIChat({ window: windowProp }: { window?: AdWindow }) {
@@ -52,7 +52,7 @@ export function AdsAIChat({ window: windowProp }: { window?: AdWindow }) {
     setMessages((m) => [...m, { role: "assistant", content: "" }]);
 
     try {
-      const res = await fetch("/api/ads/chat", {
+      const res = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: next, window }),
@@ -132,7 +132,7 @@ export function AdsAIChat({ window: windowProp }: { window?: AdWindow }) {
         {messages.length === 0 && (
           <div style={{ margin: "auto", textAlign: "center", paddingBottom: 16 }}>
             <p style={{ fontSize: 14, color: MUTED, marginBottom: 20 }}>
-              Ask anything about your ad creative data.
+              Ask anything about the funnel, ads, landing page, or sales.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 380, margin: "0 auto" }}>
               {SUGGESTIONS.map((s) => (
