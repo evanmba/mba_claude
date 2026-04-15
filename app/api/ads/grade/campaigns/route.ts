@@ -73,7 +73,11 @@ export async function GET(req: NextRequest) {
   }
 
   const rows: GradeRow[] = campaigns
-    .filter((c) => c.spend > 0)
+    .filter((c) => {
+      if (c.spend <= 0) return false;
+      const n = c.name.toLowerCase();
+      return n.includes("winner") || n.includes("test");
+    })
     .map((c) => {
       const ads = adsByCampaign.get(c.id) ?? [];
       const { totalLeads, graded, g11, booked, taken, deals, cash, rev } =
