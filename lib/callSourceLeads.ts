@@ -150,8 +150,11 @@ export function parseCallSourceLeads(rows: string[][], since: Date, until: Date)
     accumulate(byCampaign, campaign,                    taken, isDeal, cash, rev);
     if (adSet) accumulate(byAdSet, `${campaign}|||${adSet}`, taken, isDeal, cash, rev);
     if (ad) {
-      accumulate(byAd, normalizeAdName(ad), taken, isDeal, cash, rev);
-      accumulate(byAd, ad,                  taken, isDeal, cash, rev);
+      const normAd = normalizeAdName(ad);
+      accumulate(byAd, normAd, taken, isDeal, cash, rev);
+      // Only store raw name separately if it differs from normalized
+      // (avoids double-counting rows where col G already has no prefix)
+      if (normAd !== ad) accumulate(byAd, ad, taken, isDeal, cash, rev);
     }
   }
 

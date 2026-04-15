@@ -51,9 +51,11 @@ const fi      = (hdrs: string[], kws: string[]) =>
   hdrs.findIndex((h) => kws.every((k) => h.includes(k)));
 
 function adNameMatches(rowAdName: string, target: string): boolean {
-  const norm = normalizeAdName(rowAdName).toLowerCase();
-  const tgt  = normalizeAdName(target).toLowerCase();
-  return norm === tgt || norm.includes(tgt) || tgt.includes(norm) || rowAdName.toLowerCase() === target.toLowerCase();
+  // Mirror the table's exact key lookup: normalizeAdName(colG) === normalizeAdName(metaAdName).
+  // No substring matching — avoids false positives like "1007.5" matching "1007.5.1".
+  const normRow = normalizeAdName(rowAdName).toLowerCase();
+  const normTgt = normalizeAdName(target).toLowerCase();
+  return normRow === normTgt || rowAdName.toLowerCase() === target.toLowerCase();
 }
 
 // ─── Leads ────────────────────────────────────────────────────────────────────
