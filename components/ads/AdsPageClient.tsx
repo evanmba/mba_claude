@@ -1,7 +1,7 @@
 "use client";
 
-import { GradeBreakdownView } from "./GradeBreakdownView";
+import { AdLibraryView } from "./AdLibraryView";
 
 export function AdsPageClient() {
-  return <GradeBreakdownView />;
+  return <AdLibraryView />;
 }

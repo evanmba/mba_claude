@@ -212,6 +212,89 @@ function windowToDateParam(window: AdWindow): string {
   return `time_range=${encodeURIComponent(JSON.stringify({ since: fmt(since), until: fmt(until) }))}`;
 }
 
+// ─── Ad Library helpers ───────────────────────────────────────────────────────
+
+export interface AdThumbnailInfo {
+  adId:        string;
+  adName:      string;
+  adSetId:     string;
+  thumbnailUrl: string;
+}
+
+/** All ad sets across all campaigns that had spend in the window. */
+export async function fetchAllAdSetsWithSpend(window: AdWindow): Promise<MetaAdSetRow[]> {
+  const token     = process.env.META_ADS_ACCESS_TOKEN;
+  const accountId = process.env.META_ADS_ACCOUNT_ID;
+  if (!token || !accountId) return [];
+  const acct     = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
+  const datePart = windowToDateParam(window);
+  const url      = `${GRAPH}/${acct}/insights?level=adset&${datePart}&fields=adset_id,adset_name,campaign_id,campaign_name,spend&limit=500&access_token=${token}`;
+  try {
+    const raw = await fetchAllFresh(url);
+    return raw
+      .filter((r) => parseFloat((r["spend"] as string) ?? "0") > 0)
+      .map((r) => ({
+        id:           (r["adset_id"]      as string) ?? "",
+        name:         (r["adset_name"]    as string) ?? "",
+        campaignId:   (r["campaign_id"]   as string) ?? "",
+        campaignName: (r["campaign_name"] as string) ?? "",
+        spend:        parseFloat((r["spend"] as string) ?? "0"),
+      }))
+      .filter((r) => r.name)
+      .sort((a, b) => b.spend - a.spend);
+  } catch { return []; }
+}
+
+/**
+ * For a list of ad set IDs, fetches all ads (creative thumbnail + name).
+ * Used to build the adset library (thumbnail per adset, count per adset).
+ */
+export async function fetchAdThumbnailsForAdSets(adSetIds: string[]): Promise<AdThumbnailInfo[]> {
+  if (!adSetIds.length) return [];
+  const token     = process.env.META_ADS_ACCESS_TOKEN;
+  const accountId = process.env.META_ADS_ACCOUNT_ID;
+  if (!token || !accountId) return [];
+  const acct      = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
+  const filtering = encodeURIComponent(JSON.stringify([{ field: "adset.id", operator: "IN", value: adSetIds }]));
+  const url       = `${GRAPH}/${acct}/ads?fields=id,name,adset_id,creative%7Bthumbnail_url%2Cimage_url%7D&filtering=${filtering}&limit=1000&access_token=${token}`;
+  try {
+    const raw = await fetchAllFresh(url);
+    return raw.map((r) => {
+      const creative = (r["creative"] ?? {}) as Record<string, string>;
+      return {
+        adId:         (r["id"]       as string) ?? "",
+        adName:       (r["name"]     as string) ?? "",
+        adSetId:      (r["adset_id"] as string) ?? "",
+        thumbnailUrl: creative["thumbnail_url"] ?? creative["image_url"] ?? "",
+      };
+    }).filter((r) => r.adId && r.adSetId);
+  } catch { return []; }
+}
+
+/**
+ * For a single ad set, returns Map<adId, thumbnailUrl>.
+ * Used in the creatives drill-down view.
+ */
+export async function fetchAdThumbnailsForAdSet(adSetId: string): Promise<Map<string, string>> {
+  const token     = process.env.META_ADS_ACCESS_TOKEN;
+  const accountId = process.env.META_ADS_ACCOUNT_ID;
+  if (!token || !accountId) return new Map();
+  const acct      = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
+  const filtering = encodeURIComponent(JSON.stringify([{ field: "adset.id", operator: "EQUAL", value: adSetId }]));
+  const url       = `${GRAPH}/${acct}/ads?fields=id,creative%7Bthumbnail_url%2Cimage_url%7D&filtering=${filtering}&limit=500&access_token=${token}`;
+  try {
+    const raw  = await fetchAllFresh(url);
+    const map  = new Map<string, string>();
+    for (const r of raw) {
+      const adId    = (r["id"] as string) ?? "";
+      const creative = (r["creative"] ?? {}) as Record<string, string>;
+      const thumb   = creative["thumbnail_url"] ?? creative["image_url"] ?? "";
+      if (adId && thumb) map.set(adId, thumb);
+    }
+    return map;
+  } catch { return new Map(); }
+}
+
 export async function fetchAdSpendByIds(
   adIds: string[],
   window: AdWindow,
