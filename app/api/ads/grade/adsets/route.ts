@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { fetchAdSetsForCampaign, fetchAdsForCampaign } from "@/lib/meta";
+import { fetchAdSetsForCampaign, fetchAdsForCampaign, fetchAdSetEffectiveStatuses } from "@/lib/meta";
 import { fetchGradeLeads, normalizeAdName } from "@/lib/gradeLeads";
 import { fetchCallSourceLeads }             from "@/lib/callSourceLeads";
 import type { AdWindow, MetaAdRow }         from "@/lib/meta";
@@ -43,9 +43,10 @@ export async function GET(req: NextRequest) {
 
   if (!campaignId) return Response.json({ error: "campaignId required" }, { status: 400 });
 
-  // Fetch ad sets + all ads in this campaign + sheet data in parallel
-  const [adSets, campaignAds, gradeData, callData] = await Promise.all([
+  // Fetch ad sets + statuses + all ads in this campaign + sheet data in parallel
+  const [adSets, adSetStatuses, campaignAds, gradeData, callData] = await Promise.all([
     fetchAdSetsForCampaign(campaignId, w),
+    fetchAdSetEffectiveStatuses(campaignId),
     fetchAdsForCampaign(campaignId, w),
     fetchGradeLeads(w),
     fetchCallSourceLeads(w),
@@ -58,7 +59,9 @@ export async function GET(req: NextRequest) {
     adsBySet.get(ad.adSetId)!.push(ad);
   }
 
-  const rows: GradeRow[] = adSets.map((as) => {
+  const rows: GradeRow[] = adSets
+    .filter((as) => adSetStatuses.get(as.id) === "ACTIVE")
+    .map((as) => {
     const ads = adsBySet.get(as.id) ?? [];
     const { totalLeads, graded, g11, booked, taken, deals, cash, rev } =
       sumAdStats(ads, gradeData, callData);

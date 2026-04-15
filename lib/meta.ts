@@ -170,6 +170,24 @@ export async function fetchAdSetsForCampaign(
   } catch { return []; }
 }
 
+/**
+ * Returns a map of adSetId → effective_status for all ad sets in a campaign.
+ * effective_status accounts for parent campaign status (e.g. CAMPAIGN_PAUSED).
+ */
+export async function fetchAdSetEffectiveStatuses(
+  campaignId: string,
+): Promise<Map<string, string>> {
+  const token     = process.env.META_ADS_ACCESS_TOKEN;
+  const accountId = process.env.META_ADS_ACCOUNT_ID;
+  if (!token || !accountId) return new Map();
+  const acct = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
+  const url  = `${GRAPH}/${campaignId}/adsets?fields=id,effective_status&limit=500&access_token=${token}`;
+  try {
+    const raw = await fetchAllFresh(url);
+    return new Map(raw.map((r) => [r["id"] as string, (r["effective_status"] ?? "UNKNOWN") as string]));
+  } catch { return new Map(); }
+}
+
 export async function fetchAdsForAdSet(
   adSetId: string,
   window: AdWindow,
