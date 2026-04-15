@@ -40,14 +40,6 @@ function parseSheetDate(s: string): Date | null {
   return new Date(y, m - 1, d);
 }
 
-function windowDates(w: AdWindow): { since: Date; until: Date } {
-  const days  = w === "7d" ? 7 : w === "14d" ? 14 : 30;
-  const until = new Date(); until.setHours(23, 59, 59, 999);
-  const since = new Date(); since.setHours(0, 0, 0, 0);
-  since.setDate(since.getDate() - days);
-  return { since, until };
-}
-
 /** Strip "TOF ", "CBO ", "MBA | " etc. from ad names for matching. */
 export function normalizeAdName(name: string): string {
   const pipeIdx = name.indexOf(" | ");
@@ -152,12 +144,21 @@ export function parseGradeLeads(rows: string[][], since: Date, until: Date): Gra
 
 // ─── Fetcher ───────────────────────────────────────────────────────────────────
 
-export async function fetchGradeLeads(window: AdWindow): Promise<GradeLeadsResult> {
+/**
+ * Grade tracking started on April 15, 2026 — the date column K was added.
+ * Leads before this date have no grade data and must be excluded so they
+ * don't drag the 11th-grade percentage down artificially.
+ * This date is independent of the Meta spend window.
+ */
+const GRADE_TRACKING_START = new Date(2026, 3, 15); // month is 0-based → April
+
+export async function fetchGradeLeads(_window: AdWindow): Promise<GradeLeadsResult> {
   const apiKey = process.env.SHEETS_API_KEY
     ?? process.env.GOOGLE_SHEETS_API_KEY
     ?? process.env.GOOGLE_MASTER_SHEETS_API_KEY
     ?? "";
-  const rows         = await fetchSheetValues(FUNNEL_SHEET_ID, "LEADS", apiKey).catch(() => [] as string[][]);
-  const { since, until } = windowDates(window);
+  const rows  = await fetchSheetValues(FUNNEL_SHEET_ID, "LEADS", apiKey).catch(() => [] as string[][]);
+  const since = GRADE_TRACKING_START;
+  const until = new Date(); until.setHours(23, 59, 59, 999);
   return parseGradeLeads(rows, since, until);
 }
