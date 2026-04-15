@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { ChevronRight, ChevronLeft, Layers, LayoutList, ImageIcon } from "lucide-react";
 import type { GradeRow } from "@/app/api/ads/grade/campaigns/route";
+import { MetricDetailModal } from "./MetricDetailModal";
+import type { DetailType } from "./MetricDetailModal";
 
 type Level  = "campaigns" | "adsets" | "ads";
 type Window = "7d" | "14d" | "month";
@@ -78,7 +80,48 @@ function Thumbnail({ url }: { url?: string }) {
   );
 }
 
-function DataRow({ row, level, onClick, i }: { row: GradeRow; level: Level; onClick?: () => void; i: number }) {
+function ClickableMetric({
+  value, color, onClick,
+}: {
+  value: string | number | null;
+  color: string;
+  onClick?: () => void;
+}) {
+  const [hov, setHov] = useState(false);
+  const isClickable = !!onClick;
+  const display = value !== null && value !== 0 && value !== "—" ? value : "—";
+  const hasValue = display !== "—";
+
+  return (
+    <span
+      onClick={isClickable && hasValue ? onClick : undefined}
+      onMouseEnter={() => isClickable && hasValue && setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        fontSize: 12,
+        fontWeight: hasValue ? 700 : 400,
+        color: hasValue ? (hov ? "#fff" : color) : MUTED,
+        cursor: isClickable && hasValue ? "pointer" : "default",
+        textDecoration: hov && hasValue ? "underline" : "none",
+        padding: isClickable && hasValue ? "2px 4px" : undefined,
+        borderRadius: 4,
+        background: hov && hasValue ? "rgba(255,255,255,0.06)" : "transparent",
+      }}
+    >
+      {display}
+    </span>
+  );
+}
+
+function DataRow({
+  row, level, onClick, onMetricClick, i,
+}: {
+  row: GradeRow;
+  level: Level;
+  onClick?: () => void;
+  onMetricClick?: (type: DetailType) => void;
+  i: number;
+}) {
   const [hov, setHov] = useState(false);
   const canDrill = level !== "ads";
   const isAds    = level === "ads";
@@ -106,9 +149,11 @@ function DataRow({ row, level, onClick, i }: { row: GradeRow; level: Level; onCl
 
       {/* Leads */}
       <Cell right style={{ background: rowBg }}>
-        <span style={{ fontSize: 12, color: row.totalLeads > 0 ? "#e2e8f0" : MUTED }}>
-          {row.totalLeads > 0 ? row.totalLeads : "—"}
-        </span>
+        <ClickableMetric
+          value={row.totalLeads > 0 ? row.totalLeads : null}
+          color="#e2e8f0"
+          onClick={isAds ? () => onMetricClick?.("leads") : undefined}
+        />
       </Cell>
 
       {/* CPL */}
@@ -134,9 +179,11 @@ function DataRow({ row, level, onClick, i }: { row: GradeRow; level: Level; onCl
 
       {/* Booked */}
       <Cell right style={{ background: rowBg }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: row.bookedCalls > 0 ? "#60a5fa" : MUTED }}>
-          {row.bookedCalls > 0 ? row.bookedCalls : "—"}
-        </span>
+        <ClickableMetric
+          value={row.bookedCalls > 0 ? row.bookedCalls : null}
+          color="#60a5fa"
+          onClick={isAds ? () => onMetricClick?.("booked") : undefined}
+        />
       </Cell>
 
       {/* CPC */}
@@ -148,9 +195,11 @@ function DataRow({ row, level, onClick, i }: { row: GradeRow; level: Level; onCl
 
       {/* Taken */}
       <Cell right style={{ background: rowBg }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: row.takenCalls > 0 ? "#a78bfa" : MUTED }}>
-          {row.takenCalls > 0 ? row.takenCalls : "—"}
-        </span>
+        <ClickableMetric
+          value={row.takenCalls > 0 ? row.takenCalls : null}
+          color="#a78bfa"
+          onClick={isAds ? () => onMetricClick?.("taken") : undefined}
+        />
       </Cell>
 
       {/* CPT */}
@@ -162,9 +211,11 @@ function DataRow({ row, level, onClick, i }: { row: GradeRow; level: Level; onCl
 
       {/* Deals */}
       <Cell right style={{ background: rowBg }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: row.deals > 0 ? "#f59e0b" : MUTED }}>
-          {row.deals > 0 ? row.deals : "—"}
-        </span>
+        <ClickableMetric
+          value={row.deals > 0 ? row.deals : null}
+          color="#f59e0b"
+          onClick={isAds ? () => onMetricClick?.("deals") : undefined}
+        />
       </Cell>
 
       {/* Cost/Deal */}
@@ -205,6 +256,11 @@ function DataRow({ row, level, onClick, i }: { row: GradeRow; level: Level; onCl
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
+interface ModalState {
+  type:    DetailType;
+  adName:  string;
+}
+
 export function GradeBreakdownView() {
   const [win, setWin]       = useState<Window>("7d");
   const [level, setLevel]   = useState<Level>("campaigns");
@@ -214,6 +270,7 @@ export function GradeBreakdownView() {
 
   const [campaign, setCampaign] = useState<{ id: string; name: string } | null>(null);
   const [adSet,    setAdSet]    = useState<{ id: string; name: string } | null>(null);
+  const [modal,    setModal]    = useState<ModalState | null>(null);
 
   const load = useCallback(async () => {
     setLoad(true); setError(null);
@@ -269,6 +326,15 @@ export function GradeBreakdownView() {
   const tot11     = rows.reduce((s, r) => s + r.grade11, 0);
 
   return (
+    <>
+    {modal && (
+      <MetricDetailModal
+        type={modal.type}
+        adName={modal.adName}
+        window={win}
+        onClose={() => setModal(null)}
+      />
+    )}
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
       {/* Controls row */}
@@ -367,6 +433,11 @@ export function GradeBreakdownView() {
                   : level === "adsets" ? () => drillAdSet(row)
                   : undefined
                 }
+                onMetricClick={
+                  level === "ads"
+                    ? (type) => setModal({ type, adName: row.name })
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -399,5 +470,6 @@ export function GradeBreakdownView() {
         )}
       </div>
     </div>
+    </>
   );
 }
