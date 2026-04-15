@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { ChevronRight, ChevronLeft, Layers, LayoutList, ImageIcon } from "lucide-react";
 import type { GradeRow } from "@/app/api/ads/grade/campaigns/route";
 import { MetricDetailModal } from "./MetricDetailModal";
 import type { DetailType } from "./MetricDetailModal";
 
-type Level  = "campaigns" | "adsets" | "ads";
-type Window = "7d" | "14d" | "month";
+type Level   = "campaigns" | "adsets" | "ads";
+type Window  = "7d" | "14d" | "month";
+type SortKey = "name" | "spend" | "leads" | "cpl" | "pct11" | "costPer11" | "booked" | "cpc" | "taken" | "cpt" | "deals" | "cpd" | "cashRoas" | "revRoas";
+type SortDir = "asc" | "desc";
 
 const BG     = "#0b1628";
 const CARD   = "#0f172a";
@@ -42,10 +44,36 @@ const fmtRoas = (n: number) =>
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
-function Hdr({ children, right, white }: { children: React.ReactNode; right?: boolean; white?: boolean }) {
+function SortHdr({ col, active, dir, onSort, right, children }: {
+  col: SortKey; active: boolean; dir: SortDir;
+  onSort: (c: SortKey) => void; right?: boolean; children: React.ReactNode;
+}) {
+  const [hov, setHov] = useState(false);
+  const arrow = active ? (dir === "asc" ? "▲" : "▼") : (hov ? "▼" : "");
   return (
-    <div style={{ fontSize: 10, color: white ? "#e2e8f0" : MUTED, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: right ? "right" : "left", padding: "8px 10px" }}>
+    <div
+      onClick={() => onSort(col)}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        fontSize: 10,
+        color: active ? "#e2e8f0" : hov ? "#94a3b8" : MUTED,
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        padding: "8px 10px",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: right ? "flex-end" : "flex-start",
+        gap: 4,
+        userSelect: "none",
+        background: active ? "rgba(59,130,246,0.10)" : hov ? "rgba(255,255,255,0.03)" : "transparent",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {right && arrow && <span style={{ fontSize: 8, opacity: active ? 1 : 0.4 }}>{arrow}</span>}
       {children}
+      {!right && arrow && <span style={{ fontSize: 8, opacity: active ? 1 : 0.4 }}>{arrow}</span>}
     </div>
   );
 }
@@ -271,6 +299,50 @@ export function GradeBreakdownView() {
   const [campaign, setCampaign] = useState<{ id: string; name: string } | null>(null);
   const [adSet,    setAdSet]    = useState<{ id: string; name: string } | null>(null);
   const [modal,    setModal]    = useState<ModalState | null>(null);
+  const [sortKey,  setSortKey]  = useState<SortKey | null>(null);
+  const [sortDir,  setSortDir]  = useState<SortDir>("desc");
+
+  function handleSort(col: SortKey) {
+    if (sortKey === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(col);
+      setSortDir(col === "name" ? "asc" : "desc");
+    }
+  }
+
+  const sortedRows = useMemo(() => {
+    if (!sortKey) return rows;
+    return [...rows].sort((a, b) => {
+      let va: number | string, vb: number | string;
+      const cplA = a.totalLeads > 0 ? a.spend / a.totalLeads : 0;
+      const cplB = b.totalLeads > 0 ? b.spend / b.totalLeads : 0;
+      const crA  = a.cashCollected > 0 && a.spend > 0 ? a.cashCollected / a.spend : 0;
+      const crB  = b.cashCollected > 0 && b.spend > 0 ? b.cashCollected / b.spend : 0;
+      const rrA  = a.revenue > 0 && a.spend > 0 ? a.revenue / a.spend : 0;
+      const rrB  = b.revenue > 0 && b.spend > 0 ? b.revenue / b.spend : 0;
+      switch (sortKey) {
+        case "name":      va = a.name.toLowerCase();  vb = b.name.toLowerCase();  break;
+        case "spend":     va = a.spend;               vb = b.spend;               break;
+        case "leads":     va = a.totalLeads;          vb = b.totalLeads;          break;
+        case "cpl":       va = cplA;                  vb = cplB;                  break;
+        case "pct11":     va = a.pct11;               vb = b.pct11;               break;
+        case "costPer11": va = a.costPer11;           vb = b.costPer11;           break;
+        case "booked":    va = a.bookedCalls;         vb = b.bookedCalls;         break;
+        case "cpc":       va = a.costPerBooked;       vb = b.costPerBooked;       break;
+        case "taken":     va = a.takenCalls;          vb = b.takenCalls;          break;
+        case "cpt":       va = a.costPerTaken;        vb = b.costPerTaken;        break;
+        case "deals":     va = a.deals;               vb = b.deals;               break;
+        case "cpd":       va = a.costPerDeal;         vb = b.costPerDeal;         break;
+        case "cashRoas":  va = crA;                   vb = crB;                   break;
+        case "revRoas":   va = rrA;                   vb = rrB;                   break;
+        default:          return 0;
+      }
+      if (typeof va === "string" && typeof vb === "string")
+        return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
+      return sortDir === "asc" ? (va as number) - (vb as number) : (vb as number) - (va as number);
+    });
+  }, [rows, sortKey, sortDir]);
 
   const load = useCallback(async () => {
     setLoad(true); setError(null);
@@ -389,20 +461,11 @@ export function GradeBreakdownView() {
 
           {/* Column headers */}
           <div style={{ display: "grid", gridTemplateColumns: COLS, borderBottom: `1px solid ${BORDER}` }}>
-            <Hdr>Name</Hdr>
-            <Hdr right white>Spend</Hdr>
-            <Hdr right white>Leads</Hdr>
-            <Hdr right white>CPL</Hdr>
-            <Hdr right white>11th%</Hdr>
-            <Hdr right white>11th CPL</Hdr>
-            <Hdr right white>Booked</Hdr>
-            <Hdr right white>CPC</Hdr>
-            <Hdr right white>Taken</Hdr>
-            <Hdr right white>CPT</Hdr>
-            <Hdr right white>Deals</Hdr>
-            <Hdr right white>Cost/Deal</Hdr>
-            <Hdr right white>Cash ROAS</Hdr>
-            <Hdr right white>Rev ROAS</Hdr>
+            {(["name","spend","leads","cpl","pct11","costPer11","booked","cpc","taken","cpt","deals","cpd","cashRoas","revRoas"] as SortKey[]).map((col, idx) => (
+              <SortHdr key={col} col={col} active={sortKey === col} dir={sortDir} onSort={handleSort} right={idx > 0}>
+                {(["Name","Spend","Leads","CPL","11th%","11th CPL","Booked","CPC","Taken","CPT","Deals","Cost/Deal","Cash ROAS","Rev ROAS"])[idx]}
+              </SortHdr>
+            ))}
           </div>
 
           {/* Data rows */}
@@ -422,7 +485,7 @@ export function GradeBreakdownView() {
                 No data for this period.
               </div>
             )}
-            {!loading && !error && rows.map((row, i) => (
+            {!loading && !error && sortedRows.map((row, i) => (
               <DataRow
                 key={row.id}
                 row={row}
