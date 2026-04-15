@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { SpendCards } from "@/components/ads/AdSetsView";
+import { AdsPageClient } from "@/components/ads/AdsPageClient";
 import { fetchMainCreativeSpend } from "@/lib/attribution";
 import type { AdWindow } from "@/lib/attribution";
 
@@ -45,9 +46,11 @@ export default async function AdsPage({
             CBO Winners · calls from Call Source sheet
           </p>
         </div>
-        <Suspense fallback={<CardsSkeleton />}>
-          <Cards window={window} />
-        </Suspense>
+        <AdsPageClient window={window}>
+          <Suspense fallback={<CardsSkeleton />}>
+            <Cards window={window} />
+          </Suspense>
+        </AdsPageClient>
       </div>
     </DashboardLayout>
   );

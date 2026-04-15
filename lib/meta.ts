@@ -102,7 +102,101 @@ export async function fetchMetaSpend(
   }
 }
 
-// ─── Spend for specific ad IDs across a time window ───────────────────────────
+// ─── Hierarchy fetchers (for Grade Breakdown drill-down) ─────────────────────
+
+export interface MetaAdSetRow {
+  id: string;
+  name: string;
+  spend: number;
+  campaignId: string;
+  campaignName: string;
+}
+
+export interface MetaAdRow {
+  id: string;
+  name: string;
+  spend: number;
+  adSetId: string;
+  adSetName: string;
+  campaignId: string;
+  campaignName: string;
+}
+
+export async function fetchCampaignsWithSpend(window: AdWindow): Promise<MetaInsightRow[]> {
+  const token     = process.env.META_ADS_ACCESS_TOKEN;
+  const accountId = process.env.META_ADS_ACCOUNT_ID;
+  if (!token || !accountId) return [];
+  const acct     = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
+  const datePart = windowToDateParam(window);
+  const url      = `${GRAPH}/${acct}/insights?level=campaign&${datePart}&fields=campaign_id,campaign_name,spend&limit=500&access_token=${token}`;
+  try {
+    const raw = await fetchAllFresh(url);
+    return raw
+      .filter((r) => parseFloat((r["spend"] as string) ?? "0") > 0)
+      .map((r) => ({
+        id:           (r["campaign_id"]   as string) ?? "",
+        name:         (r["campaign_name"] as string) ?? "",
+        campaignName: (r["campaign_name"] as string) ?? "",
+        spend:        parseFloat((r["spend"] as string) ?? "0"),
+        impressions: 0, reach: 0, clicks: 0, cpm: 0, cpc: 0, ctr: 0, status: "",
+      }))
+      .filter((r) => r.name);
+  } catch { return []; }
+}
+
+export async function fetchAdSetsForCampaign(
+  campaignId: string,
+  window: AdWindow,
+): Promise<MetaAdSetRow[]> {
+  const token     = process.env.META_ADS_ACCESS_TOKEN;
+  const accountId = process.env.META_ADS_ACCOUNT_ID;
+  if (!token || !accountId) return [];
+  const acct      = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
+  const datePart  = windowToDateParam(window);
+  const filtering = encodeURIComponent(JSON.stringify([{ field: "campaign.id", operator: "EQUAL", value: campaignId }]));
+  const url       = `${GRAPH}/${acct}/insights?level=adset&${datePart}&fields=adset_id,adset_name,campaign_id,campaign_name,spend&filtering=${filtering}&limit=500&access_token=${token}`;
+  try {
+    const raw = await fetchAllFresh(url);
+    return raw
+      .filter((r) => parseFloat((r["spend"] as string) ?? "0") > 0)
+      .map((r) => ({
+        id:           (r["adset_id"]     as string) ?? "",
+        name:         (r["adset_name"]   as string) ?? "",
+        campaignId:   (r["campaign_id"]  as string) ?? "",
+        campaignName: (r["campaign_name"]as string) ?? "",
+        spend:        parseFloat((r["spend"] as string) ?? "0"),
+      }))
+      .filter((r) => r.name);
+  } catch { return []; }
+}
+
+export async function fetchAdsForAdSet(
+  adSetId: string,
+  window: AdWindow,
+): Promise<MetaAdRow[]> {
+  const token     = process.env.META_ADS_ACCESS_TOKEN;
+  const accountId = process.env.META_ADS_ACCOUNT_ID;
+  if (!token || !accountId) return [];
+  const acct      = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
+  const datePart  = windowToDateParam(window);
+  const filtering = encodeURIComponent(JSON.stringify([{ field: "adset.id", operator: "EQUAL", value: adSetId }]));
+  const url       = `${GRAPH}/${acct}/insights?level=ad&${datePart}&fields=ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,spend&filtering=${filtering}&limit=500&access_token=${token}`;
+  try {
+    const raw = await fetchAllFresh(url);
+    return raw
+      .filter((r) => parseFloat((r["spend"] as string) ?? "0") > 0)
+      .map((r) => ({
+        id:           (r["ad_id"]        as string) ?? "",
+        name:         (r["ad_name"]      as string) ?? "",
+        adSetId:      (r["adset_id"]     as string) ?? "",
+        adSetName:    (r["adset_name"]   as string) ?? "",
+        campaignId:   (r["campaign_id"]  as string) ?? "",
+        campaignName: (r["campaign_name"]as string) ?? "",
+        spend:        parseFloat((r["spend"] as string) ?? "0"),
+      }))
+      .filter((r) => r.name);
+  } catch { return []; }
+}
 
 export type AdWindow = "4d" | "7d" | "14d" | "month";
 

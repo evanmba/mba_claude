@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import type { AdWindow } from "@/lib/attribution";
-import { AdsAIChat } from "./AdsAIChat";
-import { LandingPageView } from "./LandingPageView";
+import { GradeBreakdownView } from "./GradeBreakdownView";
 
 const BORDER = "rgba(255,255,255,0.07)";
 
@@ -12,12 +11,11 @@ interface Props {
   children: React.ReactNode; // the SpendCards (already rendered server-side)
 }
 
-type Tab = "overview" | "landing" | "ai";
+type Tab = "overview" | "grade";
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: "overview", label: "Overview"               },
-  { key: "landing",  label: "Landing Page Split Test" },
-  { key: "ai",       label: "AI Chat"                },
+  { key: "overview", label: "Ad Creatives"     },
+  { key: "grade",    label: "Grade Breakdown"  },
 ];
 
 export function AdsPageClient({ window, children }: Props) {
@@ -44,8 +42,7 @@ export function AdsPageClient({ window, children }: Props) {
       </div>
 
       {tab === "overview" && children}
-      {tab === "landing"  && <LandingPageView />}
-      {tab === "ai"       && <AdsAIChat window={window} />}
+      {tab === "grade"    && <GradeBreakdownView />}
     </>
   );
 }
