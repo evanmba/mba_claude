@@ -188,6 +188,19 @@ export async function fetchAdSetEffectiveStatuses(
   } catch { return new Map(); }
 }
 
+/** Returns a map of adSetId → effective_status for ALL ad sets in the account. */
+export async function fetchAllAdSetEffectiveStatuses(): Promise<Map<string, string>> {
+  const token     = process.env.META_ADS_ACCESS_TOKEN;
+  const accountId = process.env.META_ADS_ACCOUNT_ID;
+  if (!token || !accountId) return new Map();
+  const acct = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
+  const url  = `${GRAPH}/${acct}/adsets?fields=id,effective_status&limit=500&access_token=${token}`;
+  try {
+    const raw = await fetchAllFresh(url);
+    return new Map(raw.map((r) => [r["id"] as string, (r["effective_status"] ?? "UNKNOWN") as string]));
+  } catch { return new Map(); }
+}
+
 export async function fetchAdsForAdSet(
   adSetId: string,
   window: AdWindow,

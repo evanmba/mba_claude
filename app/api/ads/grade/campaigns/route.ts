@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { fetchCampaignsWithSpend, fetchAllAdsWithSpend } from "@/lib/meta";
+import { fetchCampaignsWithSpend, fetchAllAdsWithSpend, fetchAllAdSetEffectiveStatuses } from "@/lib/meta";
 import { fetchGradeLeads, normalizeAdName }              from "@/lib/gradeLeads";
 import { fetchCallSourceLeads }                          from "@/lib/callSourceLeads";
 import type { AdWindow, MetaAdRow }                      from "@/lib/meta";
@@ -58,16 +58,20 @@ export async function GET(req: NextRequest) {
   const w = (req.nextUrl.searchParams.get("window") ?? "7d") as AdWindow;
 
   // Campaign spend from Meta (authoritative) + all ads for bottom-up attribution rollup
-  const [campaigns, allAds, gradeData, callData] = await Promise.all([
+  const [campaigns, allAds, adSetStatuses, gradeData, callData] = await Promise.all([
     fetchCampaignsWithSpend(w),
     fetchAllAdsWithSpend(w),
+    fetchAllAdSetEffectiveStatuses(),
     fetchGradeLeads(w),
     fetchCallSourceLeads(w),
   ]);
 
-  // Group ads by campaignId for bottom-up aggregation
+  // Only include ads from ACTIVE ad sets (matches the adsets view filter)
+  const activeAds = allAds.filter((ad) => adSetStatuses.get(ad.adSetId) === "ACTIVE");
+
+  // Group active ads by campaignId for bottom-up aggregation
   const adsByCampaign = new Map<string, MetaAdRow[]>();
-  for (const ad of allAds) {
+  for (const ad of activeAds) {
     if (!adsByCampaign.has(ad.campaignId)) adsByCampaign.set(ad.campaignId, []);
     adsByCampaign.get(ad.campaignId)!.push(ad);
   }
@@ -79,7 +83,7 @@ export async function GET(req: NextRequest) {
       return n.includes("winner") || n.includes("test");
     })
     .map((c) => {
-      const ads = adsByCampaign.get(c.id) ?? [];
+      const ads = adsByCampaign.get(c.id) ?? [];  // only ads from ACTIVE ad sets
       const { totalLeads, graded, g11, booked, taken, deals, cash, rev } =
         sumAdStats(ads, gradeData, callData);
 
