@@ -38,20 +38,6 @@ const fmtDec = (n: number) =>
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
-function PctBar({ pct }: { pct: number }) {
-  const color = pct11Color(pct);
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, width: "100%" }}>
-      <div style={{ flex: 1, height: 6, borderRadius: 3, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
-        <div style={{ height: "100%", borderRadius: 3, background: color, width: `${Math.min(100, pct)}%`, transition: "width 0.5s ease" }} />
-      </div>
-      <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 36, textAlign: "right" }}>
-        {pct.toFixed(1)}%
-      </span>
-    </div>
-  );
-}
-
 function Hdr({ children, right, white }: { children: React.ReactNode; right?: boolean; white?: boolean }) {
   return (
     <div style={{ fontSize: 10, color: white ? "#e2e8f0" : MUTED, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: right ? "right" : "left", padding: "8px 12px" }}>
@@ -73,6 +59,8 @@ function DataRow({ row, level, onClick, i }: { row: GradeRow; level: Level; onCl
   const canDrill = level !== "ads";
   const rowBg = hov ? "rgba(59,130,246,0.07)" : i % 2 === 0 ? "rgba(255,255,255,0.018)" : "transparent";
 
+  const cpl = row.totalLeads > 0 ? row.spend / row.totalLeads : 0;
+
   const cells = (
     <>
       {/* Name */}
@@ -88,20 +76,6 @@ function DataRow({ row, level, onClick, i }: { row: GradeRow; level: Level; onCl
         <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>{fmt$(row.spend)}</span>
       </Cell>
 
-      {/* Booked Calls */}
-      <Cell right style={{ background: rowBg }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: row.bookedCalls > 0 ? "#60a5fa" : MUTED }}>
-          {row.bookedCalls > 0 ? row.bookedCalls : "—"}
-        </span>
-      </Cell>
-
-      {/* Cost / Booked Call */}
-      <Cell right style={{ background: rowBg }}>
-        <span style={{ fontSize: 12, color: row.costPerBooked > 0 ? "#34d399" : MUTED }}>
-          {row.costPerBooked > 0 ? fmtDec(row.costPerBooked) : "—"}
-        </span>
-      </Cell>
-
       {/* Leads */}
       <Cell right style={{ background: rowBg }}>
         <span style={{ fontSize: 13, color: row.totalLeads > 0 ? "#e2e8f0" : MUTED }}>
@@ -109,24 +83,38 @@ function DataRow({ row, level, onClick, i }: { row: GradeRow; level: Level; onCl
         </span>
       </Cell>
 
-      {/* 11th Grade */}
+      {/* CPL */}
       <Cell right style={{ background: rowBg }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: row.grade11 > 0 ? "#a78bfa" : MUTED }}>
-          {row.grade11 > 0 ? row.grade11 : "—"}
+        <span style={{ fontSize: 12, color: cpl > 0 ? "#34d399" : MUTED }}>
+          {cpl > 0 ? fmtDec(cpl) : "—"}
         </span>
       </Cell>
 
-      {/* % 11th */}
-      <Cell style={{ background: rowBg }}>
-        {row.totalLeads > 0
-          ? <PctBar pct={row.pct11} />
-          : <span style={{ fontSize: 11, color: MUTED }}>—</span>}
+      {/* 11th% */}
+      <Cell right style={{ background: rowBg }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: row.totalLeads > 0 ? pct11Color(row.pct11) : MUTED }}>
+          {row.totalLeads > 0 ? `${row.pct11.toFixed(1)}%` : "—"}
+        </span>
       </Cell>
 
-      {/* Cost / 11th Lead */}
+      {/* 11th CPL */}
       <Cell right style={{ background: rowBg }}>
         <span style={{ fontSize: 12, color: row.costPer11 > 0 ? "#4ade80" : MUTED }}>
           {row.costPer11 > 0 ? fmtDec(row.costPer11) : "—"}
+        </span>
+      </Cell>
+
+      {/* Booked */}
+      <Cell right style={{ background: rowBg }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: row.bookedCalls > 0 ? "#60a5fa" : MUTED }}>
+          {row.bookedCalls > 0 ? row.bookedCalls : "—"}
+        </span>
+      </Cell>
+
+      {/* CPC (Cost / Booked Call) */}
+      <Cell right style={{ background: rowBg }}>
+        <span style={{ fontSize: 12, color: row.costPerBooked > 0 ? "#34d399" : MUTED }}>
+          {row.costPerBooked > 0 ? fmtDec(row.costPerBooked) : "—"}
         </span>
       </Cell>
     </>
@@ -195,8 +183,8 @@ export function GradeBreakdownView() {
 
   const LIcon = LEVEL_META[level].icon;
 
-  // Column layout — 8 columns
-  const COLS = "minmax(160px,1fr) 100px 90px 100px 72px 60px 130px 110px";
+  // Column layout — 8 columns: Name | Spend | Leads | CPL | 11th% | 11th CPL | Booked | CPC
+  const COLS = "minmax(160px,1fr) 100px 68px 100px 68px 100px 68px 100px";
 
   const totSpend  = rows.reduce((s, r) => s + r.spend, 0);
   const totBooked = rows.reduce((s, r) => s + r.bookedCalls, 0);
@@ -259,12 +247,12 @@ export function GradeBreakdownView() {
         <div style={{ display: "grid", gridTemplateColumns: COLS, borderBottom: `1px solid ${BORDER}` }}>
           <Hdr>Name</Hdr>
           <Hdr right white>Spend</Hdr>
-          <Hdr right white>Booked</Hdr>
-          <Hdr right white>$/Booked</Hdr>
           <Hdr right white>Leads</Hdr>
-          <Hdr right white>11th</Hdr>
-          <Hdr white>% 11th Grade</Hdr>
-          <Hdr right white>$/11th Lead</Hdr>
+          <Hdr right white>CPL</Hdr>
+          <Hdr right white>11th%</Hdr>
+          <Hdr right white>11th CPL</Hdr>
+          <Hdr right white>Booked</Hdr>
+          <Hdr right white>CPC</Hdr>
         </div>
 
         {/* Data rows */}
@@ -303,12 +291,13 @@ export function GradeBreakdownView() {
         {!loading && rows.length > 0 && (
           <div style={{ borderTop: `1px solid ${BORDER}`, padding: "10px 16px", display: "flex", gap: 20, flexWrap: "wrap", background: "rgba(255,255,255,0.01)" }}>
             {[
-              { label: "Total Spend",      val: fmt$(totSpend)           },
-              { label: "Booked Calls",     val: totBooked > 0 ? String(totBooked) : "—" },
-              { label: "Avg $/Booked",     val: totBooked > 0 ? fmt$(totSpend / totBooked) : "—" },
-              { label: "Total Leads",      val: totLeads > 0  ? String(totLeads)  : "—" },
-              { label: "Total 11th Grade", val: tot11 > 0     ? String(tot11)     : "—" },
-              { label: "Avg % 11th",       val: totLeads > 0  ? `${((tot11 / totLeads) * 100).toFixed(1)}%` : "—" },
+              { label: "Total Spend",  val: fmt$(totSpend) },
+              { label: "Leads",        val: totLeads > 0  ? String(totLeads)  : "—" },
+              { label: "Avg CPL",      val: totLeads > 0  ? fmt$(totSpend / totLeads) : "—" },
+              { label: "Avg 11th%",    val: totLeads > 0  ? `${((tot11 / totLeads) * 100).toFixed(1)}%` : "—" },
+              { label: "11th Grade",   val: tot11 > 0     ? String(tot11)     : "—" },
+              { label: "Booked",       val: totBooked > 0 ? String(totBooked) : "—" },
+              { label: "Avg CPC",      val: totBooked > 0 ? fmt$(totSpend / totBooked) : "—" },
             ].map((s) => (
               <div key={s.label} style={{ display: "flex", gap: 5, alignItems: "baseline" }}>
                 <span style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>{s.label}:</span>
