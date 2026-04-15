@@ -52,9 +52,9 @@ function PctBar({ pct }: { pct: number }) {
   );
 }
 
-function Hdr({ children, right }: { children: React.ReactNode; right?: boolean }) {
+function Hdr({ children, right, white }: { children: React.ReactNode; right?: boolean; white?: boolean }) {
   return (
-    <div style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: right ? "right" : "left", padding: "8px 12px" }}>
+    <div style={{ fontSize: 10, color: white ? "#e2e8f0" : MUTED, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: right ? "right" : "left", padding: "8px 12px" }}>
       {children}
     </div>
   );
@@ -258,13 +258,13 @@ export function GradeBreakdownView() {
         {/* Column headers */}
         <div style={{ display: "grid", gridTemplateColumns: COLS, borderBottom: `1px solid ${BORDER}` }}>
           <Hdr>Name</Hdr>
-          <Hdr right>Spend</Hdr>
-          <Hdr right>Booked</Hdr>
-          <Hdr right>$/Booked</Hdr>
-          <Hdr right>Leads</Hdr>
-          <Hdr right>11th</Hdr>
-          <Hdr>% 11th Grade</Hdr>
-          <Hdr right>$/11th Lead</Hdr>
+          <Hdr right white>Spend</Hdr>
+          <Hdr right white>Booked</Hdr>
+          <Hdr right white>$/Booked</Hdr>
+          <Hdr right white>Leads</Hdr>
+          <Hdr right white>11th</Hdr>
+          <Hdr white>% 11th Grade</Hdr>
+          <Hdr right white>$/11th Lead</Hdr>
         </div>
 
         {/* Data rows */}
