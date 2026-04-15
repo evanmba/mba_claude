@@ -56,9 +56,32 @@ function Cell({ children, right, style }: { children: React.ReactNode; right?: b
   );
 }
 
+function Thumbnail({ url }: { url?: string }) {
+  const [err, setErr] = useState(false);
+  if (!url || err) {
+    return (
+      <div style={{ width: 72, height: 46, borderRadius: 4, background: "#1e293b", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <ImageIcon size={16} style={{ color: "#334155" }} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={url}
+      width={72}
+      height={46}
+      referrerPolicy="no-referrer"
+      onError={() => setErr(true)}
+      style={{ width: 72, height: 46, objectFit: "cover", borderRadius: 4, flexShrink: 0, display: "block" }}
+      alt=""
+    />
+  );
+}
+
 function DataRow({ row, level, onClick, i }: { row: GradeRow; level: Level; onClick?: () => void; i: number }) {
   const [hov, setHov] = useState(false);
   const canDrill = level !== "ads";
+  const isAds    = level === "ads";
   const rowBg = hov ? "rgba(59,130,246,0.07)" : i % 2 === 0 ? "rgba(255,255,255,0.018)" : "transparent";
 
   const cpl      = row.totalLeads > 0 ? row.spend / row.totalLeads : 0;
@@ -67,8 +90,9 @@ function DataRow({ row, level, onClick, i }: { row: GradeRow; level: Level; onCl
 
   const cells = (
     <>
-      {/* Name */}
-      <Cell style={{ background: rowBg, gap: 6 }}>
+      {/* Name — includes thumbnail at ad-creative level */}
+      <Cell style={{ background: rowBg, gap: 8 }}>
+        {isAds && <Thumbnail url={row.thumbnailUrl} />}
         <span style={{ fontSize: 13, color: hov ? "#93c5fd" : "#e2e8f0", fontWeight: 500, flex: 1, wordBreak: "break-word", lineHeight: 1.3 }}>
           {row.name}
         </span>
@@ -230,7 +254,10 @@ export function GradeBreakdownView() {
   const LIcon = LEVEL_META[level].icon;
 
   // 14 columns: Name | Spend | Leads | CPL | 11th% | 11th CPL | Booked | CPC | Taken | CPT | Deals | CPD | Cash ROAS | Rev ROAS
-  const COLS = "minmax(130px,1fr) 85px 55px 80px 58px 80px 58px 80px 58px 80px 55px 80px 72px 72px";
+  // Name column is wider at ads level to fit the 72px thumbnail
+  const COLS = level === "ads"
+    ? "minmax(220px,1fr) 85px 55px 80px 58px 80px 58px 80px 58px 80px 55px 80px 72px 72px"
+    : "minmax(130px,1fr) 85px 55px 80px 58px 80px 58px 80px 58px 80px 55px 80px 72px 72px";
 
   const totSpend  = rows.reduce((s, r) => s + r.spend, 0);
   const totBooked = rows.reduce((s, r) => s + r.bookedCalls, 0);

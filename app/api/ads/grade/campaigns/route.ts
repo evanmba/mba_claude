@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 export interface GradeRow {
   id:            string;
   name:          string;
+  thumbnailUrl?: string;  // only populated at the ad-creative level
   spend:         number;
   bookedCalls:   number;
   costPerBooked: number;

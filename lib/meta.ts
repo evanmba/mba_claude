@@ -273,26 +273,44 @@ export async function fetchAdThumbnailsForAdSets(adSetIds: string[]): Promise<Ad
 
 /**
  * For a single ad set, returns Map<adId, thumbnailUrl>.
- * Used in the creatives drill-down view.
+ *
+ * Two-step approach because creative{thumbnail_url} via the ads list endpoint
+ * often returns empty for video ads:
+ *   Step 1 — get each ad's creative ID
+ *   Step 2 — call /{creativeId}?fields=thumbnail_url,image_url&thumbnail_width=300&thumbnail_height=200
+ *            which reliably returns the video cover / image thumbnail
  */
 export async function fetchAdThumbnailsForAdSet(adSetId: string): Promise<Map<string, string>> {
   const token     = process.env.META_ADS_ACCESS_TOKEN;
   const accountId = process.env.META_ADS_ACCOUNT_ID;
   if (!token || !accountId) return new Map();
   const acct      = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
+
+  // Step 1: get all ads in this adset → just need id + creative.id
   const filtering = encodeURIComponent(JSON.stringify([{ field: "adset.id", operator: "EQUAL", value: adSetId }]));
-  const url       = `${GRAPH}/${acct}/ads?fields=id,creative%7Bthumbnail_url%2Cimage_url%7D&filtering=${filtering}&limit=500&access_token=${token}`;
-  try {
-    const raw  = await fetchAllFresh(url);
-    const map  = new Map<string, string>();
-    for (const r of raw) {
-      const adId    = (r["id"] as string) ?? "";
-      const creative = (r["creative"] ?? {}) as Record<string, string>;
-      const thumb   = creative["thumbnail_url"] ?? creative["image_url"] ?? "";
-      if (adId && thumb) map.set(adId, thumb);
-    }
-    return map;
-  } catch { return new Map(); }
+  const adsUrl    = `${GRAPH}/${acct}/ads?fields=id,creative&filtering=${filtering}&limit=500&access_token=${token}`;
+
+  let adRows: Record<string, unknown>[] = [];
+  try { adRows = await fetchAllFresh(adsUrl); } catch { return new Map(); }
+
+  // Step 2: for each ad, resolve the creative thumbnail in parallel
+  const map = new Map<string, string>();
+  await Promise.all(adRows.map(async (r) => {
+    const adId      = (r["id"] as string) ?? "";
+    const creative  = (r["creative"] ?? {}) as Record<string, string>;
+    const creativeId = creative["id"] ?? "";
+    if (!adId || !creativeId) return;
+
+    try {
+      const thumbUrl = `${GRAPH}/${creativeId}?fields=thumbnail_url,image_url&thumbnail_width=300&thumbnail_height=200&access_token=${token}`;
+      const res  = await fetch(thumbUrl, { cache: "no-store" } as RequestInit);
+      const json = await res.json() as Record<string, string>;
+      const thumb = json["thumbnail_url"] ?? json["image_url"] ?? "";
+      if (thumb) map.set(adId, thumb);
+    } catch { /* skip this creative */ }
+  }));
+
+  return map;
 }
 
 export async function fetchAdSpendByIds(

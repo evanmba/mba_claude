@@ -1,5 +1,5 @@
 import { NextRequest }        from "next/server";
-import { fetchAdsForAdSet }  from "@/lib/meta";
+import { fetchAdsForAdSet, fetchAdThumbnailsForAdSet } from "@/lib/meta";
 import { fetchGradeLeads, normalizeAdName } from "@/lib/gradeLeads";
 import { fetchCallSourceLeads }             from "@/lib/callSourceLeads";
 import type { AdWindow }     from "@/lib/meta";
@@ -14,8 +14,9 @@ export async function GET(req: NextRequest) {
 
   if (!adSetId) return Response.json({ error: "adSetId required" }, { status: 400 });
 
-  const [ads, gradeData, callData] = await Promise.all([
+  const [ads, thumbnails, gradeData, callData] = await Promise.all([
     fetchAdsForAdSet(adSetId, w),
+    fetchAdThumbnailsForAdSet(adSetId),
     fetchGradeLeads(w),
     fetchCallSourceLeads(w),
   ]);
@@ -41,6 +42,7 @@ export async function GET(req: NextRequest) {
     return {
       id:            ad.id,
       name:          ad.name,
+      thumbnailUrl:  thumbnails.get(ad.id) ?? "",
       spend:         ad.spend,
       bookedCalls:   booked,
       costPerBooked: booked  > 0 ? ad.spend / booked : 0,
