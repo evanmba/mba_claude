@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
       ?? callData.byAd.get(normalizeAdName(normKey));
 
     const total  = gradeStats?.totalLeads   ?? 0;
+    const graded = gradeStats?.gradedLeads  ?? 0;
     const g11    = gradeStats?.grade11      ?? 0;
     const booked = callStats?.bookedCalls   ?? 0;
     const taken  = callStats?.takenCalls    ?? 0;
@@ -42,17 +43,17 @@ export async function GET(req: NextRequest) {
       name:          ad.name,
       spend:         ad.spend,
       bookedCalls:   booked,
-      costPerBooked: booked > 0 ? ad.spend / booked : 0,
+      costPerBooked: booked  > 0 ? ad.spend / booked : 0,
       takenCalls:    taken,
-      costPerTaken:  taken  > 0 ? ad.spend / taken  : 0,
+      costPerTaken:  taken   > 0 ? ad.spend / taken  : 0,
       deals,
-      costPerDeal:   deals  > 0 ? ad.spend / deals  : 0,
+      costPerDeal:   deals   > 0 ? ad.spend / deals  : 0,
       cashCollected: cash,
       revenue:       rev,
       totalLeads:    total,
       grade11:       g11,
-      pct11:         total > 0 ? (g11 / total) * 100 : 0,
-      costPer11:     g11   > 0 ? ad.spend / g11       : 0,
+      pct11:         graded > 0 ? (g11 / graded) * 100 : 0,
+      costPer11:     g11    > 0 ? ad.spend / g11         : 0,
     };
   }).sort((a, b) => b.spend - a.spend);
 

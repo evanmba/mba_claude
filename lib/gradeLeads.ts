@@ -4,7 +4,8 @@ import type { AdWindow } from "./meta";
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface GradeStats {
-  totalLeads: number;
+  totalLeads:  number;  // ALL leads in the selected window (used for CPL)
+  gradedLeads: number;  // Leads that have grade data (Apr 15 2026+) — pct11 denominator
   grade9:  number;
   grade10: number;
   grade11: number;
@@ -61,18 +62,12 @@ function parseGrade(s: string): 9 | 10 | 11 | 12 | null {
 }
 
 function empty(): GradeStats {
-  return { totalLeads: 0, grade9: 0, grade10: 0, grade11: 0, grade12: 0 };
+  return { totalLeads: 0, gradedLeads: 0, grade9: 0, grade10: 0, grade11: 0, grade12: 0 };
 }
 
-function add(map: Map<string, GradeStats>, key: string, grade: 9 | 10 | 11 | 12 | null) {
-  if (!key) return;
+function ensure(map: Map<string, GradeStats>, key: string): GradeStats {
   if (!map.has(key)) map.set(key, empty());
-  const s = map.get(key)!;
-  s.totalLeads++;
-  if      (grade === 9)  s.grade9++;
-  else if (grade === 10) s.grade10++;
-  else if (grade === 11) s.grade11++;
-  else if (grade === 12) s.grade12++;
+  return map.get(key)!;
 }
 
 /**
@@ -81,22 +76,35 @@ function add(map: Map<string, GradeStats>, key: string, grade: 9 | 10 | 11 | 12 
  */
 export function parseLeadSource(source: string): {
   campaignName: string;
-  adSetKey: string;     // e.g. "1008.4"
-  adName: string;       // last segment, e.g. "TOF 1008.4"
+  adSetKey: string;
+  adName: string;
   normalizedAdName: string;
 } {
   const parts = source.split(" | ");
-  // [0]=Platform [1]=Campaign [2]=AdSetKey [3]=Audience [4]=AdName
-  const campaignName      = (parts[1] ?? "").trim();
-  const adSetKey          = (parts[2] ?? "").trim();
-  const adName            = (parts[parts.length - 1] ?? "").trim();
-  const normalizedAdName  = normalizeAdName(adName);
+  const campaignName     = (parts[1] ?? "").trim();
+  const adSetKey         = (parts[2] ?? "").trim();
+  const adName           = (parts[parts.length - 1] ?? "").trim();
+  const normalizedAdName = normalizeAdName(adName);
   return { campaignName, adSetKey, adName, normalizedAdName };
 }
 
 // ─── Main parser ───────────────────────────────────────────────────────────────
 
-export function parseGradeLeads(rows: string[][], since: Date, until: Date): GradeLeadsResult {
+/**
+ * Single-pass parser using two date windows:
+ *   windowSince/windowUntil → counts totalLeads (for CPL accuracy)
+ *   gradeSince/gradeUntil   → counts gradedLeads + grade9/10/11/12
+ *
+ * A lead only needs to fall within the window range to increment totalLeads.
+ * It only increments grade counts if it also falls within the grade range.
+ */
+export function parseGradeLeads(
+  rows: string[][],
+  windowSince: Date,
+  windowUntil: Date,
+  gradeSince: Date,
+  gradeUntil: Date,
+): GradeLeadsResult {
   const byCampaign = new Map<string, GradeStats>();
   const byAdSet    = new Map<string, GradeStats>();
   const byAd       = new Map<string, GradeStats>();
@@ -106,7 +114,7 @@ export function parseGradeLeads(rows: string[][], since: Date, until: Date): Gra
   const hdrIdx = rows.findIndex((r) => r.some((c) => c.toLowerCase().includes("first name")));
   if (hdrIdx < 0) return { byCampaign, byAdSet, byAd };
 
-  const hdrs     = rows[hdrIdx].map((h) => h.toLowerCase().trim());
+  const hdrs     = rows[hdrIdx].map((h) => h.replace(/\n/g, " ").toLowerCase().trim());
   const dateCol  = hdrs.findIndex((h) => h === "date");
   const firstCol = hdrs.findIndex((h) => h.includes("first name"));
   const srcCol   = hdrs.findIndex((h) => h === "source" || h.includes("source"));
@@ -117,25 +125,59 @@ export function parseGradeLeads(rows: string[][], since: Date, until: Date): Gra
   for (const row of rows.slice(hdrIdx + 1)) {
     if (firstCol >= 0 && !cv(row, firstCol)) continue;
 
-    if (dateCol >= 0) {
-      const d = parseSheetDate(cv(row, dateCol));
-      if (!d || d < since || d > until) continue;
-    }
-
     const source = cv(row, srcCol);
     if (!source) continue;
 
-    const grade = parseGrade(cv(row, gradeCol));
+    // Parse lead date
+    let leadDate: Date | null = null;
+    if (dateCol >= 0) {
+      leadDate = parseSheetDate(cv(row, dateCol));
+      if (!leadDate) continue;
+    }
+
+    const inWindow = !leadDate || (leadDate >= windowSince && leadDate <= windowUntil);
+    const inGrade  = !leadDate || (leadDate >= gradeSince  && leadDate <= gradeUntil);
+
+    // Must be in at least one range to matter
+    if (!inWindow && !inGrade) continue;
+
     const { campaignName, adSetKey, normalizedAdName } = parseLeadSource(source);
 
     if (campaignName) {
-      add(byCampaign, campaignName, grade);
+      const s = ensure(byCampaign, campaignName);
+      if (inWindow) s.totalLeads++;
+      if (inGrade) {
+        s.gradedLeads++;
+        const g = parseGrade(cv(row, gradeCol));
+        if      (g === 9)  s.grade9++;
+        else if (g === 10) s.grade10++;
+        else if (g === 11) s.grade11++;
+        else if (g === 12) s.grade12++;
+      }
     }
     if (campaignName && adSetKey) {
-      add(byAdSet, `${campaignName}|||${adSetKey}`, grade);
+      const s = ensure(byAdSet, `${campaignName}|||${adSetKey}`);
+      if (inWindow) s.totalLeads++;
+      if (inGrade) {
+        s.gradedLeads++;
+        const g = parseGrade(cv(row, gradeCol));
+        if      (g === 9)  s.grade9++;
+        else if (g === 10) s.grade10++;
+        else if (g === 11) s.grade11++;
+        else if (g === 12) s.grade12++;
+      }
     }
     if (normalizedAdName) {
-      add(byAd, normalizedAdName, grade);
+      const s = ensure(byAd, normalizedAdName);
+      if (inWindow) s.totalLeads++;
+      if (inGrade) {
+        s.gradedLeads++;
+        const g = parseGrade(cv(row, gradeCol));
+        if      (g === 9)  s.grade9++;
+        else if (g === 10) s.grade10++;
+        else if (g === 11) s.grade11++;
+        else if (g === 12) s.grade12++;
+      }
     }
   }
 
@@ -145,20 +187,27 @@ export function parseGradeLeads(rows: string[][], since: Date, until: Date): Gra
 // ─── Fetcher ───────────────────────────────────────────────────────────────────
 
 /**
- * Grade tracking started on April 15, 2026 — the date column K was added.
- * Leads before this date have no grade data and must be excluded so they
- * don't drag the 11th-grade percentage down artificially.
- * This date is independent of the Meta spend window.
+ * Grade tracking started April 15, 2026 — the date column K was added.
+ * Leads before this date have no grade data.
+ * totalLeads counts ALL leads in the selected window (accurate CPL).
+ * gradedLeads + grade stats only count leads from Apr 15 onward.
  */
-const GRADE_TRACKING_START = new Date(2026, 3, 15); // month is 0-based → April
+const GRADE_TRACKING_START = new Date(2026, 3, 15); // April 15 2026
 
-export async function fetchGradeLeads(_window: AdWindow): Promise<GradeLeadsResult> {
+export async function fetchGradeLeads(window: AdWindow): Promise<GradeLeadsResult> {
   const apiKey = process.env.SHEETS_API_KEY
     ?? process.env.GOOGLE_SHEETS_API_KEY
     ?? process.env.GOOGLE_MASTER_SHEETS_API_KEY
     ?? "";
-  const rows  = await fetchSheetValues(FUNNEL_SHEET_ID, "LEADS", apiKey).catch(() => [] as string[][]);
-  const since = GRADE_TRACKING_START;
-  const until = new Date(); until.setHours(23, 59, 59, 999);
-  return parseGradeLeads(rows, since, until);
+  const rows = await fetchSheetValues(FUNNEL_SHEET_ID, "LEADS", apiKey).catch(() => [] as string[][]);
+
+  const days = window === "7d" ? 7 : window === "14d" ? 14 : 30;
+  const windowUntil = new Date(); windowUntil.setHours(23, 59, 59, 999);
+  const windowSince = new Date(); windowSince.setHours(0, 0, 0, 0);
+  windowSince.setDate(windowSince.getDate() - days);
+
+  const gradeUntil = windowUntil;
+  const gradeSince = GRADE_TRACKING_START;
+
+  return parseGradeLeads(rows, windowSince, windowUntil, gradeSince, gradeUntil);
 }

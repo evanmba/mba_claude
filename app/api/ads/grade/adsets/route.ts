@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   ]);
 
   // Build sub-maps for this campaign only
-  const gradeByAdSetKey = new Map<string, { totalLeads: number; grade11: number }>();
+  const gradeByAdSetKey = new Map<string, { totalLeads: number; gradedLeads: number; grade11: number }>();
   for (const [key, stats] of gradeData.byAdSet) {
     const [camp, adSetKey] = key.split("|||");
     if (camp === campaignName) gradeByAdSetKey.set(adSetKey ?? "", stats);
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
   }
 
   const rows: GradeRow[] = adSets.map((as) => {
-    let gradeStats: { totalLeads: number; grade11: number } | undefined;
+    let gradeStats: { totalLeads: number; gradedLeads: number; grade11: number } | undefined;
     for (const [key, s] of gradeByAdSetKey) {
       const a = as.name.toLowerCase(), b = key.toLowerCase();
       if (a === b || a.includes(b) || b.includes(a)) { gradeStats = s; break; }
@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
     }
 
     const total  = gradeStats?.totalLeads   ?? 0;
+    const graded = gradeStats?.gradedLeads  ?? 0;
     const g11    = gradeStats?.grade11      ?? 0;
     const booked = callEntry?.bookedCalls   ?? 0;
     const taken  = callEntry?.takenCalls    ?? 0;
@@ -68,17 +69,17 @@ export async function GET(req: NextRequest) {
       name:          as.name,
       spend:         as.spend,
       bookedCalls:   booked,
-      costPerBooked: booked > 0 ? as.spend / booked : 0,
+      costPerBooked: booked  > 0 ? as.spend / booked : 0,
       takenCalls:    taken,
-      costPerTaken:  taken  > 0 ? as.spend / taken  : 0,
+      costPerTaken:  taken   > 0 ? as.spend / taken  : 0,
       deals,
-      costPerDeal:   deals  > 0 ? as.spend / deals  : 0,
+      costPerDeal:   deals   > 0 ? as.spend / deals  : 0,
       cashCollected: cash,
       revenue:       rev,
       totalLeads:    total,
       grade11:       g11,
-      pct11:         total > 0 ? (g11 / total) * 100 : 0,
-      costPer11:     g11   > 0 ? as.spend / g11       : 0,
+      pct11:         graded > 0 ? (g11 / graded) * 100 : 0,
+      costPer11:     g11    > 0 ? as.spend / g11         : 0,
     };
   }).sort((a, b) => b.spend - a.spend);
 
