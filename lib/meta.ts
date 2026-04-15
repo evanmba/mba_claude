@@ -183,19 +183,55 @@ export async function fetchAdsForAdSet(
   const url       = `${GRAPH}/${acct}/insights?level=ad&${datePart}&fields=ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,spend&filtering=${filtering}&limit=500&access_token=${token}`;
   try {
     const raw = await fetchAllFresh(url);
-    return raw
-      .filter((r) => parseFloat((r["spend"] as string) ?? "0") > 0)
-      .map((r) => ({
-        id:           (r["ad_id"]        as string) ?? "",
-        name:         (r["ad_name"]      as string) ?? "",
-        adSetId:      (r["adset_id"]     as string) ?? "",
-        adSetName:    (r["adset_name"]   as string) ?? "",
-        campaignId:   (r["campaign_id"]  as string) ?? "",
-        campaignName: (r["campaign_name"]as string) ?? "",
-        spend:        parseFloat((r["spend"] as string) ?? "0"),
-      }))
-      .filter((r) => r.name);
+    return mapAdRows(raw);
   } catch { return []; }
+}
+
+/** All ads in a single campaign that had spend in the window. */
+export async function fetchAdsForCampaign(
+  campaignId: string,
+  window: AdWindow,
+): Promise<MetaAdRow[]> {
+  const token     = process.env.META_ADS_ACCESS_TOKEN;
+  const accountId = process.env.META_ADS_ACCOUNT_ID;
+  if (!token || !accountId) return [];
+  const acct      = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
+  const datePart  = windowToDateParam(window);
+  const filtering = encodeURIComponent(JSON.stringify([{ field: "campaign.id", operator: "EQUAL", value: campaignId }]));
+  const url       = `${GRAPH}/${acct}/insights?level=ad&${datePart}&fields=ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,spend&filtering=${filtering}&limit=500&access_token=${token}`;
+  try {
+    const raw = await fetchAllFresh(url);
+    return mapAdRows(raw);
+  } catch { return []; }
+}
+
+/** All ads across all campaigns that had spend in the window. */
+export async function fetchAllAdsWithSpend(window: AdWindow): Promise<MetaAdRow[]> {
+  const token     = process.env.META_ADS_ACCESS_TOKEN;
+  const accountId = process.env.META_ADS_ACCOUNT_ID;
+  if (!token || !accountId) return [];
+  const acct     = accountId.startsWith("act_") ? accountId : `act_${accountId}`;
+  const datePart = windowToDateParam(window);
+  const url      = `${GRAPH}/${acct}/insights?level=ad&${datePart}&fields=ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,spend&limit=500&access_token=${token}`;
+  try {
+    const raw = await fetchAllFresh(url);
+    return mapAdRows(raw);
+  } catch { return []; }
+}
+
+function mapAdRows(raw: Record<string, unknown>[]): MetaAdRow[] {
+  return raw
+    .filter((r) => parseFloat((r["spend"] as string) ?? "0") > 0)
+    .map((r) => ({
+      id:           (r["ad_id"]         as string) ?? "",
+      name:         (r["ad_name"]       as string) ?? "",
+      adSetId:      (r["adset_id"]      as string) ?? "",
+      adSetName:    (r["adset_name"]    as string) ?? "",
+      campaignId:   (r["campaign_id"]   as string) ?? "",
+      campaignName: (r["campaign_name"] as string) ?? "",
+      spend:        parseFloat((r["spend"] as string) ?? "0"),
+    }))
+    .filter((r) => r.name);
 }
 
 export type AdWindow = "4d" | "7d" | "14d" | "month";

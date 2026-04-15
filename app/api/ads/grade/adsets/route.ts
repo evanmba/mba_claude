@@ -1,68 +1,67 @@
 import { NextRequest } from "next/server";
-import { fetchAdSetsForCampaign }         from "@/lib/meta";
-import { fetchGradeLeads }                from "@/lib/gradeLeads";
-import { fetchCallSourceLeads, matchAdSetName } from "@/lib/callSourceLeads";
-import type { AdWindow }                  from "@/lib/meta";
-import type { GradeRow }                  from "../campaigns/route";
+import { fetchAdSetsForCampaign, fetchAdsForCampaign } from "@/lib/meta";
+import { fetchGradeLeads, normalizeAdName } from "@/lib/gradeLeads";
+import { fetchCallSourceLeads }             from "@/lib/callSourceLeads";
+import type { AdWindow, MetaAdRow }         from "@/lib/meta";
+import type { GradeRow }                    from "../campaigns/route";
 
 export const dynamic = "force-dynamic";
+
+/** Sum stats from a list of ads using the same byAd lookup as the ads route. */
+function sumAdStats(
+  ads: MetaAdRow[],
+  gradeData: Awaited<ReturnType<typeof fetchGradeLeads>>,
+  callData:  Awaited<ReturnType<typeof fetchCallSourceLeads>>,
+) {
+  let totalLeads = 0, graded = 0, g11 = 0;
+  let booked = 0, taken = 0, deals = 0, cash = 0, rev = 0;
+
+  for (const ad of ads) {
+    const normKey    = normalizeAdName(ad.name);
+    const gradeStats = gradeData.byAd.get(normKey) ?? gradeData.byAd.get(ad.name);
+    const callStats  = callData.byAd.get(normKey)
+      ?? callData.byAd.get(ad.name)
+      ?? callData.byAd.get(normalizeAdName(normKey));
+
+    totalLeads += gradeStats?.totalLeads  ?? 0;
+    graded     += gradeStats?.gradedLeads ?? 0;
+    g11        += gradeStats?.grade11     ?? 0;
+    booked     += callStats?.bookedCalls   ?? 0;
+    taken      += callStats?.takenCalls    ?? 0;
+    deals      += callStats?.deals         ?? 0;
+    cash       += callStats?.cashCollected ?? 0;
+    rev        += callStats?.revenue       ?? 0;
+  }
+
+  return { totalLeads, graded, g11, booked, taken, deals, cash, rev };
+}
 
 export async function GET(req: NextRequest) {
   const params       = req.nextUrl.searchParams;
   const campaignId   = params.get("campaignId")   ?? "";
-  const campaignName = params.get("campaignName") ?? "";
   const w            = (params.get("window")      ?? "7d") as AdWindow;
 
   if (!campaignId) return Response.json({ error: "campaignId required" }, { status: 400 });
 
-  const [adSets, gradeData, callData] = await Promise.all([
+  // Fetch ad sets + all ads in this campaign + sheet data in parallel
+  const [adSets, campaignAds, gradeData, callData] = await Promise.all([
     fetchAdSetsForCampaign(campaignId, w),
+    fetchAdsForCampaign(campaignId, w),
     fetchGradeLeads(w),
     fetchCallSourceLeads(w),
   ]);
 
-  // Build sub-maps for this campaign only
-  const gradeByAdSetKey = new Map<string, { totalLeads: number; gradedLeads: number; grade11: number }>();
-  for (const [key, stats] of gradeData.byAdSet) {
-    const [camp, adSetKey] = key.split("|||");
-    if (camp === campaignName) gradeByAdSetKey.set(adSetKey ?? "", stats);
-  }
-
-  type CallEntry = { bookedCalls: number; takenCalls: number; deals: number; cashCollected: number; revenue: number };
-  const callsByAdSetName = new Map<string, CallEntry>();
-  for (const [key, stats] of callData.byAdSet) {
-    const [camp, adSetFull] = key.split("|||");
-    if (camp === campaignName) {
-      callsByAdSetName.set(adSetFull ?? "", {
-        bookedCalls:   stats.bookedCalls,
-        takenCalls:    stats.takenCalls,
-        deals:         stats.deals,
-        cashCollected: stats.cashCollected,
-        revenue:       stats.revenue,
-      });
-    }
+  // Group ads by adSetId
+  const adsBySet = new Map<string, MetaAdRow[]>();
+  for (const ad of campaignAds) {
+    if (!adsBySet.has(ad.adSetId)) adsBySet.set(ad.adSetId, []);
+    adsBySet.get(ad.adSetId)!.push(ad);
   }
 
   const rows: GradeRow[] = adSets.map((as) => {
-    let gradeStats: { totalLeads: number; gradedLeads: number; grade11: number } | undefined;
-    for (const [key, s] of gradeByAdSetKey) {
-      const a = as.name.toLowerCase(), b = key.toLowerCase();
-      if (a === b || a.includes(b) || b.includes(a)) { gradeStats = s; break; }
-    }
-
-    let callEntry: CallEntry | undefined;
-    for (const [csAdSet, entry] of callsByAdSetName) {
-      if (matchAdSetName(as.name, csAdSet)) { callEntry = entry; break; }
-    }
-
-    const total  = gradeStats?.totalLeads   ?? 0;
-    const graded = gradeStats?.gradedLeads  ?? 0;
-    const g11    = gradeStats?.grade11      ?? 0;
-    const booked = callEntry?.bookedCalls   ?? 0;
-    const taken  = callEntry?.takenCalls    ?? 0;
-    const deals  = callEntry?.deals         ?? 0;
-    const cash   = callEntry?.cashCollected ?? 0;
-    const rev    = callEntry?.revenue       ?? 0;
+    const ads = adsBySet.get(as.id) ?? [];
+    const { totalLeads, graded, g11, booked, taken, deals, cash, rev } =
+      sumAdStats(ads, gradeData, callData);
 
     return {
       id:            as.id,
@@ -76,10 +75,10 @@ export async function GET(req: NextRequest) {
       costPerDeal:   deals   > 0 ? as.spend / deals  : 0,
       cashCollected: cash,
       revenue:       rev,
-      totalLeads:    total,
+      totalLeads,
       grade11:       g11,
       pct11:         graded > 0 ? (g11 / graded) * 100 : 0,
-      costPer11:     g11    > 0 ? as.spend / g11         : 0,
+      costPer11:     g11    > 0 ? as.spend / g11        : 0,
     };
   }).sort((a, b) => b.spend - a.spend);
 
