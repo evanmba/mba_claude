@@ -388,15 +388,6 @@ export function GradeBreakdownView() {
     ? "minmax(220px,1fr) 85px 55px 80px 58px 80px 58px 80px 58px 80px 55px 80px 72px 72px"
     : "minmax(130px,1fr) 85px 55px 80px 58px 80px 58px 80px 58px 80px 55px 80px 72px 72px";
 
-  const totSpend  = rows.reduce((s, r) => s + r.spend, 0);
-  const totBooked = rows.reduce((s, r) => s + r.bookedCalls, 0);
-  const totTaken  = rows.reduce((s, r) => s + r.takenCalls, 0);
-  const totDeals  = rows.reduce((s, r) => s + r.deals, 0);
-  const totCash   = rows.reduce((s, r) => s + r.cashCollected, 0);
-  const totRev    = rows.reduce((s, r) => s + r.revenue, 0);
-  const totLeads  = rows.reduce((s, r) => s + r.totalLeads, 0);
-  const tot11     = rows.reduce((s, r) => s + r.grade11, 0);
-
   return (
     <>
     {modal && (
@@ -507,30 +498,6 @@ export function GradeBreakdownView() {
 
         </div>
 
-        {/* Footer totals */}
-        {!loading && rows.length > 0 && (
-          <div style={{ borderTop: `1px solid ${BORDER}`, padding: "10px 16px", display: "flex", gap: 18, flexWrap: "wrap", background: "rgba(255,255,255,0.01)" }}>
-            {[
-              { label: "Spend",       val: fmt$(totSpend) },
-              { label: "Leads",       val: totLeads  > 0 ? String(totLeads)  : "—" },
-              { label: "Avg CPL",     val: totLeads  > 0 ? fmtDec(totSpend / totLeads)  : "—" },
-              { label: "Avg 11th%",   val: totLeads  > 0 ? `${((tot11 / totLeads) * 100).toFixed(1)}%` : "—" },
-              { label: "Booked",      val: totBooked > 0 ? String(totBooked) : "—" },
-              { label: "Avg CPC",     val: totBooked > 0 ? fmtDec(totSpend / totBooked) : "—" },
-              { label: "Taken",       val: totTaken  > 0 ? String(totTaken)  : "—" },
-              { label: "Avg CPT",     val: totTaken  > 0 ? fmtDec(totSpend / totTaken)  : "—" },
-              { label: "Deals",       val: totDeals  > 0 ? String(totDeals)  : "—" },
-              { label: "Avg CPD",     val: totDeals  > 0 ? fmtDec(totSpend / totDeals)  : "—" },
-              { label: "Cash ROAS",   val: totCash   > 0 && totSpend > 0 ? fmtRoas(totCash / totSpend) : "—" },
-              { label: "Rev ROAS",    val: totRev    > 0 && totSpend > 0 ? fmtRoas(totRev  / totSpend) : "—" },
-            ].map((s) => (
-              <div key={s.label} style={{ display: "flex", gap: 5, alignItems: "baseline" }}>
-                <span style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>{s.label}:</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{s.val}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
     </>
