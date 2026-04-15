@@ -109,22 +109,24 @@ export function parseCallSourceLeads(rows: string[][], since: Date, until: Date)
   const hdrIdx = rows.findIndex((r) => r.some((c) => c.toLowerCase().includes("first name")));
   if (hdrIdx < 0) return { byCampaign, byAdSet, byAd };
 
-  const hdrs = rows[hdrIdx].map((h) => h.toLowerCase().trim());
+  // Strip embedded newlines before lowercasing (Google Sheets can include them)
+  const hdrs = rows[hdrIdx].map((h) => h.replace(/\n/g, " ").toLowerCase().trim());
 
   const firstCol  = hdrs.findIndex((h) => h.includes("first name"));
   const dateCol   = hdrs.findIndex((h) => h.includes("booked date") || h === "date");
   const campCol   = hdrs.findIndex((h) => h === "campaign");
   const adSetCol  = hdrs.findIndex((h) => h === "ad set");
   const adCol     = hdrs.findIndex((h) => h === "ad");
-  const showedCol = hdrs.findIndex((h) => h === "showed" || h.includes("show"));
+  const _showCol  = hdrs.findIndex((h) => h === "showed" || h === "shown" || h.includes("show"));
   const closedCol = fi(hdrs, ["closed"]);
   const cashCol   = fi(hdrs, ["cash"]);
   const revCol    = fi(hdrs, ["revenue"]);
 
-  // Fallback to fixed column positions (E=4, F=5, G=6)
-  const cCol = campCol  >= 0 ? campCol  : 4;
-  const fCol = adSetCol >= 0 ? adSetCol : 5;
-  const gCol = adCol    >= 0 ? adCol    : 6;
+  // Fallback to fixed column positions (E=4, F=5, G=6, H=7)
+  const cCol      = campCol   >= 0 ? campCol   : 4;
+  const fCol      = adSetCol  >= 0 ? adSetCol  : 5;
+  const gCol      = adCol     >= 0 ? adCol     : 6;
+  const showedCol = _showCol  >= 0 ? _showCol  : 7; // col H
 
   for (const row of rows.slice(hdrIdx + 1)) {
     if (firstCol >= 0 && !cv(row, firstCol)) continue;
@@ -140,7 +142,7 @@ export function parseCallSourceLeads(rows: string[][], since: Date, until: Date)
 
     if (!campaign || campaign === "-") continue;
 
-    const taken  = showedCol >= 0 && toBool(cv(row, showedCol));
+    const taken  = toBool(cv(row, showedCol));
     const cash   = cashCol   >= 0 ? toMoney(cv(row, cashCol))   : 0;
     const rev    = revCol    >= 0 ? toMoney(cv(row, revCol))    : 0;
     const isDeal = (closedCol >= 0 && toBool(cv(row, closedCol))) || cash > 0;
