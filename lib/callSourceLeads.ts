@@ -5,7 +5,11 @@ import { normalizeAdName } from "./gradeLeads";
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface CallStats {
-  bookedCalls: number;
+  bookedCalls:  number;
+  takenCalls:   number;
+  deals:        number;
+  cashCollected: number;
+  revenue:      number;
 }
 
 export interface CallSourceResult {
@@ -25,7 +29,11 @@ export interface CallSourceResult {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-const cv = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "").trim() : "");
+const cv      = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "").trim() : "");
+const fi      = (hdrs: string[], kws: string[]) =>
+  hdrs.findIndex((h) => kws.every((k) => h.includes(k)));
+const toBool  = (s: string) => { const u = s.toUpperCase().trim(); return u === "TRUE" || u === "YES" || u === "1" || u === "X"; };
+const toMoney = (s: string) => parseFloat(s.replace(/[$,\s]/g, "")) || 0;
 
 function parseSheetDate(s: string): Date | null {
   const p = s.split("/");
@@ -45,24 +53,36 @@ function windowDates(w: AdWindow): { since: Date; until: Date } {
   return { since, until };
 }
 
-function addCall(map: Map<string, CallStats>, key: string) {
+function blank(): CallStats {
+  return { bookedCalls: 0, takenCalls: 0, deals: 0, cashCollected: 0, revenue: 0 };
+}
+
+function accumulate(
+  map: Map<string, CallStats>,
+  key: string,
+  taken: boolean,
+  isDeal: boolean,
+  cash: number,
+  rev: number,
+) {
   if (!key) return;
-  if (!map.has(key)) map.set(key, { bookedCalls: 0 });
-  map.get(key)!.bookedCalls++;
+  if (!map.has(key)) map.set(key, blank());
+  const e = map.get(key)!;
+  e.bookedCalls++;
+  if (taken)  e.takenCalls++;
+  if (isDeal) e.deals++;
+  e.cashCollected += cash;
+  e.revenue       += rev;
 }
 
 /**
  * Try to match a Meta ad set name against a Call Source ad set name (col F).
- * Handles cases where they aren't identical:
- *   Meta:         "Parents 13-17 Baseball (1009.6.1.2)"
- *   Call Source:  "Parents 13-17 Baseball (1009.6.1.2)"  ← exact, or slightly different
  */
 export function matchAdSetName(metaName: string, csName: string): boolean {
   const a = metaName.toLowerCase().trim();
   const b = csName.toLowerCase().trim();
   if (a === b) return true;
   if (a.includes(b) || b.includes(a)) return true;
-  // Also try extracting the ID portion inside parentheses
   const idA = a.match(/\(([^)]+)\)/)?.[1] ?? "";
   const idB = b.match(/\(([^)]+)\)/)?.[1] ?? "";
   if (idA && idB && idA === idB) return true;
@@ -72,14 +92,12 @@ export function matchAdSetName(metaName: string, csName: string): boolean {
 // ─── Parser ────────────────────────────────────────────────────────────────────
 
 /**
- * Col A (0): First Name
- * Col B (1): Last Name
- * Col C (2): Booked Date
- * Col D (3): ID / URL
  * Col E (4): Campaign
  * Col F (5): Ad Set
  * Col G (6): Ad Creative
+ * Col C (2): Booked Date
  * Col H (7): Showed
+ * Later cols: Closed, Cash Collected, Revenue
  */
 export function parseCallSourceLeads(rows: string[][], since: Date, until: Date): CallSourceResult {
   const byCampaign = new Map<string, CallStats>();
@@ -88,20 +106,22 @@ export function parseCallSourceLeads(rows: string[][], since: Date, until: Date)
 
   if (rows.length < 2) return { byCampaign, byAdSet, byAd };
 
-  // Find header row (contains "First Name")
   const hdrIdx = rows.findIndex((r) => r.some((c) => c.toLowerCase().includes("first name")));
   if (hdrIdx < 0) return { byCampaign, byAdSet, byAd };
 
-  const hdrs    = rows[hdrIdx].map((h) => h.toLowerCase().trim());
-  // Use column index from header detection, but fall back to fixed indices
-  // per user spec (E=4, F=5, G=6)
-  const dateCol  = hdrs.findIndex((h) => h.includes("booked date") || h === "date");
-  const firstCol = hdrs.findIndex((h) => h.includes("first name"));
-  const campCol  = hdrs.findIndex((h) => h === "campaign");
-  const adSetCol = hdrs.findIndex((h) => h === "ad set");
-  const adCol    = hdrs.findIndex((h) => h === "ad");
+  const hdrs = rows[hdrIdx].map((h) => h.toLowerCase().trim());
 
-  // Fallback to user-specified fixed column positions (E=4, F=5, G=6)
+  const firstCol  = hdrs.findIndex((h) => h.includes("first name"));
+  const dateCol   = hdrs.findIndex((h) => h.includes("booked date") || h === "date");
+  const campCol   = hdrs.findIndex((h) => h === "campaign");
+  const adSetCol  = hdrs.findIndex((h) => h === "ad set");
+  const adCol     = hdrs.findIndex((h) => h === "ad");
+  const showedCol = hdrs.findIndex((h) => h === "showed" || h.includes("show"));
+  const closedCol = fi(hdrs, ["closed"]);
+  const cashCol   = fi(hdrs, ["cash"]);
+  const revCol    = fi(hdrs, ["revenue"]);
+
+  // Fallback to fixed column positions (E=4, F=5, G=6)
   const cCol = campCol  >= 0 ? campCol  : 4;
   const fCol = adSetCol >= 0 ? adSetCol : 5;
   const gCol = adCol    >= 0 ? adCol    : 6;
@@ -109,7 +129,6 @@ export function parseCallSourceLeads(rows: string[][], since: Date, until: Date)
   for (const row of rows.slice(hdrIdx + 1)) {
     if (firstCol >= 0 && !cv(row, firstCol)) continue;
 
-    // Date filter
     if (dateCol >= 0) {
       const d = parseSheetDate(cv(row, dateCol));
       if (!d || d < since || d > until) continue;
@@ -119,17 +138,18 @@ export function parseCallSourceLeads(rows: string[][], since: Date, until: Date)
     const adSet    = cv(row, fCol);
     const ad       = cv(row, gCol);
 
-    // Skip rows with no campaign data (organic, manual, etc.)
     if (!campaign || campaign === "-") continue;
 
-    addCall(byCampaign, campaign);
-    if (campaign && adSet) {
-      addCall(byAdSet, `${campaign}|||${adSet}`);
-    }
+    const taken  = showedCol >= 0 && toBool(cv(row, showedCol));
+    const cash   = cashCol   >= 0 ? toMoney(cv(row, cashCol))   : 0;
+    const rev    = revCol    >= 0 ? toMoney(cv(row, revCol))    : 0;
+    const isDeal = (closedCol >= 0 && toBool(cv(row, closedCol))) || cash > 0;
+
+    accumulate(byCampaign, campaign,                    taken, isDeal, cash, rev);
+    if (adSet) accumulate(byAdSet, `${campaign}|||${adSet}`, taken, isDeal, cash, rev);
     if (ad) {
-      addCall(byAd, normalizeAdName(ad));
-      // Also store under raw name in case normalization strips too much
-      addCall(byAd, ad);
+      accumulate(byAd, normalizeAdName(ad), taken, isDeal, cash, rev);
+      accumulate(byAd, ad,                  taken, isDeal, cash, rev);
     }
   }
 
@@ -143,7 +163,7 @@ export async function fetchCallSourceLeads(window: AdWindow): Promise<CallSource
     ?? process.env.GOOGLE_SHEETS_API_KEY
     ?? process.env.GOOGLE_MASTER_SHEETS_API_KEY
     ?? "";
-  const rows          = await fetchSheetValues(FUNNEL_SHEET_ID, "Call Source", apiKey).catch(() => [] as string[][]);
+  const rows = await fetchSheetValues(FUNNEL_SHEET_ID, "Call Source", apiKey).catch(() => [] as string[][]);
   const { since, until } = windowDates(window);
   return parseCallSourceLeads(rows, since, until);
 }

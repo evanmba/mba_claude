@@ -31,16 +31,18 @@ function pct11Color(pct: number) {
   return "#f87171";
 }
 
-const fmt$ = (n: number) =>
+const fmt$    = (n: number) =>
   n === 0 ? "—" : `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
-const fmtDec = (n: number) =>
-  n === 0 ? "—" : `$${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+const fmtDec  = (n: number) =>
+  n === 0 ? "—" : `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+const fmtRoas = (n: number) =>
+  n === 0 ? "—" : `${n.toFixed(2)}x`;
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
 function Hdr({ children, right, white }: { children: React.ReactNode; right?: boolean; white?: boolean }) {
   return (
-    <div style={{ fontSize: 10, color: white ? "#e2e8f0" : MUTED, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: right ? "right" : "left", padding: "8px 12px" }}>
+    <div style={{ fontSize: 10, color: white ? "#e2e8f0" : MUTED, textTransform: "uppercase", letterSpacing: "0.08em", textAlign: right ? "right" : "left", padding: "8px 10px" }}>
       {children}
     </div>
   );
@@ -48,7 +50,7 @@ function Hdr({ children, right, white }: { children: React.ReactNode; right?: bo
 
 function Cell({ children, right, style }: { children: React.ReactNode; right?: boolean; style?: React.CSSProperties }) {
   return (
-    <div style={{ padding: "11px 12px", textAlign: right ? "right" : "left", display: "flex", alignItems: "center", justifyContent: right ? "flex-end" : "flex-start", ...style }}>
+    <div style={{ padding: "10px 10px", textAlign: right ? "right" : "left", display: "flex", alignItems: "center", justifyContent: right ? "flex-end" : "flex-start", ...style }}>
       {children}
     </div>
   );
@@ -59,7 +61,9 @@ function DataRow({ row, level, onClick, i }: { row: GradeRow; level: Level; onCl
   const canDrill = level !== "ads";
   const rowBg = hov ? "rgba(59,130,246,0.07)" : i % 2 === 0 ? "rgba(255,255,255,0.018)" : "transparent";
 
-  const cpl = row.totalLeads > 0 ? row.spend / row.totalLeads : 0;
+  const cpl      = row.totalLeads > 0 ? row.spend / row.totalLeads : 0;
+  const cashRoas = row.cashCollected > 0 && row.spend > 0 ? row.cashCollected / row.spend : 0;
+  const revRoas  = row.revenue       > 0 && row.spend > 0 ? row.revenue       / row.spend : 0;
 
   const cells = (
     <>
@@ -73,12 +77,12 @@ function DataRow({ row, level, onClick, i }: { row: GradeRow; level: Level; onCl
 
       {/* Spend */}
       <Cell right style={{ background: rowBg }}>
-        <span style={{ fontSize: 13, fontWeight: 600, color: "#e2e8f0" }}>{fmt$(row.spend)}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#e2e8f0" }}>{fmt$(row.spend)}</span>
       </Cell>
 
       {/* Leads */}
       <Cell right style={{ background: rowBg }}>
-        <span style={{ fontSize: 13, color: row.totalLeads > 0 ? "#e2e8f0" : MUTED }}>
+        <span style={{ fontSize: 12, color: row.totalLeads > 0 ? "#e2e8f0" : MUTED }}>
           {row.totalLeads > 0 ? row.totalLeads : "—"}
         </span>
       </Cell>
@@ -106,15 +110,57 @@ function DataRow({ row, level, onClick, i }: { row: GradeRow; level: Level; onCl
 
       {/* Booked */}
       <Cell right style={{ background: rowBg }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: row.bookedCalls > 0 ? "#60a5fa" : MUTED }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: row.bookedCalls > 0 ? "#60a5fa" : MUTED }}>
           {row.bookedCalls > 0 ? row.bookedCalls : "—"}
         </span>
       </Cell>
 
-      {/* CPC (Cost / Booked Call) */}
+      {/* CPC */}
       <Cell right style={{ background: rowBg }}>
         <span style={{ fontSize: 12, color: row.costPerBooked > 0 ? "#34d399" : MUTED }}>
           {row.costPerBooked > 0 ? fmtDec(row.costPerBooked) : "—"}
+        </span>
+      </Cell>
+
+      {/* Taken */}
+      <Cell right style={{ background: rowBg }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: row.takenCalls > 0 ? "#a78bfa" : MUTED }}>
+          {row.takenCalls > 0 ? row.takenCalls : "—"}
+        </span>
+      </Cell>
+
+      {/* CPT */}
+      <Cell right style={{ background: rowBg }}>
+        <span style={{ fontSize: 12, color: row.costPerTaken > 0 ? "#34d399" : MUTED }}>
+          {row.costPerTaken > 0 ? fmtDec(row.costPerTaken) : "—"}
+        </span>
+      </Cell>
+
+      {/* Deals */}
+      <Cell right style={{ background: rowBg }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: row.deals > 0 ? "#f59e0b" : MUTED }}>
+          {row.deals > 0 ? row.deals : "—"}
+        </span>
+      </Cell>
+
+      {/* Cost/Deal */}
+      <Cell right style={{ background: rowBg }}>
+        <span style={{ fontSize: 12, color: row.costPerDeal > 0 ? "#34d399" : MUTED }}>
+          {row.costPerDeal > 0 ? fmtDec(row.costPerDeal) : "—"}
+        </span>
+      </Cell>
+
+      {/* Cash ROAS */}
+      <Cell right style={{ background: rowBg }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: cashRoas > 0 ? (cashRoas >= 2 ? "#4ade80" : cashRoas >= 1 ? "#f59e0b" : "#f87171") : MUTED }}>
+          {fmtRoas(cashRoas)}
+        </span>
+      </Cell>
+
+      {/* Rev ROAS */}
+      <Cell right style={{ background: rowBg }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: revRoas > 0 ? (revRoas >= 3 ? "#4ade80" : revRoas >= 1.5 ? "#f59e0b" : "#f87171") : MUTED }}>
+          {fmtRoas(revRoas)}
         </span>
       </Cell>
     </>
@@ -171,7 +217,7 @@ export function GradeBreakdownView() {
   function drillCampaign(row: GradeRow) { setCampaign({ id: row.id, name: row.name }); setAdSet(null); setLevel("adsets"); }
   function drillAdSet(row: GradeRow)    { setAdSet({ id: row.id, name: row.name }); setLevel("ads"); }
   function goBack() {
-    if (level === "ads")    { setAdSet(null); setLevel("adsets"); }
+    if (level === "ads")         { setAdSet(null);    setLevel("adsets");    }
     else if (level === "adsets") { setCampaign(null); setLevel("campaigns"); }
   }
 
@@ -183,11 +229,15 @@ export function GradeBreakdownView() {
 
   const LIcon = LEVEL_META[level].icon;
 
-  // Column layout — 8 columns: Name | Spend | Leads | CPL | 11th% | 11th CPL | Booked | CPC
-  const COLS = "minmax(160px,1fr) 100px 68px 100px 68px 100px 68px 100px";
+  // 14 columns: Name | Spend | Leads | CPL | 11th% | 11th CPL | Booked | CPC | Taken | CPT | Deals | CPD | Cash ROAS | Rev ROAS
+  const COLS = "minmax(130px,1fr) 85px 55px 80px 58px 80px 58px 80px 58px 80px 55px 80px 72px 72px";
 
   const totSpend  = rows.reduce((s, r) => s + r.spend, 0);
   const totBooked = rows.reduce((s, r) => s + r.bookedCalls, 0);
+  const totTaken  = rows.reduce((s, r) => s + r.takenCalls, 0);
+  const totDeals  = rows.reduce((s, r) => s + r.deals, 0);
+  const totCash   = rows.reduce((s, r) => s + r.cashCollected, 0);
+  const totRev    = rows.reduce((s, r) => s + r.revenue, 0);
   const totLeads  = rows.reduce((s, r) => s + r.totalLeads, 0);
   const tot11     = rows.reduce((s, r) => s + r.grade11, 0);
 
@@ -196,7 +246,6 @@ export function GradeBreakdownView() {
 
       {/* Controls row */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-        {/* Breadcrumb */}
         <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
           {breadcrumb.map((b, i) => (
             <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -207,7 +256,6 @@ export function GradeBreakdownView() {
             </span>
           ))}
         </div>
-        {/* Window */}
         <div style={{ display: "flex", borderRadius: 8, overflow: "hidden", border: `1px solid ${BORDER}` }}>
           {WINDOWS.map((w) => (
             <button key={w.key} onClick={() => setWin(w.key)} style={{
@@ -219,10 +267,10 @@ export function GradeBreakdownView() {
       </div>
 
       {/* Panel */}
-      <div style={{ background: BG, borderRadius: 16, border: `1px solid ${BORDER}`, overflow: "hidden" }}>
+      <div style={{ background: BG, borderRadius: 16, border: `1px solid ${BORDER}`, overflow: "auto" }}>
 
         {/* Panel header */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: `1px solid ${BORDER}`, background: CARD, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderBottom: `1px solid ${BORDER}`, background: CARD, flexWrap: "wrap", minWidth: "max-content" }}>
           {level !== "campaigns" && (
             <>
               <button onClick={goBack} style={{ display: "flex", alignItems: "center", gap: 3, background: "transparent", border: "none", cursor: "pointer", color: ACCENT, fontSize: 12, fontWeight: 600, padding: 0 }}>
@@ -239,65 +287,81 @@ export function GradeBreakdownView() {
             </span>
           )}
           <span style={{ marginLeft: "auto", fontSize: 10, color: MUTED }}>
-            Booked Calls: {win} window · Leads + Grade: from Apr 15 2026
+            Calls/Deals: {win} window · Leads + Grade: from Apr 15 2026
           </span>
         </div>
 
-        {/* Column headers */}
-        <div style={{ display: "grid", gridTemplateColumns: COLS, borderBottom: `1px solid ${BORDER}` }}>
-          <Hdr>Name</Hdr>
-          <Hdr right white>Spend</Hdr>
-          <Hdr right white>Leads</Hdr>
-          <Hdr right white>CPL</Hdr>
-          <Hdr right white>11th%</Hdr>
-          <Hdr right white>11th CPL</Hdr>
-          <Hdr right white>Booked</Hdr>
-          <Hdr right white>CPC</Hdr>
-        </div>
+        {/* Scrollable table */}
+        <div style={{ minWidth: "max-content" }}>
 
-        {/* Data rows */}
-        <div style={{ display: "grid", gridTemplateColumns: COLS }}>
-          {loading && (
-            <div style={{ gridColumn: "1 / -1", padding: "40px", textAlign: "center", color: MUTED, fontSize: 13 }}>
-              Loading…
-            </div>
-          )}
-          {error && (
-            <div style={{ gridColumn: "1 / -1", padding: "20px", fontSize: 12, color: "#f87171" }}>
-              Error: {error}
-            </div>
-          )}
-          {!loading && !error && rows.length === 0 && (
-            <div style={{ gridColumn: "1 / -1", padding: "40px", textAlign: "center", color: MUTED, fontSize: 13 }}>
-              No data for this period.
-            </div>
-          )}
-          {!loading && !error && rows.map((row, i) => (
-            <DataRow
-              key={row.id}
-              row={row}
-              level={level}
-              i={i}
-              onClick={
-                level === "campaigns" ? () => drillCampaign(row)
-                : level === "adsets" ? () => drillAdSet(row)
-                : undefined
-              }
-            />
-          ))}
+          {/* Column headers */}
+          <div style={{ display: "grid", gridTemplateColumns: COLS, borderBottom: `1px solid ${BORDER}` }}>
+            <Hdr>Name</Hdr>
+            <Hdr right white>Spend</Hdr>
+            <Hdr right white>Leads</Hdr>
+            <Hdr right white>CPL</Hdr>
+            <Hdr right white>11th%</Hdr>
+            <Hdr right white>11th CPL</Hdr>
+            <Hdr right white>Booked</Hdr>
+            <Hdr right white>CPC</Hdr>
+            <Hdr right white>Taken</Hdr>
+            <Hdr right white>CPT</Hdr>
+            <Hdr right white>Deals</Hdr>
+            <Hdr right white>Cost/Deal</Hdr>
+            <Hdr right white>Cash ROAS</Hdr>
+            <Hdr right white>Rev ROAS</Hdr>
+          </div>
+
+          {/* Data rows */}
+          <div style={{ display: "grid", gridTemplateColumns: COLS }}>
+            {loading && (
+              <div style={{ gridColumn: "1 / -1", padding: "40px", textAlign: "center", color: MUTED, fontSize: 13 }}>
+                Loading…
+              </div>
+            )}
+            {error && (
+              <div style={{ gridColumn: "1 / -1", padding: "20px", fontSize: 12, color: "#f87171" }}>
+                Error: {error}
+              </div>
+            )}
+            {!loading && !error && rows.length === 0 && (
+              <div style={{ gridColumn: "1 / -1", padding: "40px", textAlign: "center", color: MUTED, fontSize: 13 }}>
+                No data for this period.
+              </div>
+            )}
+            {!loading && !error && rows.map((row, i) => (
+              <DataRow
+                key={row.id}
+                row={row}
+                level={level}
+                i={i}
+                onClick={
+                  level === "campaigns" ? () => drillCampaign(row)
+                  : level === "adsets" ? () => drillAdSet(row)
+                  : undefined
+                }
+              />
+            ))}
+          </div>
+
         </div>
 
         {/* Footer totals */}
         {!loading && rows.length > 0 && (
-          <div style={{ borderTop: `1px solid ${BORDER}`, padding: "10px 16px", display: "flex", gap: 20, flexWrap: "wrap", background: "rgba(255,255,255,0.01)" }}>
+          <div style={{ borderTop: `1px solid ${BORDER}`, padding: "10px 16px", display: "flex", gap: 18, flexWrap: "wrap", background: "rgba(255,255,255,0.01)" }}>
             {[
-              { label: "Total Spend",  val: fmt$(totSpend) },
-              { label: "Leads",        val: totLeads > 0  ? String(totLeads)  : "—" },
-              { label: "Avg CPL",      val: totLeads > 0  ? fmt$(totSpend / totLeads) : "—" },
-              { label: "Avg 11th%",    val: totLeads > 0  ? `${((tot11 / totLeads) * 100).toFixed(1)}%` : "—" },
-              { label: "11th Grade",   val: tot11 > 0     ? String(tot11)     : "—" },
-              { label: "Booked",       val: totBooked > 0 ? String(totBooked) : "—" },
-              { label: "Avg CPC",      val: totBooked > 0 ? fmt$(totSpend / totBooked) : "—" },
+              { label: "Spend",       val: fmt$(totSpend) },
+              { label: "Leads",       val: totLeads  > 0 ? String(totLeads)  : "—" },
+              { label: "Avg CPL",     val: totLeads  > 0 ? fmtDec(totSpend / totLeads)  : "—" },
+              { label: "Avg 11th%",   val: totLeads  > 0 ? `${((tot11 / totLeads) * 100).toFixed(1)}%` : "—" },
+              { label: "Booked",      val: totBooked > 0 ? String(totBooked) : "—" },
+              { label: "Avg CPC",     val: totBooked > 0 ? fmtDec(totSpend / totBooked) : "—" },
+              { label: "Taken",       val: totTaken  > 0 ? String(totTaken)  : "—" },
+              { label: "Avg CPT",     val: totTaken  > 0 ? fmtDec(totSpend / totTaken)  : "—" },
+              { label: "Deals",       val: totDeals  > 0 ? String(totDeals)  : "—" },
+              { label: "Avg CPD",     val: totDeals  > 0 ? fmtDec(totSpend / totDeals)  : "—" },
+              { label: "Cash ROAS",   val: totCash   > 0 && totSpend > 0 ? fmtRoas(totCash / totSpend) : "—" },
+              { label: "Rev ROAS",    val: totRev    > 0 && totSpend > 0 ? fmtRoas(totRev  / totSpend) : "—" },
             ].map((s) => (
               <div key={s.label} style={{ display: "flex", gap: 5, alignItems: "baseline" }}>
                 <span style={{ fontSize: 10, color: MUTED, textTransform: "uppercase", letterSpacing: "0.07em" }}>{s.label}:</span>

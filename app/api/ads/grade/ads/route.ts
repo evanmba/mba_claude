@@ -23,17 +23,19 @@ export async function GET(req: NextRequest) {
   const rows: GradeRow[] = ads.map((ad) => {
     const normKey = normalizeAdName(ad.name);
 
-    // Grade stats
     const gradeStats = gradeData.byAd.get(normKey) ?? gradeData.byAd.get(ad.name);
 
-    // Call stats — try normalized key, then raw ad name
     const callStats = callData.byAd.get(normKey)
       ?? callData.byAd.get(ad.name)
-      ?? callData.byAd.get(normalizeAdName(normKey)); // double-normalize safety
+      ?? callData.byAd.get(normalizeAdName(normKey));
 
-    const total  = gradeStats?.totalLeads ?? 0;
-    const g11    = gradeStats?.grade11    ?? 0;
-    const booked = callStats?.bookedCalls ?? 0;
+    const total  = gradeStats?.totalLeads   ?? 0;
+    const g11    = gradeStats?.grade11      ?? 0;
+    const booked = callStats?.bookedCalls   ?? 0;
+    const taken  = callStats?.takenCalls    ?? 0;
+    const deals  = callStats?.deals         ?? 0;
+    const cash   = callStats?.cashCollected ?? 0;
+    const rev    = callStats?.revenue       ?? 0;
 
     return {
       id:            ad.id,
@@ -41,10 +43,16 @@ export async function GET(req: NextRequest) {
       spend:         ad.spend,
       bookedCalls:   booked,
       costPerBooked: booked > 0 ? ad.spend / booked : 0,
+      takenCalls:    taken,
+      costPerTaken:  taken  > 0 ? ad.spend / taken  : 0,
+      deals,
+      costPerDeal:   deals  > 0 ? ad.spend / deals  : 0,
+      cashCollected: cash,
+      revenue:       rev,
       totalLeads:    total,
       grade11:       g11,
       pct11:         total > 0 ? (g11 / total) * 100 : 0,
-      costPer11:     g11 > 0 ? ad.spend / g11 : 0,
+      costPer11:     g11   > 0 ? ad.spend / g11       : 0,
     };
   }).sort((a, b) => b.spend - a.spend);
 
