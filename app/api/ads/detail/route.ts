@@ -76,7 +76,7 @@ async function fetchLeadDetail(
   const lastCol  = hdrs.findIndex((h) => h.includes("last name"));
   const dateCol  = hdrs.findIndex((h) => h === "date");
   const srcCol   = hdrs.findIndex((h) => h === "source" || h.includes("source"));
-  const gradeCol = hdrs.findIndex((h) => h.includes("grade"));
+  const gradeCol = hdrs.findIndex((h) => h.includes("grade") || h.includes("graduation") || h.includes("grad year"));
 
   if (srcCol < 0) return [];
 

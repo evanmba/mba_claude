@@ -52,7 +52,22 @@ function parseGrade(s: string): 9 | 10 | 11 | 12 | null {
   if (!s) return null;
   const digits = s.replace(/[^0-9]/g, "");
   const n = parseInt(digits, 10);
+
+  // Graduation year format (e.g. 2026, 2027, 2028, 2029)
+  // 12th = current senior year, which is the calendar year in spring (Jan–Aug)
+  // or calendar year + 1 in fall (Sep–Dec).
+  if (n >= 2020 && n <= 2040) {
+    const now = new Date();
+    const seniorYear = now.getMonth() < 8 ? now.getFullYear() : now.getFullYear() + 1;
+    const grade = 12 - (n - seniorYear);
+    if (grade >= 9 && grade <= 12) return grade as 9 | 10 | 11 | 12;
+    return null;
+  }
+
+  // Direct grade number (9–12)
   if (n >= 9 && n <= 12) return n as 9 | 10 | 11 | 12;
+
+  // Text / word form
   const l = s.toLowerCase();
   if (l.includes("fresh") || l.includes("ninth"))    return 9;
   if (l.includes("soph")  || l.includes("tenth"))    return 10;
@@ -118,7 +133,7 @@ export function parseGradeLeads(
   const dateCol  = hdrs.findIndex((h) => h === "date");
   const firstCol = hdrs.findIndex((h) => h.includes("first name"));
   const srcCol   = hdrs.findIndex((h) => h === "source" || h.includes("source"));
-  const gradeCol = hdrs.findIndex((h) => h.includes("grade"));
+  const gradeCol = hdrs.findIndex((h) => h.includes("grade") || h.includes("graduation") || h.includes("grad year"));
 
   if (srcCol < 0) return { byCampaign, byAdSet, byAd };
 
