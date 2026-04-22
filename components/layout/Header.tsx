@@ -14,6 +14,7 @@ const pageTitles: Record<string, string> = {
   "/sales": "Sales Dashboard",
   "/ai-dm-setter": "AI DM Setter",
   "/self-vs-internal": "Self vs Internal",
+  "/sales-script": "Sales Script",
 };
 
 export function Header() {
