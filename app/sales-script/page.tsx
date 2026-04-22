@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import Image from "next/image";
 import { PlaceholderCard } from "@/components/shared/PlaceholderCard";
 import { Check, RotateCcw } from "lucide-react";
 
@@ -164,8 +164,41 @@ export default function SalesScriptPage() {
     setDiscovery((prev) => ({ ...prev, [key]: v }));
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
+    <div className="min-h-screen" style={{ background: "var(--background)" }}>
+      {/* ─── Standalone header ─────────────────────────────────────── */}
+      <header
+        className="sticky top-0 z-10 border-b"
+        style={{
+          background: "var(--sidebar-bg)",
+          borderColor: "var(--sidebar-border)",
+        }}
+      >
+        <div className="max-w-5xl mx-auto px-4 md:px-8 py-4 flex items-center justify-between gap-4">
+          <Image
+            src="/logo.png"
+            alt="Mendoza Baseball Academy"
+            width={160}
+            height={36}
+            className="object-contain"
+            style={{ filter: "brightness(0) invert(1)" }}
+            priority
+          />
+          <div className="flex items-center gap-2">
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ background: ACCENT }}
+            />
+            <span
+              className="text-xs font-semibold uppercase tracking-wider"
+              style={{ color: ACCENT }}
+            >
+              Sales Script
+            </span>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-5xl mx-auto px-4 md:px-8 py-6 md:py-10 space-y-6">
 
         {/* ─── Setup ─────────────────────────────────────────────────── */}
         <PlaceholderCard
@@ -402,7 +435,7 @@ export default function SalesScriptPage() {
           </div>
         </PlaceholderCard>
 
-      </div>
-    </DashboardLayout>
+      </main>
+    </div>
   );
 }

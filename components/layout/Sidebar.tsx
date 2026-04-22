@@ -13,7 +13,6 @@ import {
   Bell,
   X,
   Target,
-  Headphones,
 } from "lucide-react";
 
 const socialItems = [
@@ -26,7 +25,6 @@ const socialItems = [
 const toolsItems = [
   { label: "Meta Ads", href: "/meta-ads", icon: Target, color: "#1877F2" },
   { label: "Competitor Tracker", href: "/competitors", icon: Users },
-  { label: "Sales Script", href: "/sales-script", icon: Headphones, color: "#06b6d4" },
 ];
 
 const bottomNavItems = [
