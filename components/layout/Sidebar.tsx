@@ -13,6 +13,7 @@ import {
   Bell,
   X,
   Target,
+  Headphones,
 } from "lucide-react";
 
 const socialItems = [
@@ -25,6 +26,7 @@ const socialItems = [
 const toolsItems = [
   { label: "Meta Ads", href: "/meta-ads", icon: Target, color: "#1877F2" },
   { label: "Competitor Tracker", href: "/competitors", icon: Users },
+  { label: "Sales Script", href: "/sales-script", icon: Headphones, color: "#06b6d4" },
 ];
 
 const bottomNavItems = [
@@ -155,6 +157,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
               icon={item.icon}
               label={item.label}
               isActive={pathname === item.href}
+              accentColor={"color" in item ? item.color : undefined}
               onClick={onClose}
             />
           ))}

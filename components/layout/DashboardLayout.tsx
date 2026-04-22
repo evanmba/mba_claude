@@ -17,6 +17,7 @@ const pageTitles: Record<string, string> = {
   "/calendar":     "Content Calendar",
   "/competitors":  "Competitor Tracker",
   "/news":         "News Consolidator",
+  "/sales-script": "Sales Script",
   "/notifications":"Notifications",
   "/settings":     "Settings",
 };
