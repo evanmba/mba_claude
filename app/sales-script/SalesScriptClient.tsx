@@ -369,7 +369,7 @@ export function SalesScriptClient() {
           <Field label="Exit Velocity (mph)" value={p.exitVelo} onChange={set("exitVelo")} placeholder="e.g. 88" />
           <Field label="Arm Velocity (mph)" value={p.armVelo} onChange={set("armVelo")} placeholder="e.g. 84" />
           <Field label="60 Time (sec)" value={p.sixtyTime} onChange={set("sixtyTime")} placeholder="e.g. 6.9" />
-          <Field label="Height / Weight" value={p.height} onChange={set("height")} placeholder='e.g. 6\'1" / 185' />
+          <Field label="Height / Weight" value={p.height} onChange={set("height")} placeholder="e.g. 6ft 1in / 185lbs" />
           <Field label="Dream School" value={p.dreamSchool} onChange={set("dreamSchool")} placeholder="e.g. Florida State" span={2} />
           <Field label="Schools Already Targeting" value={p.targetSchools} onChange={set("targetSchools")} placeholder="e.g. USF, FAU, UNF" span={2} />
           <Field label="Current Offers" value={p.offersReceived} onChange={set("offersReceived")} placeholder="e.g. None / 1 D3" span={2} />
