@@ -364,6 +364,18 @@ export async function getDialerDashboardData(noCache = false): Promise<DialerDas
         const m = await fetchDialerMonthMetrics(sheetId, apiKey, dialer.id, month, dialersSheet, noCache);
         if (m) months.push(m);
       }
+
+      // Fill any months that didn't have a sheet yet with the static stub (zeros),
+      // so every month in MONTHS always appears in the selector.
+      const fetched = new Set(months.map(x => x.month));
+      for (const month of MONTHS) {
+        if (!fetched.has(month)) {
+          const stub = (DIALER_METRICS[dialer.id] ?? []).find(x => x.month === month);
+          if (stub) months.push(stub);
+        }
+      }
+      months.sort((a, b) => MONTHS.indexOf(a.month) - MONTHS.indexOf(b.month));
+
       dialerMetrics[dialer.id] = months.length ? months : (DIALER_METRICS[dialer.id] ?? []);
     }
 
