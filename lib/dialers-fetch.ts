@@ -21,7 +21,7 @@ import {
 } from "@/lib/dialer-data";
 import { toNum } from "@/lib/sheets";
 
-const MONTHS = ["JAN 2026", "FEB 2026", "MAR 2026", "APR 2026"];
+const MONTHS = ["JAN 2026", "FEB 2026", "MAR 2026", "APR 2026", "MAY 2026"];
 
 const MONTH_LABEL_TO_IDX: Record<string, number> = {
   "JAN 2026": 0, "FEB 2026": 1, "MAR 2026": 2,

@@ -538,9 +538,9 @@ function SpeedToLeadSection({ data }: { data: SpeedToLeadData }) {
 
 // ─── Individual Dialer Tab ─────────────────────────────────────────────────────
 
-const MONTH_LABELS = ["JAN 2026", "FEB 2026", "MAR 2026", "APR 2026"];
+const MONTH_LABELS = ["JAN 2026", "FEB 2026", "MAR 2026", "APR 2026", "MAY 2026"];
 // Current month — always default to this if it exists in the data
-const CURRENT_MONTH = "APR 2026";
+const CURRENT_MONTH = "MAY 2026";
 
 const WEEKLY_GOAL = 6;
 // Goal sits at 75% of the bar; max scale = WEEKLY_GOAL / 0.75
