@@ -372,6 +372,8 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
     bookedCalls:  projectCount(kpi.bookedCalls,  daysWithData, totalDays),
     takenCalls:   projectCount(kpi.takenCalls,   daysWithData, totalDays),
     dealsClosed:  projectCount(kpi.dealsClosed,  daysWithData, totalDays),
+    cash:         projectCount(kpi.cash,         daysWithData, totalDays),
+    revenue:      projectCount(kpi.revenue,      daysWithData, totalDays),
   } : null;
 
   // Only show projections on the Month tab — for Today/4d/14d just report actuals
@@ -589,9 +591,19 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
           const prevCashRevRatio = prev.cash != null && prev.revenue != null && prev.revenue > 0
             ? prev.cash / prev.revenue : undefined;
           return (<>
-            <MetricCard label="Cash"    value={kpi ? $$(kpi.cash)    : "—"} mv={kpi ? c$$(kpi.cash)    : "—"} cur={kpi?.cash    ?? 0} prv={showMoM ? prev.cash : undefined}    hib={true}
+            <MetricCard label="Cash"
+              value={effectiveProj?.cash != null ? $$(effectiveProj.cash) : (kpi ? $$(kpi.cash) : "—")}
+              mv={effectiveProj?.cash != null ? c$$(effectiveProj.cash) : (kpi ? c$$(kpi.cash) : "—")}
+              cur={effectiveProj?.cash ?? kpi?.cash ?? 0} prv={showMoM ? prev.cash : undefined} hib={true}
+              actual={effectiveProj?.cash != null && kpi ? $$(kpi.cash) : undefined}
+              ma={effectiveProj?.cash != null && kpi ? c$$(kpi.cash) : undefined}
               avgDaily={isToday && ytdAvg ? `$${fAvg(ytdAvg.cash)}` : undefined} />
-            <MetricCard label="Revenue" value={kpi ? $$(kpi.revenue) : "—"} mv={kpi ? c$$(kpi.revenue) : "—"} cur={kpi?.revenue ?? 0} prv={showMoM ? prev.revenue : undefined} hib={true}
+            <MetricCard label="Revenue"
+              value={effectiveProj?.revenue != null ? $$(effectiveProj.revenue) : (kpi ? $$(kpi.revenue) : "—")}
+              mv={effectiveProj?.revenue != null ? c$$(effectiveProj.revenue) : (kpi ? c$$(kpi.revenue) : "—")}
+              cur={effectiveProj?.revenue ?? kpi?.revenue ?? 0} prv={showMoM ? prev.revenue : undefined} hib={true}
+              actual={effectiveProj?.revenue != null && kpi ? $$(kpi.revenue) : undefined}
+              ma={effectiveProj?.revenue != null && kpi ? c$$(kpi.revenue) : undefined}
               avgDaily={isToday && ytdAvg ? `$${fAvg(ytdAvg.revenue)}` : undefined} />
             <MetricCard label="Cash:Rev" value={cashRevRatio > 0 ? `${cashRevRatio.toFixed(2)}x` : "—"} cur={cashRevRatio} prv={prevCashRevRatio} hib={true} />
           </>);
