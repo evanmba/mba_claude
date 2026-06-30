@@ -10,11 +10,8 @@ const pageTitles: Record<string, string> = {
   "/settings": "Settings",
   "/notifications": "Notifications",
   "/dialers": "Setter Dashboard",
-  "/coverage": "Coverage Planner",
   "/sales": "Sales Dashboard",
   "/ai-dm-setter": "AI DM Setter",
-  "/self-vs-internal": "Self vs Internal",
-  "/sales-script": "Sales Script",
 };
 
 export function Header() {
