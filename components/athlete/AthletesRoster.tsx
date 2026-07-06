@@ -16,7 +16,6 @@ import {
 import {
   METRICS,
   METRIC_MAP,
-  formatPhone,
   type MetricKey,
   type AthleteHistory,
 } from "@/lib/athletes";
@@ -264,10 +263,9 @@ export function AthletesRoster({
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
-                      {a.name || formatPhone(a.phone)}
+                      {a.name || "Unnamed athlete"}
                     </p>
                     <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                      {a.name ? formatPhone(a.phone) + " · " : ""}
                       Week {latest.week} · {a.entries.length} check-in{a.entries.length === 1 ? "" : "s"}
                     </p>
                   </div>
