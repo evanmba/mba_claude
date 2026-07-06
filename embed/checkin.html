@@ -1,5 +1,5 @@
 <!-- ===================================================================
-     Mendoza Baseball Academy — Weekly Check-In (standalone embed)
+     Mendoza Baseball Academy - Weekly Check-In (standalone embed)
      -------------------------------------------------------------------
      Paste this ENTIRE block into a GoHighLevel "Custom Code / HTML" element.
      It is fully self-contained (no iframe, no build step). It posts each
@@ -161,7 +161,7 @@
     var row = [ new Date().toISOString(), phone, name, vals.armVelo, vals.exitVelo, vals.sixtyYard, vals.fiveTenFive ];
 
     var btn = document.getElementById("mba-submit");
-    btn.disabled = true; btn.textContent = "Saving…";
+    btn.disabled = true; btn.textContent = "Saving...";
 
     // NOTE: no custom headers -> a "simple" request, so the browser skips the
     // CORS preflight that Apps Script can't answer.
@@ -201,7 +201,7 @@
       var dd = delta(m.key), deltaHtml = "";
       if (dd){
         var col = dd.improved===null ? "#94a3b8" : (dd.improved ? "#22c55e" : "#ef4444");
-        var arrow = dd.improved===null ? "→" : (dd.improved ? "▲" : "▼");
+        var arrow = dd.improved===null ? "&rarr;" : (dd.improved ? "&#9650;" : "&#9660;");
         deltaHtml = '<div class="mba-delta" style="color:'+col+'">'+arrow+' '+(dd.d>0?"+":"")+fmt(dd.d)+' '+m.unit+' since Wk 1</div>';
       }
       return '<div class="mba-stat"><p class="l">'+m.label+'</p>'
@@ -227,12 +227,12 @@
 
     root.innerHTML = '<style>'+CSS+'</style>'
       + '<div class="mba-card">'
-      + '<div class="mba-ok"><span>✓</span><span>Check-in saved! Here\'s your progress.</span></div>'
+      + '<div class="mba-ok"><span>&#10003;</span><span>Check-in saved! Here\'s your progress.</span></div>'
       + '<h2 class="mba-h">'+esc(name)+'</h2>'
-      + '<p class="mba-sub">You\'re on <b style="color:#3b82f6">Week '+latest.week+'</b> · '+entries.length+' check-in'+(entries.length===1?"":"s")+' logged</p>'
+      + '<p class="mba-sub">You\'re on <b style="color:#3b82f6">Week '+latest.week+'</b> &middot; '+entries.length+' check-in'+(entries.length===1?"":"s")+' logged</p>'
       + '<div class="mba-grid" style="margin-top:16px">'+METRICS.map(statCard).join("")+'</div>'
       + '<div class="mba-panel" id="mba-panel">'+chartPanel()+'</div>'
-      + '<button class="mba-link" id="mba-again">← Log another check-in</button>'
+      + '<button class="mba-link" id="mba-again">&larr; Log another check-in</button>'
       + '</div>';
 
     function bindTabs(){
