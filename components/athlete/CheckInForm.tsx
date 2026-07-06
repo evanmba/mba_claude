@@ -195,7 +195,6 @@ function Results({
 
 export function CheckInForm() {
   const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
   const [values, setValues] = useState<FormValues>(EMPTY);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -213,7 +212,7 @@ export function CheckInForm() {
       const res = await fetch("/api/athlete/checkin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, name, ...values }),
+        body: JSON.stringify({ phone, ...values }),
       });
       const json = await res.json();
       if (!res.ok || !json.ok) {
@@ -250,26 +249,6 @@ export function CheckInForm() {
         <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
           Enter this week&apos;s numbers to see your progress.
         </p>
-      </div>
-
-      {/* Name (optional) */}
-      <div>
-        <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--foreground)" }}>
-          First name <span style={{ color: "var(--muted-foreground)" }}>(optional)</span>
-        </label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Jordan"
-          autoComplete="given-name"
-          className="w-full px-4 py-3 rounded-xl text-base outline-none focus:ring-2"
-          style={{
-            background: "var(--secondary)",
-            color: "var(--foreground)",
-            border: "1px solid var(--border)",
-          }}
-        />
       </div>
 
       {/* Phone */}
