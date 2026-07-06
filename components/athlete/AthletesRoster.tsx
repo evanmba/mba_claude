@@ -16,6 +16,7 @@ import {
 import {
   METRICS,
   METRIC_MAP,
+  hasReading,
   type MetricKey,
   type AthleteHistory,
 } from "@/lib/athletes";
@@ -31,23 +32,31 @@ function isThisWeek(iso: string): boolean {
 }
 
 function delta(a: AthleteHistory, key: MetricKey) {
-  const { entries } = a;
-  if (entries.length < 2) return null;
-  const diff = entries[entries.length - 1][key] - entries[0][key];
-  if (diff === 0) return { diff: 0, improved: null as boolean | null };
+  const valued = a.entries.filter((e) => hasReading(e[key]));
+  if (valued.length < 2) return null;
+  const diff = valued[valued.length - 1][key] - valued[0][key];
+  if (diff === 0 || METRIC_MAP[key].neutral) return { diff, improved: null as boolean | null };
   return { diff, improved: METRIC_MAP[key].higherIsBetter ? diff > 0 : diff < 0 };
+}
+
+/** Most recent entry that has a reading for this metric (or null). */
+function latestReading(a: AthleteHistory, key: MetricKey): number | null {
+  for (let i = a.entries.length - 1; i >= 0; i--) {
+    if (hasReading(a.entries[i][key])) return a.entries[i][key];
+  }
+  return null;
 }
 
 // ─── Detail panel ───────────────────────────────────────────────────────────
 
 function AthleteDetail({ athlete }: { athlete: AthleteHistory }) {
-  const [selected, setSelected] = useState<MetricKey>("armVelo");
+  const defaultSel =
+    METRICS.find((m) => athlete.entries.some((e) => hasReading(e[m.key])))?.key ?? "bodyWeight";
+  const [selected, setSelected] = useState<MetricKey>(defaultSel);
   const metric = METRIC_MAP[selected];
-  const points = athlete.entries.map((e) => ({
-    week: e.week,
-    value: e[selected],
-    date: e.submittedAt,
-  }));
+  const points = athlete.entries
+    .filter((e) => hasReading(e[selected]))
+    .map((e) => ({ week: e.week, value: e[selected], date: e.submittedAt }));
 
   return (
     <div className="space-y-4">
@@ -107,8 +116,12 @@ function AthleteDetail({ athlete }: { athlete: AthleteHistory }) {
                   })}
                 </td>
                 {METRICS.map((m) => (
-                  <td key={m.key} className="py-2 pr-4" style={{ color: m.color }}>
-                    {fmt(e[m.key])}
+                  <td
+                    key={m.key}
+                    className="py-2 pr-4"
+                    style={{ color: hasReading(e[m.key]) ? m.color : "var(--muted-foreground)" }}
+                  >
+                    {hasReading(e[m.key]) ? fmt(e[m.key]) : "—"}
                   </td>
                 ))}
               </tr>
@@ -277,7 +290,7 @@ export function AthletesRoster({
                         <div key={m.key} className="text-right">
                           <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{m.shortLabel}</p>
                           <p className="text-sm font-bold flex items-center gap-1 justify-end" style={{ color: "var(--foreground)" }}>
-                            {fmt(latest[m.key])}
+                            {(() => { const v = latestReading(a, m.key); return v === null ? "—" : fmt(v); })()}
                             {d &&
                               (d.improved === null ? (
                                 <Minus size={11} style={{ color: "var(--muted-foreground)" }} />

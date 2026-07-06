@@ -1,18 +1,22 @@
 # Athlete Weekly Check-In — Setup
 
-A weekly check-in tool for high school athletes. Athletes enter four metrics, and
+A weekly check-in tool for high school athletes. Athletes enter their metrics, and
 each submission is stored (keyed by phone number) so they can watch their progress
 build week over week.
 
 ## What athletes see
 
 - **Public form:** `/check-in` (mobile-first, no login). They enter:
-  - Arm Velocity (mph — higher is better)
-  - Exit Velocity (mph — higher is better)
-  - 60-Yard Dash (seconds — lower is better)
-  - 5-10-5 Shuttle (seconds — lower is better)
-  - Phone number (the tracking key — the form reminds them to reuse the same number)
-  - First name (optional)
+  - Name — **required**
+  - Phone number — **required** (the tracking key; the form reminds them to reuse the same number)
+  - Arm Velocity (mph — higher is better) — optional
+  - Exit Velocity (mph — higher is better) — optional
+  - 60-Yard Dash (seconds — lower is better) — optional
+  - 5-10-5 Shuttle (seconds — lower is better) — **required**
+  - Body Weight (lbs — tracked over time) — **required**
+- Optional fields can be left blank (some athletes won't know every number); a blank
+  field is stored as an empty cell and shown as "—", never as 0, and it's skipped in
+  that metric's chart.
 - On submit they immediately see a **mobile-friendly line chart** of their progress
   per metric, plus current values and change since Week 1.
 
@@ -30,9 +34,9 @@ never asked what week they're on.
 
 Every submission appends a row to a **Google Sheet** you own:
 
-| A | B | C | D | E | F | G |
-|---|---|---|---|---|---|---|
-| submittedAt (ISO) | phone | name | armVelo | exitVelo | sixtyYard | fiveTenFive |
+| A | B | C | D | E | F | G | H |
+|---|---|---|---|---|---|---|---|
+| submittedAt (ISO) | phone | name | armVelo | exitVelo | sixtyYard | fiveTenFive | bodyWeight |
 
 You can open, sort, filter, and export this sheet at any time — it is the durable
 system of record.
@@ -54,7 +58,7 @@ There are two ways to connect the Sheet — pick **one**:
 
 1. **Create the Sheet.** New Google Sheet → rename the first tab to `CheckIns`.
    In row 1 add the headers:
-   `submittedAt  phone  name  armVelo  exitVelo  sixtyYard  fiveTenFive`
+   `submittedAt  phone  name  armVelo  exitVelo  sixtyYard  fiveTenFive  bodyWeight`
 
 2. **Add the script.** In the Sheet, go to **Extensions → Apps Script**. Delete any
    starter code and paste the entire contents of [`apps-script/CheckIns.gs`](apps-script/CheckIns.gs).
@@ -87,7 +91,7 @@ There are two ways to connect the Sheet — pick **one**:
 
 1. **Create the Sheet.** New Google Sheet → rename the first tab to `CheckIns`.
    In row 1 add the headers (optional but recommended):
-   `submittedAt  phone  name  armVelo  exitVelo  sixtyYard  fiveTenFive`
+   `submittedAt  phone  name  armVelo  exitVelo  sixtyYard  fiveTenFive  bodyWeight`
    Copy the spreadsheet ID from the URL:
    `https://docs.google.com/spreadsheets/d/`**`THIS_IS_THE_ID`**`/edit`
 

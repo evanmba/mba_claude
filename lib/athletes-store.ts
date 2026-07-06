@@ -17,9 +17,9 @@ import {
 // ─── Row <-> Entry (Google Sheet column order) ──────────────────────────────
 //
 // Columns: A submittedAt | B phone | C name | D armVelo | E exitVelo
-//          F sixtyYard | G fiveTenFive
+//          F sixtyYard | G fiveTenFive | H bodyWeight
 
-const SHEET_COLUMNS = "A:G";
+const SHEET_COLUMNS = "A:H";
 export const SHEET_HEADER = [
   "submittedAt",
   "phone",
@@ -28,17 +28,22 @@ export const SHEET_HEADER = [
   "exitVelo",
   "sixtyYard",
   "fiveTenFive",
+  "bodyWeight",
 ];
 
 function entryToRow(e: AthleteEntry): (string | number)[] {
+  // Blank optional metrics (0) are written as "" so the sheet shows an empty
+  // cell rather than a misleading 0.
+  const opt = (v: number) => (v > 0 ? v : "");
   return [
     e.submittedAt,
     e.phone,
     e.name,
-    e.armVelo,
-    e.exitVelo,
-    e.sixtyYard,
+    opt(e.armVelo),
+    opt(e.exitVelo),
+    opt(e.sixtyYard),
     e.fiveTenFive,
+    e.bodyWeight,
   ];
 }
 
@@ -66,6 +71,7 @@ function rowToEntry(row: unknown[]): AthleteEntry | null {
     exitVelo: toNum(row[4]),
     sixtyYard: toNum(row[5]),
     fiveTenFive: toNum(row[6]),
+    bodyWeight: toNum(row[7]),
   };
 }
 

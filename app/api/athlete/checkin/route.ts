@@ -9,14 +9,7 @@ import {
 
 export const runtime = "nodejs";
 
-interface CheckInBody {
-  phone?: string;
-  name?: string;
-  armVelo?: unknown;
-  exitVelo?: unknown;
-  sixtyYard?: unknown;
-  fiveTenFive?: unknown;
-}
+type CheckInBody = { phone?: string; name?: string } & Partial<Record<MetricKey, unknown>>;
 
 function parseMetric(value: unknown): number | null {
   const n = typeof value === "string" ? parseFloat(value) : (value as number);
@@ -32,6 +25,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Invalid request body." }, { status: 400 });
   }
 
+  const name = (body.name ?? "").trim().slice(0, 60);
+  if (!name) {
+    return NextResponse.json({ ok: false, error: "Please enter your name." }, { status: 400 });
+  }
+
   const phone = normalizePhone(body.phone ?? "");
   if (phone.length < 10) {
     return NextResponse.json(
@@ -40,10 +38,14 @@ export async function POST(req: Request) {
     );
   }
 
-  const values: Partial<Record<MetricKey, number>> = {};
+  // Required metrics must be valid; optional ones default to 0 ("no reading").
+  const values: Record<MetricKey, number> = {
+    armVelo: 0, exitVelo: 0, sixtyYard: 0, fiveTenFive: 0, bodyWeight: 0,
+  };
   for (const m of METRICS) {
     const parsed = parseMetric(body[m.key]);
     if (parsed === null) {
+      if (m.optional) continue; // blank optional field → stays 0
       return NextResponse.json(
         { ok: false, error: `Please enter a valid ${m.label} (${m.unit}).` },
         { status: 400 },
@@ -55,11 +57,12 @@ export async function POST(req: Request) {
   const entry: AthleteEntry = {
     submittedAt: new Date().toISOString(),
     phone,
-    name: (body.name ?? "").trim().slice(0, 60),
-    armVelo: values.armVelo!,
-    exitVelo: values.exitVelo!,
-    sixtyYard: values.sixtyYard!,
-    fiveTenFive: values.fiveTenFive!,
+    name,
+    armVelo: values.armVelo,
+    exitVelo: values.exitVelo,
+    sixtyYard: values.sixtyYard,
+    fiveTenFive: values.fiveTenFive,
+    bodyWeight: values.bodyWeight,
   };
 
   try {

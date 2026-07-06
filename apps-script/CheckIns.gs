@@ -14,7 +14,7 @@
  *
  * SETUP:
  *   1. Sheet tab named exactly SHEET_TAB below, headers in row 1:
- *        submittedAt  phone  name  armVelo  exitVelo  sixtyYard  fiveTenFive
+ *        submittedAt  phone  name  armVelo  exitVelo  sixtyYard  fiveTenFive  bodyWeight
  *   2. Extensions -> Apps Script, paste this whole file. Change TOKEN.
  *   3. Deploy -> New deployment -> Web app: Execute as Me, Access: Anyone.
  *      Copy the /exec URL.

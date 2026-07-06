@@ -10,7 +10,7 @@
 //   • Arm & exit velo are measured in mph  → higher is better
 //   • 60-yard dash & 5-10-5 are timed drills in seconds → lower is better
 
-export type MetricKey = "armVelo" | "exitVelo" | "sixtyYard" | "fiveTenFive";
+export type MetricKey = "armVelo" | "exitVelo" | "sixtyYard" | "fiveTenFive" | "bodyWeight";
 
 export interface MetricDef {
   key: MetricKey;
@@ -18,6 +18,10 @@ export interface MetricDef {
   shortLabel: string;
   unit: string;
   higherIsBetter: boolean;
+  /** Neutral metrics (e.g. body weight) have no "good" direction — deltas are shown without up/down judgment. */
+  neutral?: boolean;
+  /** Optional fields may be left blank on the form (stored as 0 = "no reading"). */
+  optional?: boolean;
   color: string;
   /** Loose sanity bounds used for input validation (not hard limits). */
   min: number;
@@ -33,6 +37,7 @@ export const METRICS: MetricDef[] = [
     shortLabel: "Arm Velo",
     unit: "mph",
     higherIsBetter: true,
+    optional: true,
     color: "#3b82f6", // blue
     min: 30,
     max: 110,
@@ -45,6 +50,7 @@ export const METRICS: MetricDef[] = [
     shortLabel: "Exit Velo",
     unit: "mph",
     higherIsBetter: true,
+    optional: true,
     color: "#22c55e", // green
     min: 40,
     max: 120,
@@ -57,6 +63,7 @@ export const METRICS: MetricDef[] = [
     shortLabel: "60-Yard",
     unit: "sec",
     higherIsBetter: false,
+    optional: true,
     color: "#f59e0b", // amber
     min: 5,
     max: 12,
@@ -75,6 +82,19 @@ export const METRICS: MetricDef[] = [
     step: 0.01,
     placeholder: "e.g. 4.4",
   },
+  {
+    key: "bodyWeight",
+    label: "Body Weight",
+    shortLabel: "Weight",
+    unit: "lbs",
+    higherIsBetter: true, // unused — neutral
+    neutral: true,
+    color: "#06b6d4", // cyan
+    min: 60,
+    max: 350,
+    step: 0.1,
+    placeholder: "e.g. 165",
+  },
 ];
 
 export const METRIC_MAP: Record<MetricKey, MetricDef> = Object.fromEntries(
@@ -87,10 +107,17 @@ export interface AthleteEntry {
   submittedAt: string; // ISO timestamp
   phone: string; // normalized (digits only)
   name: string; // optional first name / label ("" if not given)
+  // Metric values. 0 means "no reading" (an optional field left blank).
   armVelo: number;
   exitVelo: number;
   sixtyYard: number;
   fiveTenFive: number;
+  bodyWeight: number;
+}
+
+/** True when a metric value represents a real reading (not a blank/absent field). */
+export function hasReading(v: number): boolean {
+  return typeof v === "number" && isFinite(v) && v > 0;
 }
 
 /** An entry decorated with the program week (computed from the first entry). */

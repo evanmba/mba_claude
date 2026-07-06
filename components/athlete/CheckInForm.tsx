@@ -6,6 +6,7 @@ import {
   METRICS,
   METRIC_MAP,
   formatPhone,
+  hasReading,
   type MetricKey,
   type AthleteHistory,
 } from "@/lib/athletes";
@@ -13,19 +14,30 @@ import { MetricLineChart } from "./MetricLineChart";
 
 type FormValues = Record<MetricKey, string>;
 
-const EMPTY: FormValues = { armVelo: "", exitVelo: "", sixtyYard: "", fiveTenFive: "" };
+const EMPTY: FormValues = {
+  armVelo: "", exitVelo: "", sixtyYard: "", fiveTenFive: "", bodyWeight: "",
+};
 
 // ─── Delta helper ───────────────────────────────────────────────────────────
+// Only entries that actually have a reading for the metric count, so blank
+// optional fields don't drag a value to/from zero.
 
 function delta(history: AthleteHistory, key: MetricKey) {
-  const { entries } = history;
-  if (entries.length < 2) return null;
-  const first = entries[0][key];
-  const last = entries[entries.length - 1][key];
-  const diff = last - first;
-  if (diff === 0) return { diff: 0, improved: null as boolean | null };
+  const valued = history.entries.filter((e) => hasReading(e[key]));
+  if (valued.length < 2) return null;
+  const diff = valued[valued.length - 1][key] - valued[0][key];
+  if (diff === 0 || METRIC_MAP[key].neutral) return { diff, improved: null as boolean | null };
   const improved = METRIC_MAP[key].higherIsBetter ? diff > 0 : diff < 0;
   return { diff, improved };
+}
+
+/** Most recent entry that has a reading for this metric (or null). */
+function latestReading(history: AthleteHistory, key: MetricKey): number | null {
+  const { entries } = history;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    if (hasReading(entries[i][key])) return entries[i][key];
+  }
+  return null;
 }
 
 function fmt(n: number): string {
@@ -43,16 +55,16 @@ function Results({
   onLogAnother: () => void;
   justSubmitted: boolean;
 }) {
-  const [selected, setSelected] = useState<MetricKey>("armVelo");
   const { entries } = history;
   const latest = entries[entries.length - 1];
+  // Default the chart to the first metric that actually has a reading.
+  const defaultMetric = METRICS.find((m) => hasReading(latest[m.key]))?.key ?? "bodyWeight";
+  const [selected, setSelected] = useState<MetricKey>(defaultMetric);
   const metric = METRIC_MAP[selected];
 
-  const chartPoints = entries.map((e) => ({
-    week: e.week,
-    value: e[selected],
-    date: e.submittedAt,
-  }));
+  const chartPoints = entries
+    .filter((e) => hasReading(e[selected]))
+    .map((e) => ({ week: e.week, value: e[selected], date: e.submittedAt }));
 
   return (
     <div className="space-y-5">
@@ -94,12 +106,19 @@ function Results({
               <p className="text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>
                 {m.label}
               </p>
-              <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
-                {fmt(latest[m.key])}
-                <span className="text-sm font-normal ml-1" style={{ color: "var(--muted-foreground)" }}>
-                  {m.unit}
-                </span>
-              </p>
+              {(() => {
+                const v = latestReading(history, m.key);
+                return (
+                  <p className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>
+                    {v === null ? "—" : fmt(v)}
+                    {v !== null && (
+                      <span className="text-sm font-normal ml-1" style={{ color: "var(--muted-foreground)" }}>
+                        {m.unit}
+                      </span>
+                    )}
+                  </p>
+                );
+              })()}
               {d && (
                 <div className="flex items-center gap-1 mt-1.5">
                   {d.improved === null ? (
@@ -162,7 +181,11 @@ function Results({
             </span>
           </p>
           <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-            {metric.higherIsBetter ? "higher is better" : "lower is better"}
+            {metric.neutral
+              ? "tracking over time"
+              : metric.higherIsBetter
+                ? "higher is better"
+                : "lower is better"}
           </span>
         </div>
 
@@ -173,7 +196,7 @@ function Results({
           label={metric.label}
         />
 
-        {entries.length === 1 && (
+        {chartPoints.length === 1 && (
           <p className="text-xs text-center mt-2" style={{ color: "var(--muted-foreground)" }}>
             Check in again next week to start building your progress line.
           </p>
@@ -306,6 +329,9 @@ export function CheckInForm() {
           <div key={m.key}>
             <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--foreground)" }}>
               {m.label}
+              {m.optional && (
+                <span className="font-normal" style={{ color: "var(--muted-foreground)" }}> (optional)</span>
+              )}
             </label>
             <div className="relative">
               <input
@@ -316,7 +342,7 @@ export function CheckInForm() {
                 value={values[m.key]}
                 onChange={(e) => setValue(m.key, e.target.value)}
                 placeholder={m.placeholder}
-                required
+                required={!m.optional}
                 className="w-full pl-4 pr-12 py-3 rounded-xl text-base outline-none focus:ring-2"
                 style={{
                   background: "var(--secondary)",
@@ -352,7 +378,7 @@ export function CheckInForm() {
         type="submit"
         disabled={submitting}
         className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-base font-semibold active:scale-[0.99] transition-transform disabled:opacity-60"
-        style={{ background: "var(--primary)", color: "#fff" }}
+        style={{ background: "#FFB800", color: "#000" }}
       >
         {submitting ? (
           <>

@@ -18,13 +18,14 @@
   var ENDPOINT = "https://script.google.com/macros/s/AKfycbxSdZtxjHPldH5uRo_dEBU8XsyYnCvWprxcKu9McwLM-fL6LrPfC3rEBB40Dd3VoVtp/exec";
 
   var METRICS = [
-    { key: "armVelo",     label: "Arm Velocity",  short: "Arm Velo",  unit: "mph", higher: true,  color: "#3b82f6", ph: "e.g. 78", step: "0.1"  },
-    { key: "exitVelo",    label: "Exit Velocity", short: "Exit Velo", unit: "mph", higher: true,  color: "#22c55e", ph: "e.g. 88", step: "0.1"  },
-    { key: "sixtyYard",   label: "60-Yard Dash",  short: "60-Yard",   unit: "sec", higher: false, color: "#f59e0b", ph: "e.g. 6.9", step: "0.01" },
-    { key: "fiveTenFive", label: "5-10-5 Shuttle",short: "5-10-5",    unit: "sec", higher: false, color: "#d946ef", ph: "e.g. 4.4", step: "0.01" }
+    { key: "armVelo",     label: "Arm Velocity",  short: "Arm Velo",  unit: "mph", higher: true,  optional: true,  color: "#3b82f6", ph: "e.g. 78", step: "0.1"  },
+    { key: "exitVelo",    label: "Exit Velocity", short: "Exit Velo", unit: "mph", higher: true,  optional: true,  color: "#22c55e", ph: "e.g. 88", step: "0.1"  },
+    { key: "sixtyYard",   label: "60-Yard Dash",  short: "60-Yard",   unit: "sec", higher: false, optional: true,  color: "#f59e0b", ph: "e.g. 6.9", step: "0.01" },
+    { key: "fiveTenFive", label: "5-10-5 Shuttle",short: "5-10-5",    unit: "sec", higher: false, optional: false, color: "#d946ef", ph: "e.g. 4.4", step: "0.01" },
+    { key: "bodyWeight",  label: "Body Weight",   short: "Weight",    unit: "lbs", higher: true,  optional: false, neutral: true, color: "#06b6d4", ph: "e.g. 165", step: "0.1" }
   ];
-  // Sheet column order: submittedAt | phone | name | armVelo | exitVelo | sixtyYard | fiveTenFive
-  var COL = { submittedAt: 0, phone: 1, name: 2, armVelo: 3, exitVelo: 4, sixtyYard: 5, fiveTenFive: 6 };
+  // Sheet column order: submittedAt | phone | name | armVelo | exitVelo | sixtyYard | fiveTenFive | bodyWeight
+  var COL = { submittedAt: 0, phone: 1, name: 2, armVelo: 3, exitVelo: 4, sixtyYard: 5, fiveTenFive: 6, bodyWeight: 7 };
 
   // ---- helpers --------------------------------------------------------------
   function digits(v){ return String(v == null ? "" : v).replace(/\D/g, "").slice(-10); }
@@ -32,6 +33,7 @@
   function fmt(n){ return String(Number(Number(n).toFixed(2))); }
   function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
   function toNum(v){ var n = parseFloat(String(v)); return isFinite(n) ? n : 0; }
+  function hasReading(v){ return typeof v === "number" && isFinite(v) && v > 0; } // 0/blank = no reading
 
   function computeWeeks(rows){
     var items = rows.map(function(r){
@@ -40,7 +42,8 @@
         phone: digits(r[COL.phone]),
         name: String(r[COL.name] == null ? "" : r[COL.name]).trim(),
         armVelo: toNum(r[COL.armVelo]), exitVelo: toNum(r[COL.exitVelo]),
-        sixtyYard: toNum(r[COL.sixtyYard]), fiveTenFive: toNum(r[COL.fiveTenFive])
+        sixtyYard: toNum(r[COL.sixtyYard]), fiveTenFive: toNum(r[COL.fiveTenFive]),
+        bodyWeight: toNum(r[COL.bodyWeight])
       };
     }).filter(function(e){ return !isNaN(new Date(e.submittedAt).getTime()); });
     items.sort(function(a,b){ return new Date(a.submittedAt) - new Date(b.submittedAt); });
@@ -90,7 +93,7 @@
    + ".mba-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}"
    + ".mba-field{margin-top:16px}"
    + ".mba-unit{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:#94a3b8;pointer-events:none}"
-   + ".mba-btn{width:100%;margin-top:20px;padding:14px;border:0;border-radius:12px;background:#3b82f6;color:#fff;font-size:16px;font-weight:700;cursor:pointer}"
+   + ".mba-btn{width:100%;margin-top:20px;padding:14px;border:0;border-radius:12px;background:#FFB800;color:#000;font-size:16px;font-weight:700;cursor:pointer}"
    + ".mba-btn:disabled{opacity:.6;cursor:default}"
    + ".mba-err{margin-top:14px;padding:12px 14px;border-radius:12px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444;font-size:14px}"
    + ".mba-ok{display:flex;gap:8px;align-items:center;padding:12px 14px;border-radius:12px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#22c55e;font-size:14px;margin-bottom:16px}"
@@ -110,10 +113,11 @@
 
   function metricInputs(){
     return METRICS.map(function(m){
+      var opt = m.optional ? ' <span style="font-weight:400;color:#94a3b8">(optional)</span>' : '';
       return '<div>'
-        + '<label class="mba-label">'+m.label+'</label>'
+        + '<label class="mba-label">'+m.label+opt+'</label>'
         + '<div style="position:relative">'
-        + '<input class="mba-input" style="padding-right:44px" type="number" inputmode="decimal" step="'+m.step+'" min="0" required data-metric="'+m.key+'" placeholder="'+m.ph+'">'
+        + '<input class="mba-input" style="padding-right:44px" type="number" inputmode="decimal" step="'+m.step+'" min="0"'+(m.optional?'':' required')+' data-metric="'+m.key+'" data-optional="'+(m.optional?'1':'0')+'" placeholder="'+m.ph+'">'
         + '<span class="mba-unit">'+m.unit+'</span>'
         + '</div></div>';
     }).join("");
@@ -148,17 +152,25 @@
     showError("");
     var name = document.getElementById("mba-name").value.trim();
     var phone = document.getElementById("mba-phone").value;
+    if (!name) { showError("Please enter your name."); return; }
     if (digits(phone).length < 10) { showError("Please enter a valid 10-digit phone number."); return; }
-    var vals = {};
+    var vals = {}; // blank optional fields stay "" (no reading)
     var inputs = root.querySelectorAll("[data-metric]");
     for (var i=0;i<inputs.length;i++){
-      var v = parseFloat(inputs[i].value);
-      if (!(v > 0)) { showError("Please enter all four numbers."); return; }
-      vals[inputs[i].getAttribute("data-metric")] = v;
+      var key = inputs[i].getAttribute("data-metric");
+      var optional = inputs[i].getAttribute("data-optional") === "1";
+      var raw = inputs[i].value.trim();
+      if (raw === "") {
+        if (optional) { vals[key] = ""; continue; }
+        showError("Please fill in " + METRICS.filter(function(m){return m.key===key;})[0].label + "."); return;
+      }
+      var v = parseFloat(raw);
+      if (!(v > 0)) { showError("Please enter a valid number for " + METRICS.filter(function(m){return m.key===key;})[0].label + "."); return; }
+      vals[key] = v;
     }
     state.name = name; state.phone = phone;
 
-    var row = [ new Date().toISOString(), phone, name, vals.armVelo, vals.exitVelo, vals.sixtyYard, vals.fiveTenFive ];
+    var row = [ new Date().toISOString(), phone, name, vals.armVelo, vals.exitVelo, vals.sixtyYard, vals.fiveTenFive, vals.bodyWeight ];
 
     var btn = document.getElementById("mba-submit");
     btn.disabled = true; btn.textContent = "Saving...";
@@ -183,18 +195,23 @@
     var entries = computeWeeks(historyRows);
     if (!entries.length){
       // Fallback: at least reflect what they just submitted.
-      entries = computeWeeks([[ new Date().toISOString(), phone, submittedName, 0,0,0,0 ]]);
+      entries = computeWeeks([[ new Date().toISOString(), phone, submittedName, 0,0,0,0,0 ]]);
     }
     var latest = entries[entries.length-1];
     var name = "";
     for (var i=entries.length-1;i>=0;i--){ if(entries[i].name){ name=entries[i].name; break; } }
     if (!name) name = submittedName || fmtPhone(phone);
 
+    // Only entries with an actual reading for the metric count.
+    function valued(key){ return entries.filter(function(e){ return hasReading(e[key]); }); }
+    function latestReading(key){ var v = valued(key); return v.length ? v[v.length-1][key] : null; }
+
     function delta(key){
-      if (entries.length < 2) return null;
-      var d = entries[entries.length-1][key] - entries[0][key];
-      if (d === 0) return { d:0, improved:null };
+      var v = valued(key);
+      if (v.length < 2) return null;
+      var d = v[v.length-1][key] - v[0][key];
       var m = METRICS.filter(function(x){return x.key===key;})[0];
+      if (d === 0 || m.neutral) return { d:d, improved:null };
       return { d:d, improved: m.higher ? d>0 : d<0 };
     }
     function statCard(m){
@@ -204,25 +221,30 @@
         var arrow = dd.improved===null ? "&rarr;" : (dd.improved ? "&#9650;" : "&#9660;");
         deltaHtml = '<div class="mba-delta" style="color:'+col+'">'+arrow+' '+(dd.d>0?"+":"")+fmt(dd.d)+' '+m.unit+' since Wk 1</div>';
       }
-      return '<div class="mba-stat"><p class="l">'+m.label+'</p>'
-        + '<p class="v">'+fmt(latest[m.key])+'<span class="u">'+m.unit+'</span></p>'+deltaHtml+'</div>';
+      var lv = latestReading(m.key);
+      var valHtml = lv === null ? '<p class="v">&mdash;</p>'
+        : '<p class="v">'+fmt(lv)+'<span class="u">'+m.unit+'</span></p>';
+      return '<div class="mba-stat"><p class="l">'+m.label+'</p>'+valHtml+deltaHtml+'</div>';
     }
 
-    var selected = METRICS[0].key;
+    // Default to the first metric that actually has a reading.
+    var selected = (METRICS.filter(function(m){ return hasReading(latest[m.key]); })[0] || METRICS[METRICS.length-1]).key;
     function chartPanel(){
       var m = METRICS.filter(function(x){return x.key===selected;})[0];
-      var points = entries.map(function(e){ return { week:e.week, value:e[m.key] }; });
+      var points = valued(m.key).map(function(e){ return { week:e.week, value:e[m.key] }; });
       var tabs = METRICS.map(function(x){
         var on = x.key===selected;
         return '<button class="mba-tab" data-tab="'+x.key+'" style="'+(on?"background:"+x.color+";color:#fff":"")+'">'+x.short+'</button>';
       }).join("");
-      var hint = m.higher ? "higher is better" : "lower is better";
-      var footer = entries.length===1 ? '<p style="text-align:center;font-size:12px;color:#94a3b8;margin:8px 0 0">Check in again next week to start building your progress line.</p>' : "";
+      var hint = m.neutral ? "tracking over time" : (m.higher ? "higher is better" : "lower is better");
+      var footer = points.length===1 ? '<p style="text-align:center;font-size:12px;color:#94a3b8;margin:8px 0 0">Check in again next week to start building your progress line.</p>' : "";
+      var body = points.length ? chartSVG(points, m.color, m.unit)
+        : '<div style="height:180px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:14px">No readings for this yet</div>';
       return '<div class="mba-tabs">'+tabs+'</div>'
         + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">'
         +   '<p style="font-size:14px;font-weight:700;margin:0">'+m.label+' <span style="font-weight:400;color:#94a3b8">('+m.unit+')</span></p>'
         +   '<span style="font-size:12px;color:#94a3b8">'+hint+'</span></div>'
-        + chartSVG(points, m.color, m.unit) + footer;
+        + body + footer;
     }
 
     root.innerHTML = '<style>'+CSS+'</style>'
