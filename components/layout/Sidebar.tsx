@@ -3,20 +3,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import {
-  Settings,
-  Bell,
-  X,
-  Trophy,
-} from "lucide-react";
+import { X, Trophy } from "lucide-react";
 
 const mainItems = [
   { label: "Athletes", href: "/", icon: Trophy, color: "#22c55e" },
-];
-
-const bottomNavItems = [
-  { label: "Notifications", href: "/notifications", icon: Bell },
-  { label: "Settings", href: "/settings", icon: Settings },
 ];
 
 function NavLink({
@@ -122,25 +112,6 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           ))}
         </ul>
       </nav>
-
-      {/* Bottom */}
-      <div
-        className="px-3 py-4 border-t"
-        style={{ borderColor: "var(--sidebar-border)" }}
-      >
-        <ul className="space-y-1">
-          {bottomNavItems.map((item) => (
-            <NavLink
-              key={item.href}
-              href={item.href}
-              icon={item.icon}
-              label={item.label}
-              isActive={pathname === item.href}
-              onClick={onClose}
-            />
-          ))}
-        </ul>
-      </div>
     </aside>
   );
 }
