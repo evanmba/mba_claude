@@ -1,0 +1,255 @@
+<!-- ===================================================================
+     Mendoza Baseball Academy — Weekly Check-In (standalone embed)
+     -------------------------------------------------------------------
+     Paste this ENTIRE block into a GoHighLevel "Custom Code / HTML" element.
+     It is fully self-contained (no iframe, no build step). It posts each
+     check-in straight to your Google Apps Script Web App and draws the
+     athlete's progress graph from the response.
+
+     BEFORE USING: set ENDPOINT below to your Apps Script /exec URL, and make
+     sure you've deployed the UPDATED apps-script/CheckIns.gs (the version whose
+     doPost returns the athlete's history).
+     =================================================================== -->
+<div id="mba-checkin-root"></div>
+
+<script>
+(function () {
+  // ---- CONFIG ---------------------------------------------------------------
+  var ENDPOINT = "https://script.google.com/macros/s/AKfycbxSdZtxjHPldH5uRo_dEBU8XsyYnCvWprxcKu9McwLM-fL6LrPfC3rEBB40Dd3VoVtp/exec";
+
+  var METRICS = [
+    { key: "armVelo",     label: "Arm Velocity",  short: "Arm Velo",  unit: "mph", higher: true,  color: "#3b82f6", ph: "e.g. 78", step: "0.1"  },
+    { key: "exitVelo",    label: "Exit Velocity", short: "Exit Velo", unit: "mph", higher: true,  color: "#22c55e", ph: "e.g. 88", step: "0.1"  },
+    { key: "sixtyYard",   label: "60-Yard Dash",  short: "60-Yard",   unit: "sec", higher: false, color: "#f59e0b", ph: "e.g. 6.9", step: "0.01" },
+    { key: "fiveTenFive", label: "5-10-5 Shuttle",short: "5-10-5",    unit: "sec", higher: false, color: "#d946ef", ph: "e.g. 4.4", step: "0.01" }
+  ];
+  // Sheet column order: submittedAt | phone | name | armVelo | exitVelo | sixtyYard | fiveTenFive
+  var COL = { submittedAt: 0, phone: 1, name: 2, armVelo: 3, exitVelo: 4, sixtyYard: 5, fiveTenFive: 6 };
+
+  // ---- helpers --------------------------------------------------------------
+  function digits(v){ return String(v == null ? "" : v).replace(/\D/g, "").slice(-10); }
+  function fmtPhone(v){ var d = digits(v); return d.length === 10 ? "("+d.slice(0,3)+") "+d.slice(3,6)+"-"+d.slice(6) : String(v||""); }
+  function fmt(n){ return String(Number(Number(n).toFixed(2))); }
+  function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+  function toNum(v){ var n = parseFloat(String(v)); return isFinite(n) ? n : 0; }
+
+  function computeWeeks(rows){
+    var items = rows.map(function(r){
+      return {
+        submittedAt: r[COL.submittedAt] instanceof Date ? r[COL.submittedAt].toISOString() : String(r[COL.submittedAt]),
+        phone: digits(r[COL.phone]),
+        name: String(r[COL.name] == null ? "" : r[COL.name]).trim(),
+        armVelo: toNum(r[COL.armVelo]), exitVelo: toNum(r[COL.exitVelo]),
+        sixtyYard: toNum(r[COL.sixtyYard]), fiveTenFive: toNum(r[COL.fiveTenFive])
+      };
+    }).filter(function(e){ return !isNaN(new Date(e.submittedAt).getTime()); });
+    items.sort(function(a,b){ return new Date(a.submittedAt) - new Date(b.submittedAt); });
+    if (!items.length) return items;
+    var t0 = new Date(items[0].submittedAt).getTime(), WK = 7*24*60*60*1000;
+    items.forEach(function(e){ e.week = Math.floor((new Date(e.submittedAt).getTime() - t0)/WK) + 1; });
+    return items;
+  }
+
+  // ---- SVG line chart (single series) --------------------------------------
+  function chartSVG(points, color, unit){
+    var W=340,H=210, pad={t:40,r:18,b:34,l:18}, pw=W-pad.l-pad.r, ph=H-pad.t-pad.b;
+    if(!points.length) return "";
+    var vals = points.map(function(p){return p.value;});
+    var mn=Math.min.apply(null,vals), mx=Math.max.apply(null,vals);
+    if(mn===mx){ var b=Math.max(Math.abs(mn)*0.1,1); mn-=b; mx+=b; } else { var p2=(mx-mn)*0.2; mn-=p2; mx+=p2; }
+    var X=function(i){ return points.length===1 ? pad.l+pw/2 : pad.l+(i/(points.length-1))*pw; };
+    var Y=function(v){ return pad.t+ph-((v-mn)/(mx-mn))*ph; };
+    var pts=points.map(function(p,i){ return {x:X(i),y:Y(p.value),v:p.value,week:p.week}; });
+    var line=pts.map(function(c){return c.x+","+c.y;}).join(" ");
+    var grid=[0,0.5,1].map(function(t){ var y=pad.t+t*ph; return '<line x1="'+pad.l+'" x2="'+(W-pad.r)+'" y1="'+y+'" y2="'+y+'" stroke="#1e293b" stroke-width="1"/>'; }).join("");
+    var area="";
+    if(pts.length>1){
+      var d=(pad.l)+","+(pad.t+ph)+" "+pts.map(function(c){return c.x+","+c.y;}).join(" ")+" "+pts[pts.length-1].x+","+(pad.t+ph);
+      area='<polygon points="'+d+'" fill="'+color+'" fill-opacity="0.16"/>';
+    }
+    var poly = pts.length>1 ? '<polyline points="'+line+'" fill="none" stroke="'+color+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>' : "";
+    var marks=pts.map(function(c){
+      return '<text x="'+c.x+'" y="'+(c.y-12)+'" text-anchor="middle" font-size="12" font-weight="700" fill="#e2e8f0">'+fmt(c.v)+'</text>'+
+             '<circle cx="'+c.x+'" cy="'+c.y+'" r="5.5" fill="#0f172a"/>'+
+             '<circle cx="'+c.x+'" cy="'+c.y+'" r="4" fill="'+color+'" stroke="#0f172a" stroke-width="2"/>'+
+             '<text x="'+c.x+'" y="'+(H-12)+'" text-anchor="middle" font-size="11" font-weight="600" fill="#94a3b8">Wk '+c.week+'</text>';
+    }).join("");
+    return '<svg viewBox="0 0 '+W+' '+H+'" width="100%" style="height:auto;display:block" role="img" aria-label="progress chart in '+unit+'">'+grid+area+poly+marks+'</svg>';
+  }
+
+  // ---- styles ---------------------------------------------------------------
+  var CSS = ""
+   + "#mba-checkin-root *{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif}"
+   + ".mba-card{max-width:480px;margin:0 auto;background:#0f172a;border:1px solid #1e293b;border-radius:18px;padding:22px;color:#e2e8f0}"
+   + ".mba-h{font-size:18px;font-weight:800;margin:0}"
+   + ".mba-sub{font-size:13px;color:#94a3b8;margin:4px 0 0}"
+   + ".mba-label{display:block;font-size:13px;font-weight:600;margin:0 0 6px}"
+   + ".mba-input{width:100%;padding:12px 14px;border-radius:12px;background:#1e293b;color:#e2e8f0;border:1px solid #1e293b;font-size:16px;outline:none}"
+   + ".mba-input:focus{border-color:#3b82f6}"
+   + ".mba-note{font-size:12px;color:#94a3b8;margin:6px 0 0}"
+   + ".mba-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}"
+   + ".mba-field{margin-top:16px}"
+   + ".mba-unit{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:#94a3b8;pointer-events:none}"
+   + ".mba-btn{width:100%;margin-top:20px;padding:14px;border:0;border-radius:12px;background:#3b82f6;color:#fff;font-size:16px;font-weight:700;cursor:pointer}"
+   + ".mba-btn:disabled{opacity:.6;cursor:default}"
+   + ".mba-err{margin-top:14px;padding:12px 14px;border-radius:12px;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444;font-size:14px}"
+   + ".mba-ok{display:flex;gap:8px;align-items:center;padding:12px 14px;border-radius:12px;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:#22c55e;font-size:14px;margin-bottom:16px}"
+   + ".mba-stat{background:#0b1424;border:1px solid #1e293b;border-radius:12px;padding:14px}"
+   + ".mba-stat .l{font-size:12px;color:#94a3b8;margin:0 0 4px}"
+   + ".mba-stat .v{font-size:24px;font-weight:800;margin:0}"
+   + ".mba-stat .u{font-size:13px;font-weight:400;color:#94a3b8;margin-left:4px}"
+   + ".mba-delta{font-size:12px;font-weight:600;margin-top:6px}"
+   + ".mba-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}"
+   + ".mba-tab{font-size:12px;font-weight:600;padding:6px 12px;border-radius:9px;border:0;background:#1e293b;color:#94a3b8;cursor:pointer}"
+   + ".mba-panel{background:#0b1424;border:1px solid #1e293b;border-radius:16px;padding:16px;margin-top:16px}"
+   + ".mba-link{width:100%;margin-top:16px;padding:12px;border:1px solid #1e293b;border-radius:12px;background:#1e293b;color:#e2e8f0;font-size:14px;font-weight:600;cursor:pointer}";
+
+  // ---- render: form ---------------------------------------------------------
+  var root = document.getElementById("mba-checkin-root");
+  var state = { name:"", phone:"" };
+
+  function metricInputs(){
+    return METRICS.map(function(m){
+      return '<div>'
+        + '<label class="mba-label">'+m.label+'</label>'
+        + '<div style="position:relative">'
+        + '<input class="mba-input" style="padding-right:44px" type="number" inputmode="decimal" step="'+m.step+'" min="0" required data-metric="'+m.key+'" placeholder="'+m.ph+'">'
+        + '<span class="mba-unit">'+m.unit+'</span>'
+        + '</div></div>';
+    }).join("");
+  }
+
+  function renderForm(){
+    root.innerHTML = '<style>'+CSS+'</style>'
+      + '<div class="mba-card">'
+      + '<h2 class="mba-h">Weekly Check-In</h2>'
+      + '<p class="mba-sub">Enter this week\'s numbers to see your progress.</p>'
+      + '<form id="mba-form">'
+      + '<div class="mba-field"><label class="mba-label">Name</label>'
+      +   '<input class="mba-input" id="mba-name" type="text" autocomplete="name" required placeholder="e.g. Jordan Smith" value="'+esc(state.name)+'"></div>'
+      + '<div class="mba-field"><label class="mba-label">Phone number</label>'
+      +   '<input class="mba-input" id="mba-phone" type="tel" inputmode="numeric" autocomplete="tel" required placeholder="(555) 123-4567" value="'+esc(state.phone)+'">'
+      +   '<p class="mba-note">Use the same phone number every week so we can track your progress over time.</p></div>'
+      + '<div class="mba-field mba-grid">'+metricInputs()+'</div>'
+      + '<div id="mba-err"></div>'
+      + '<button class="mba-btn" type="submit" id="mba-submit">Submit &amp; see my progress</button>'
+      + '</form></div>';
+
+    document.getElementById("mba-form").addEventListener("submit", onSubmit);
+  }
+
+  function showError(msg){
+    var e = document.getElementById("mba-err");
+    if (e) e.innerHTML = '<div class="mba-err">'+esc(msg)+'</div>';
+  }
+
+  function onSubmit(ev){
+    ev.preventDefault();
+    showError("");
+    var name = document.getElementById("mba-name").value.trim();
+    var phone = document.getElementById("mba-phone").value;
+    if (digits(phone).length < 10) { showError("Please enter a valid 10-digit phone number."); return; }
+    var vals = {};
+    var inputs = root.querySelectorAll("[data-metric]");
+    for (var i=0;i<inputs.length;i++){
+      var v = parseFloat(inputs[i].value);
+      if (!(v > 0)) { showError("Please enter all four numbers."); return; }
+      vals[inputs[i].getAttribute("data-metric")] = v;
+    }
+    state.name = name; state.phone = phone;
+
+    var row = [ new Date().toISOString(), phone, name, vals.armVelo, vals.exitVelo, vals.sixtyYard, vals.fiveTenFive ];
+
+    var btn = document.getElementById("mba-submit");
+    btn.disabled = true; btn.textContent = "Saving…";
+
+    // NOTE: no custom headers -> a "simple" request, so the browser skips the
+    // CORS preflight that Apps Script can't answer.
+    fetch(ENDPOINT, { method:"POST", body: JSON.stringify({ row: row }) })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (!data || !data.ok) throw new Error((data && data.error) || "Could not save.");
+        renderResults(data.history || [], phone, name);
+      })
+      .catch(function(err){
+        btn.disabled = false; btn.textContent = "Submit & see my progress";
+        showError("Could not save your check-in. Please try again.");
+        if (window.console) console.error(err);
+      });
+  }
+
+  // ---- render: results ------------------------------------------------------
+  function renderResults(historyRows, phone, submittedName){
+    var entries = computeWeeks(historyRows);
+    if (!entries.length){
+      // Fallback: at least reflect what they just submitted.
+      entries = computeWeeks([[ new Date().toISOString(), phone, submittedName, 0,0,0,0 ]]);
+    }
+    var latest = entries[entries.length-1];
+    var name = "";
+    for (var i=entries.length-1;i>=0;i--){ if(entries[i].name){ name=entries[i].name; break; } }
+    if (!name) name = submittedName || fmtPhone(phone);
+
+    function delta(key){
+      if (entries.length < 2) return null;
+      var d = entries[entries.length-1][key] - entries[0][key];
+      if (d === 0) return { d:0, improved:null };
+      var m = METRICS.filter(function(x){return x.key===key;})[0];
+      return { d:d, improved: m.higher ? d>0 : d<0 };
+    }
+    function statCard(m){
+      var dd = delta(m.key), deltaHtml = "";
+      if (dd){
+        var col = dd.improved===null ? "#94a3b8" : (dd.improved ? "#22c55e" : "#ef4444");
+        var arrow = dd.improved===null ? "→" : (dd.improved ? "▲" : "▼");
+        deltaHtml = '<div class="mba-delta" style="color:'+col+'">'+arrow+' '+(dd.d>0?"+":"")+fmt(dd.d)+' '+m.unit+' since Wk 1</div>';
+      }
+      return '<div class="mba-stat"><p class="l">'+m.label+'</p>'
+        + '<p class="v">'+fmt(latest[m.key])+'<span class="u">'+m.unit+'</span></p>'+deltaHtml+'</div>';
+    }
+
+    var selected = METRICS[0].key;
+    function chartPanel(){
+      var m = METRICS.filter(function(x){return x.key===selected;})[0];
+      var points = entries.map(function(e){ return { week:e.week, value:e[m.key] }; });
+      var tabs = METRICS.map(function(x){
+        var on = x.key===selected;
+        return '<button class="mba-tab" data-tab="'+x.key+'" style="'+(on?"background:"+x.color+";color:#fff":"")+'">'+x.short+'</button>';
+      }).join("");
+      var hint = m.higher ? "higher is better" : "lower is better";
+      var footer = entries.length===1 ? '<p style="text-align:center;font-size:12px;color:#94a3b8;margin:8px 0 0">Check in again next week to start building your progress line.</p>' : "";
+      return '<div class="mba-tabs">'+tabs+'</div>'
+        + '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">'
+        +   '<p style="font-size:14px;font-weight:700;margin:0">'+m.label+' <span style="font-weight:400;color:#94a3b8">('+m.unit+')</span></p>'
+        +   '<span style="font-size:12px;color:#94a3b8">'+hint+'</span></div>'
+        + chartSVG(points, m.color, m.unit) + footer;
+    }
+
+    root.innerHTML = '<style>'+CSS+'</style>'
+      + '<div class="mba-card">'
+      + '<div class="mba-ok"><span>✓</span><span>Check-in saved! Here\'s your progress.</span></div>'
+      + '<h2 class="mba-h">'+esc(name)+'</h2>'
+      + '<p class="mba-sub">You\'re on <b style="color:#3b82f6">Week '+latest.week+'</b> · '+entries.length+' check-in'+(entries.length===1?"":"s")+' logged</p>'
+      + '<div class="mba-grid" style="margin-top:16px">'+METRICS.map(statCard).join("")+'</div>'
+      + '<div class="mba-panel" id="mba-panel">'+chartPanel()+'</div>'
+      + '<button class="mba-link" id="mba-again">← Log another check-in</button>'
+      + '</div>';
+
+    function bindTabs(){
+      var btns = root.querySelectorAll("[data-tab]");
+      for (var i=0;i<btns.length;i++){
+        btns[i].addEventListener("click", function(){
+          selected = this.getAttribute("data-tab");
+          document.getElementById("mba-panel").innerHTML = chartPanel();
+          bindTabs();
+        });
+      }
+    }
+    bindTabs();
+    document.getElementById("mba-again").addEventListener("click", renderForm);
+    if (window.scrollTo) { try { window.scrollTo({ top:0, behavior:"smooth" }); } catch(e){} }
+  }
+
+  renderForm();
+})();
+</script>
