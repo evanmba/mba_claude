@@ -4,7 +4,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
   Settings,
   Bell,
   X,
@@ -12,8 +11,7 @@ import {
 } from "lucide-react";
 
 const mainItems = [
-  { label: "Dashboard", href: "/",         icon: LayoutDashboard },
-  { label: "Athletes",  href: "/athletes", icon: Trophy, color: "#22c55e" },
+  { label: "Athletes", href: "/athletes", icon: Trophy, color: "#22c55e" },
 ];
 
 const bottomNavItems = [
