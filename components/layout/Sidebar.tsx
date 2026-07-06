@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 const mainItems = [
-  { label: "Athletes", href: "/athletes", icon: Trophy, color: "#22c55e" },
+  { label: "Athletes", href: "/", icon: Trophy, color: "#22c55e" },
 ];
 
 const bottomNavItems = [

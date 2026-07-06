@@ -1,29 +1,51 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { PlatformDashboard } from "@/components/dashboard/PlatformDashboard";
-import { fetchCSV, parsePlatformData, type PlatformData } from "@/lib/sheets";
+import { AthletesRoster } from "@/components/athlete/AthletesRoster";
+import { getAllAthletes, isSheetConfigured } from "@/lib/athletes-store";
+import { type AthleteHistory } from "@/lib/athletes";
+import { AlertCircle } from "lucide-react";
 
-const PLATFORM_CSV_URL =
-  "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_WHM2ipG0ih1oyHyCUiZckUgkeyUiEks9SfGVns5VyYKSmsl_3QnMpDnRgBwMzm8fQ9OXn8B1rMuL/pub?output=csv";
+export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
-  let data: PlatformData = { rows: [], goals: null };
-  let fetchError = false;
+export default async function HomePage() {
+  let athletes: AthleteHistory[] = [];
+  let loadError = false;
   const fetchedAt = new Date().toISOString();
 
   try {
-    const rows = await fetchCSV(PLATFORM_CSV_URL);
-    data = parsePlatformData(rows);
+    athletes = await getAllAthletes();
   } catch {
-    fetchError = true;
+    loadError = true;
   }
+
+  const configured = isSheetConfigured();
 
   return (
     <DashboardLayout>
-      <PlatformDashboard
-        initialData={data}
-        initialError={fetchError}
-        serverFetchedAt={fetchedAt}
-      />
+      {!configured && (
+        <div
+          className="flex items-start gap-3 px-4 py-3 rounded-xl border mb-6 text-sm"
+          style={{ background: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.3)", color: "#f59e0b" }}
+        >
+          <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+          <span>
+            Google Sheet storage isn&apos;t configured yet — check-ins are being saved to a local
+            file that resets on redeploy. Add the athlete Sheet credentials to persist data. See{" "}
+            <code>ATHLETE_CHECKIN_SETUP.md</code>.
+          </span>
+        </div>
+      )}
+
+      {loadError && (
+        <div
+          className="flex items-center gap-3 px-4 py-3 rounded-xl border mb-6 text-sm"
+          style={{ background: "rgba(239,68,68,0.08)", borderColor: "rgba(239,68,68,0.3)", color: "#ef4444" }}
+        >
+          <AlertCircle size={16} />
+          <span>Could not load athlete data. Check the Sheet credentials and sharing settings.</span>
+        </div>
+      )}
+
+      <AthletesRoster initialAthletes={athletes} serverFetchedAt={fetchedAt} />
     </DashboardLayout>
   );
 }
