@@ -13,6 +13,7 @@ import {
   Bell,
   X,
   Target,
+  Trophy,
 } from "lucide-react";
 
 const socialItems = [
@@ -24,6 +25,7 @@ const socialItems = [
 
 const toolsItems = [
   { label: "Meta Ads", href: "/meta-ads", icon: Target, color: "#1877F2" },
+  { label: "Athletes", href: "/athletes", icon: Trophy, color: "#22c55e" },
   { label: "Competitor Tracker", href: "/competitors", icon: Users },
 ];
 

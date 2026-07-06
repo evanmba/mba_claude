@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# local athlete check-in fallback store (used when Google Sheets isn't configured)
+/.data/
 
 # vercel
 .vercel

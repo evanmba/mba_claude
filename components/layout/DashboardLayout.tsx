@@ -15,6 +15,7 @@ const pageTitles: Record<string, string> = {
   "/tiktok":       "TikTok",
   "/analytics":    "Analytics",
   "/calendar":     "Content Calendar",
+  "/athletes":     "Athletes",
   "/competitors":  "Competitor Tracker",
   "/news":         "News Consolidator",
   "/notifications":"Notifications",
