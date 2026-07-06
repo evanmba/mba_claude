@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { CheckInForm } from "@/components/athlete/CheckInForm";
+import { EmbedResizer } from "@/components/athlete/EmbedResizer";
 
 export const metadata: Metadata = {
   title: "Weekly Check-In — Mendoza Baseball Academy",
@@ -13,7 +14,8 @@ export default function CheckInPage() {
       className="min-h-screen flex flex-col items-center px-4 py-8"
       style={{ background: "var(--background)" }}
     >
-      <div className="w-full max-w-md">
+      <EmbedResizer />
+      <div className="w-full max-w-md" data-embed-content>
         {/* Brand */}
         <div className="flex justify-center mb-6">
           <Image
