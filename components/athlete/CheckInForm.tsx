@@ -194,6 +194,7 @@ function Results({
 // ─── Main form ──────────────────────────────────────────────────────────────
 
 export function CheckInForm() {
+  const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [values, setValues] = useState<FormValues>(EMPTY);
   const [submitting, setSubmitting] = useState(false);
@@ -212,7 +213,7 @@ export function CheckInForm() {
       const res = await fetch("/api/athlete/checkin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, ...values }),
+        body: JSON.stringify({ name, phone, ...values }),
       });
       const json = await res.json();
       if (!res.ok || !json.ok) {
@@ -236,6 +237,8 @@ export function CheckInForm() {
     setError(null);
   }
 
+  // Keep `name` between check-ins so an athlete logging again doesn't retype it.
+
   if (history) {
     return <Results history={history} onLogAnother={reset} justSubmitted={justSubmitted} />;
   }
@@ -249,6 +252,27 @@ export function CheckInForm() {
         <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
           Enter this week&apos;s numbers to see your progress.
         </p>
+      </div>
+
+      {/* Name */}
+      <div>
+        <label className="block text-sm font-medium mb-1.5" style={{ color: "var(--foreground)" }}>
+          Name
+        </label>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. Jordan Smith"
+          autoComplete="name"
+          required
+          className="w-full px-4 py-3 rounded-xl text-base outline-none focus:ring-2"
+          style={{
+            background: "var(--secondary)",
+            color: "var(--foreground)",
+            border: "1px solid var(--border)",
+          }}
+        />
       </div>
 
       {/* Phone */}
