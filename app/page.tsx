@@ -1,6 +1,6 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { AthletesRoster } from "@/components/athlete/AthletesRoster";
-import { getAllAthletes, isSheetConfigured } from "@/lib/athletes-store";
+import { getAllAthletes, isStorageConfigured } from "@/lib/athletes-store";
 import { type AthleteHistory } from "@/lib/athletes";
 import { AlertCircle } from "lucide-react";
 
@@ -17,7 +17,7 @@ export default async function HomePage() {
     loadError = true;
   }
 
-  const configured = isSheetConfigured();
+  const configured = isStorageConfigured();
 
   return (
     <DashboardLayout>

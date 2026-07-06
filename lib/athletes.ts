@@ -107,8 +107,9 @@ export interface AthleteHistory {
 // ─── Phone normalization ────────────────────────────────────────────────────
 
 /** Reduce a phone to comparable digits (last 10 for US-style numbers). */
-export function normalizePhone(raw: string): string {
-  const digits = (raw ?? "").replace(/\D/g, "");
+export function normalizePhone(raw: string | number): string {
+  // Coerce to string first — sheet/web-app reads can hand back a number.
+  const digits = String(raw ?? "").replace(/\D/g, "");
   return digits.length > 10 ? digits.slice(-10) : digits;
 }
 

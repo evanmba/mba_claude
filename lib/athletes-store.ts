@@ -42,20 +42,30 @@ function entryToRow(e: AthleteEntry): (string | number)[] {
   ];
 }
 
-function rowToEntry(row: string[]): AthleteEntry | null {
-  const submittedAt = (row[0] ?? "").trim();
+// A cell can arrive as a string (CSV / Sheets API) or a number / Date
+// (Apps Script getValues()), so coerce defensively.
+function toStr(v: unknown): string {
+  if (v instanceof Date) return v.toISOString();
+  return String(v ?? "").trim();
+}
+function toNum(v: unknown): number {
+  return parseFloat(toStr(v)) || 0;
+}
+
+function rowToEntry(row: unknown[]): AthleteEntry | null {
+  const submittedAt = toStr(row[0]);
   // Skip header / blank / malformed rows.
   if (!submittedAt || isNaN(new Date(submittedAt).getTime())) return null;
-  const phone = normalizePhone(row[1] ?? "");
+  const phone = normalizePhone(toStr(row[1]));
   if (phone.length < 7) return null;
   return {
     submittedAt,
     phone,
-    name: (row[2] ?? "").trim(),
-    armVelo: parseFloat(row[3]) || 0,
-    exitVelo: parseFloat(row[4]) || 0,
-    sixtyYard: parseFloat(row[5]) || 0,
-    fiveTenFive: parseFloat(row[6]) || 0,
+    name: toStr(row[2]),
+    armVelo: toNum(row[3]),
+    exitVelo: toNum(row[4]),
+    sixtyYard: toNum(row[5]),
+    fiveTenFive: toNum(row[6]),
   };
 }
 
@@ -96,9 +106,17 @@ function getSheetConfig() {
   return { sheetId, tab, sa };
 }
 
-/** Returns true when Google Sheets storage is fully configured. */
-export function isSheetConfigured(): boolean {
-  return getSheetConfig() !== null;
+// ─── Apps Script Web App backend (simplest: one URL, no key file) ────────────
+
+function getWebAppConfig() {
+  const url = process.env.ATHLETE_WEBAPP_URL;
+  if (!url) return null;
+  return { url, token: process.env.ATHLETE_WEBAPP_TOKEN || "" };
+}
+
+/** True when any durable backend (web app OR service account) is configured. */
+export function isStorageConfigured(): boolean {
+  return getWebAppConfig() !== null || getSheetConfig() !== null;
 }
 
 let cachedToken: { token: string; exp: number } | null = null;
@@ -185,6 +203,40 @@ async function sheetReadAll(
   return rows.map(rowToEntry).filter((e): e is AthleteEntry => e !== null);
 }
 
+async function webAppAppend(
+  web: NonNullable<ReturnType<typeof getWebAppConfig>>,
+  entry: AthleteEntry,
+): Promise<void> {
+  const res = await fetch(web.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token: web.token, row: entryToRow(entry) }),
+    redirect: "follow",
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Web app append failed (${res.status}): ${detail}`);
+  }
+  const json = (await res.json()) as { ok?: boolean; error?: string };
+  if (!json.ok) throw new Error(`Web app append rejected: ${json.error ?? "unknown"}`);
+}
+
+async function webAppReadAll(
+  web: NonNullable<ReturnType<typeof getWebAppConfig>>,
+): Promise<AthleteEntry[]> {
+  const u = new URL(web.url);
+  if (web.token) u.searchParams.set("token", web.token);
+  const res = await fetch(u.toString(), { redirect: "follow", cache: "no-store" });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`Web app read failed (${res.status}): ${detail}`);
+  }
+  const json = (await res.json()) as { ok?: boolean; values?: unknown[][]; error?: string };
+  if (!json.ok) throw new Error(`Web app read rejected: ${json.error ?? "unknown"}`);
+  return (json.values ?? []).map(rowToEntry).filter((e): e is AthleteEntry => e !== null);
+}
+
 // ─── Local file fallback (dev / no credentials) ─────────────────────────────
 //
 // Used only when Google Sheets is not configured, so the feature still works
@@ -214,18 +266,25 @@ async function fileAppend(entry: AthleteEntry): Promise<void> {
 
 /** Append a new check-in entry to the active storage backend. */
 export async function addEntry(entry: AthleteEntry): Promise<void> {
+  const web = getWebAppConfig();
+  if (web) {
+    await webAppAppend(web, entry);
+    return;
+  }
   const cfg = getSheetConfig();
   if (cfg) {
     await sheetAppend(cfg, entry);
-  } else {
-    console.warn(
-      "[athletes] Google Sheets not configured — writing to local .data/athletes.json (not durable on serverless).",
-    );
-    await fileAppend(entry);
+    return;
   }
+  console.warn(
+    "[athletes] No durable storage configured — writing to local .data/athletes.json (not durable on serverless).",
+  );
+  await fileAppend(entry);
 }
 
 async function readAll(): Promise<AthleteEntry[]> {
+  const web = getWebAppConfig();
+  if (web) return webAppReadAll(web);
   const cfg = getSheetConfig();
   return cfg ? sheetReadAll(cfg) : fileReadAll();
 }
