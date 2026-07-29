@@ -2,14 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { TrendingUp, DollarSign, BarChart2, Globe, Bot } from "lucide-react";
+import { TrendingUp, DollarSign, Bot } from "lucide-react";
 
 const navItems = [
-  { label: "Funnel",   href: "/funnel",       icon: TrendingUp, color: "#22c55e" },
-  { label: "Ads",      href: "/ads",          icon: BarChart2,  color: "#f59e0b" },
-  { label: "Finance",  href: "/financials",   icon: DollarSign, color: "#3b82f6" },
-  { label: "LP Test",  href: "/landing-page", icon: Globe,      color: "#38d6f5" },
-  { label: "AI",       href: "/ai",           icon: Bot,        color: "#a78bfa" },
+  { label: "Funnel",  href: "/funnel",     icon: TrendingUp, color: "#22c55e" },
+  { label: "Finance", href: "/financials", icon: DollarSign, color: "#3b82f6" },
+  { label: "AI",      href: "/ai",         icon: Bot,        color: "#a78bfa" },
 ];
 
 export function MobileNav() {
