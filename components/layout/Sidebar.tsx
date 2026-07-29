@@ -2,16 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { TrendingUp, DollarSign, Bot } from "lucide-react";
+import { TrendingUp, DollarSign } from "lucide-react";
 
 const navItems = [
   { label: "Funnel Dashboard", href: "/funnel",     icon: TrendingUp, color: "#22c55e" },
   { label: "Financials",       href: "/financials", icon: DollarSign, color: "#3b82f6" },
 ];
 
-const bottomNavItems: { label: string; href: string; icon: React.ElementType; color: string }[] = [
-  { label: "AI Assistant", href: "/ai", icon: Bot, color: "#a78bfa" },
-];
+const bottomNavItems: { label: string; href: string; icon: React.ElementType; color: string }[] = [];
 
 function NavLink({
   href,
@@ -99,24 +97,25 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      {/* Bottom */}
-      <div
-        className="px-3 py-4 border-t"
-        style={{ borderColor: "var(--sidebar-border)" }}
-      >
-        <ul className="space-y-1">
-          {bottomNavItems.map((item) => (
-            <NavLink
-              key={item.href}
-              href={item.href}
-              icon={item.icon}
-              label={item.label}
-              isActive={pathname === item.href}
-              accentColor={item.color}
-            />
-          ))}
-        </ul>
-      </div>
+      {bottomNavItems.length > 0 && (
+        <div
+          className="px-3 py-4 border-t"
+          style={{ borderColor: "var(--sidebar-border)" }}
+        >
+          <ul className="space-y-1">
+            {bottomNavItems.map((item) => (
+              <NavLink
+                key={item.href}
+                href={item.href}
+                icon={item.icon}
+                label={item.label}
+                isActive={pathname === item.href}
+                accentColor={item.color}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
     </aside>
   );
 }

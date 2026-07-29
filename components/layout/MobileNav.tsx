@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { TrendingUp, DollarSign, Bot } from "lucide-react";
+import { TrendingUp, DollarSign } from "lucide-react";
 
 const navItems = [
   { label: "Funnel",  href: "/funnel",     icon: TrendingUp, color: "#22c55e" },
   { label: "Finance", href: "/financials", icon: DollarSign, color: "#3b82f6" },
-  { label: "AI",      href: "/ai",         icon: Bot,        color: "#a78bfa" },
 ];
 
 export function MobileNav() {

@@ -298,7 +298,8 @@ const cv = (row: string[], i: number) => (i >= 0 ? (row[i] ?? "").trim() : "");
 // ─── Monthly sheet parser ──────────────────────────────────────────────────
 
 const ROLLUP_LABELS = new Set(["4 days", "7 days", "14 days", "30 days"]);
-const DATE_RE = /^\d{1,2}\/\d{1,2}\/\d{2,4}$/;
+// Matches M/D/YY, M/D/YYYY, MM/DD/YYYY, and date-only M/D (no year)
+const DATE_RE = /^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/;
 
 export function parseMonthly(rows: string[][]): { monthly: MonthlyRow[]; salesDashboard: SalesDashboard | null } {
   if (rows.length < 2) return { monthly: [], salesDashboard: null };
@@ -319,12 +320,27 @@ export function parseMonthly(rows: string[][]): { monthly: MonthlyRow[]; salesDa
                   : fi(hdrs, ["unique", "click"]),
     ctr:        fi(hdrs, ["click-through"]) >= 0 ? fi(hdrs, ["click-through"]) : fi(hdrs, ["ctr"]),
     costClick:  fi(hdrs, ["cost per unique link"]) >= 0 ? fi(hdrs, ["cost per unique link"]) : fi(hdrs, ["cost", "click"]),
-    leads:      fi(hdrs, ["total ageq"]) >= 0 ? fi(hdrs, ["total ageq"]) : fi(hdrs, ["ageq", "lead"]),
-    leadConv:   fi(hdrs, ["ageq lead conversion"]) >= 0 ? fi(hdrs, ["ageq lead conversion"]) : fi(hdrs, ["lead conversion"]),
-    costLead:   fi(hdrs, ["cost per ageq"]) >= 0 ? fi(hdrs, ["cost per ageq"]) : fi(hdrs, ["cost", "lead"]),
-    apps:       fi(hdrs, ["total apps"]) >= 0 ? fi(hdrs, ["total apps"]) : fi(hdrs, ["apps"]),
-    appConv:    fi(hdrs, ["app conversion"]),
-    costApp:    fi(hdrs, ["cost per app"]),
+    leads:      fi(hdrs, ["total ageq"]) >= 0      ? fi(hdrs, ["total ageq"]) :
+                fi(hdrs, ["ageq", "lead"]) >= 0   ? fi(hdrs, ["ageq", "lead"]) :
+                fi(hdrs, ["ageq"]) >= 0            ? fi(hdrs, ["ageq"]) :
+                hdrs.findIndex((h) => h === "leads") >= 0 ? hdrs.findIndex((h) => h === "leads") :
+                fi(hdrs, ["total leads"]) >= 0     ? fi(hdrs, ["total leads"]) :
+                fi(hdrs, ["leads"]),
+    leadConv:   fi(hdrs, ["ageq lead conversion"]) >= 0 ? fi(hdrs, ["ageq lead conversion"]) :
+                fi(hdrs, ["lead conversion"]) >= 0 ? fi(hdrs, ["lead conversion"]) :
+                fi(hdrs, ["opt-in conv"]) >= 0     ? fi(hdrs, ["opt-in conv"]) :
+                fi(hdrs, ["opt in conv"]),
+    costLead:   fi(hdrs, ["cost per ageq"]) >= 0  ? fi(hdrs, ["cost per ageq"]) :
+                fi(hdrs, ["cost", "lead"]),
+    apps:       fi(hdrs, ["total apps"]) >= 0       ? fi(hdrs, ["total apps"]) :
+                fi(hdrs, ["total applications"]) >= 0 ? fi(hdrs, ["total applications"]) :
+                fi(hdrs, ["apps"]) >= 0             ? fi(hdrs, ["apps"]) :
+                fi(hdrs, ["applications"]),
+    appConv:    fi(hdrs, ["app conversion"]) >= 0  ? fi(hdrs, ["app conversion"]) :
+                fi(hdrs, ["application conversion"]),
+    costApp:    fi(hdrs, ["cost per app"]) >= 0    ? fi(hdrs, ["cost per app"]) :
+                fi(hdrs, ["cost", "app"]) >= 0     ? fi(hdrs, ["cost", "app"]) :
+                fi(hdrs, ["cost", "application"]),
     booked:     fi(hdrs, ["booked calls"]),
     bookedConv: fi(hdrs, ["app-to-booked"]) >= 0 ? fi(hdrs, ["app-to-booked"])
                : fi(hdrs, ["lead-to-booked"]) >= 0 ? fi(hdrs, ["lead-to-booked"])
