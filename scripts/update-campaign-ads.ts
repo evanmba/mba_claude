@@ -189,7 +189,8 @@ async function insertRowAt(token: string, sheetId: number, zeroBasedIndex: numbe
   if (!res.ok) throw new Error(`Insert row failed: ${JSON.stringify(json)}`);
 }
 
-// Copy one row into another (same sheet). Copies columns A:AA (indices 0–26).
+// Copy one row into another (same sheet). Copies columns A:AB (indices 0–27).
+// Dashboard columns: A(Day) B(Spend) C(Clicks) D(CPC) … AA(Revenue ROAS) AB(Change Log)
 async function copyRowDown(
   token: string,
   sheetId: number,
@@ -209,14 +210,14 @@ async function copyRowDown(
               startRowIndex:    sourceZeroIndex,
               endRowIndex:      sourceZeroIndex + 1,
               startColumnIndex: 0,
-              endColumnIndex:   27, // A(0) through AA(26), exclusive end = 27
+              endColumnIndex:   28, // A(0) through AB(27), exclusive end = 28
             },
             destination: {
               sheetId,
               startRowIndex:    destZeroIndex,
               endRowIndex:      destZeroIndex + 1,
               startColumnIndex: 0,
-              endColumnIndex:   27,
+              endColumnIndex:   28,
             },
             pasteType:        "PASTE_NORMAL",
             pasteOrientation: "NORMAL",
@@ -328,17 +329,19 @@ async function main() {
     console.log(`  A6 = "${a6}", today = "${todaySheet}"`);
 
     if (a6 === todaySheet) {
-      console.log("  A6 is already today — updating row 6 metrics");
-      await writeRow(token, `'${DASHBOARD_TAB}'!A6:I6`, rowValues);
+      // Row already exists for today — just refresh spend and clicks (B and C)
+      console.log("  A6 is already today — updating B6:C6 (spend + clicks)");
+      await writeRow(token, `'${DASHBOARD_TAB}'!B6:C6`, [metrics.spend, metrics.linkClicks]);
     } else {
-      console.log("  A6 is a different date — inserting new row 6 and copying A:AA from old row 6");
+      // New day: insert row, copy old row 6 (A:AB) into it, then write today's date + metrics
+      console.log("  A6 is a different date — inserting new row 6 and copying A:AB from old row 6");
       const sheetId = await getSheetIdByName(token, DASHBOARD_TAB);
       // 1. Insert blank row at position 6 (0-based: 5); old row 6 shifts to row 7
       await insertRowAt(token, sheetId, 5);
-      // 2. Copy old row 6 (now row 7, 0-based: 6) → new blank row 6 (0-based: 5), cols A:AA
+      // 2. Copy old row 6 (now row 7, 0-based: 6) → new blank row 6 (0-based: 5), cols A:AB
       await copyRowDown(token, sheetId, 6, 5);
-      // 3. Overwrite A:I with today's date + live metrics
-      await writeRow(token, `'${DASHBOARD_TAB}'!A6:I6`, rowValues);
+      // 3. Write today's date in A6, spend in B6, clicks in C6
+      await writeRow(token, `'${DASHBOARD_TAB}'!A6:C6`, [todaySheet, metrics.spend, metrics.linkClicks]);
     }
     console.log("  Done");
   }
