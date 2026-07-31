@@ -1,0 +1,44 @@
+name: Update Campaign Ads (Hourly)
+
+on:
+  # Every hour from 6 AM to 11 PM EDT (10:00–03:00 UTC)
+  # EDT = UTC-4 (Mar–Nov). Adjust to 11:00–04:00 UTC in winter (EST = UTC-5).
+  schedule:
+    - cron: "0 10-23 * * *"   # 6 AM – 7 PM EDT
+    - cron: "0 0-3 * * *"     # 8 PM – 11 PM EDT (next UTC day)
+
+  # Allow manual trigger from the Actions tab
+  workflow_dispatch:
+    inputs:
+      campaign_id:
+        description: "Override campaign ID (default: 120252977822780699)"
+        required: false
+        default: ""
+
+jobs:
+  update:
+    name: Fetch Campaign Metrics & Write to Sheets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run campaign update script
+        env:
+          META_ADS_ACCESS_TOKEN: ${{ secrets.META_ADS_ACCESS_TOKEN }}
+          META_CAMPAIGN_ID: ${{ github.event.inputs.campaign_id || '120252977822780699' }}
+          CAMPAIGN_TRACKER_SHEET_ID: ${{ secrets.CAMPAIGN_TRACKER_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+        run: npx tsx scripts/update-campaign-ads.ts
