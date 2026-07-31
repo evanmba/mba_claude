@@ -36,7 +36,7 @@ const SA_KEY         = (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY ?? "").re
 const META_TOKEN     = process.env.META_ADS_ACCESS_TOKEN ?? "";
 const CAMPAIGN_ID    = process.env.META_CAMPAIGN_ID ?? "120252977822780699";
 const AD_SPEND_TAB   = process.env.AD_SPEND_TAB_NAME  ?? "AD SPEND";
-const DASHBOARD_TAB  = process.env.DASHBOARD_TAB_NAME ?? "Dashboard";
+const DASHBOARD_TAB  = process.env.DASHBOARD_TAB_NAME ?? "DASHBOARD";
 
 // ─── Validation ───────────────────────────────────────────────────────────────
 
