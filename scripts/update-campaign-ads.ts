@@ -189,6 +189,46 @@ async function insertRowAt(token: string, sheetId: number, zeroBasedIndex: numbe
   if (!res.ok) throw new Error(`Insert row failed: ${JSON.stringify(json)}`);
 }
 
+// Copy one row into another (same sheet). Copies columns A:AA (indices 0–26).
+async function copyRowDown(
+  token: string,
+  sheetId: number,
+  sourceZeroIndex: number,
+  destZeroIndex: number,
+): Promise<void> {
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`,
+    {
+      method:  "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body:    JSON.stringify({
+        requests: [{
+          copyPaste: {
+            source: {
+              sheetId,
+              startRowIndex:    sourceZeroIndex,
+              endRowIndex:      sourceZeroIndex + 1,
+              startColumnIndex: 0,
+              endColumnIndex:   27, // A(0) through AA(26), exclusive end = 27
+            },
+            destination: {
+              sheetId,
+              startRowIndex:    destZeroIndex,
+              endRowIndex:      destZeroIndex + 1,
+              startColumnIndex: 0,
+              endColumnIndex:   27,
+            },
+            pasteType:        "PASTE_NORMAL",
+            pasteOrientation: "NORMAL",
+          },
+        }],
+      }),
+    },
+  );
+  const json = await res.json() as { error?: unknown };
+  if (!res.ok) throw new Error(`copyPaste failed: ${JSON.stringify(json)}`);
+}
+
 // ─── Meta API ─────────────────────────────────────────────────────────────────
 
 async function fetchCampaignMetrics(date: string) {
@@ -288,12 +328,16 @@ async function main() {
     console.log(`  A6 = "${a6}", today = "${todaySheet}"`);
 
     if (a6 === todaySheet) {
-      console.log("  A6 is already today — updating row 6");
+      console.log("  A6 is already today — updating row 6 metrics");
       await writeRow(token, `'${DASHBOARD_TAB}'!A6:I6`, rowValues);
     } else {
-      console.log("  A6 is a different date — inserting new row at position 6");
+      console.log("  A6 is a different date — inserting new row 6 and copying A:AA from old row 6");
       const sheetId = await getSheetIdByName(token, DASHBOARD_TAB);
-      await insertRowAt(token, sheetId, 5); // row 6 = 0-based index 5
+      // 1. Insert blank row at position 6 (0-based: 5); old row 6 shifts to row 7
+      await insertRowAt(token, sheetId, 5);
+      // 2. Copy old row 6 (now row 7, 0-based: 6) → new blank row 6 (0-based: 5), cols A:AA
+      await copyRowDown(token, sheetId, 6, 5);
+      // 3. Overwrite A:I with today's date + live metrics
       await writeRow(token, `'${DASHBOARD_TAB}'!A6:I6`, rowValues);
     }
     console.log("  Done");
