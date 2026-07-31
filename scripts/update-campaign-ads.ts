@@ -329,19 +329,17 @@ async function main() {
     console.log(`  A6 = "${a6}", today = "${todaySheet}"`);
 
     if (a6 === todaySheet) {
-      // Row already exists for today — just refresh spend and clicks (B and C)
-      console.log("  A6 is already today — updating B6:C6 (spend + clicks)");
-      await writeRow(token, `'${DASHBOARD_TAB}'!B6:C6`, [metrics.spend, metrics.linkClicks]);
+      console.log("  A6 is already today — nothing to do");
     } else {
-      // New day: insert row, copy old row 6 (A:AB) into it, then write today's date + metrics
-      console.log("  A6 is a different date — inserting new row 6 and copying A:AB from old row 6");
+      // New day: insert blank row above row 6, copy old row 6 (A:AB) into it, set A6 = today
+      console.log("  A6 is a different date — duplicating row 6 upward for today");
       const sheetId = await getSheetIdByName(token, DASHBOARD_TAB);
       // 1. Insert blank row at position 6 (0-based: 5); old row 6 shifts to row 7
       await insertRowAt(token, sheetId, 5);
       // 2. Copy old row 6 (now row 7, 0-based: 6) → new blank row 6 (0-based: 5), cols A:AB
       await copyRowDown(token, sheetId, 6, 5);
-      // 3. Write today's date in A6, spend in B6, clicks in C6
-      await writeRow(token, `'${DASHBOARD_TAB}'!A6:C6`, [todaySheet, metrics.spend, metrics.linkClicks]);
+      // 3. Set A6 to today's date (everything else came from the copy)
+      await writeRow(token, `'${DASHBOARD_TAB}'!A6`, [todaySheet]);
     }
     console.log("  Done");
   }
