@@ -233,10 +233,14 @@ async function copyRowDown(
 // ─── Meta API ─────────────────────────────────────────────────────────────────
 
 async function fetchCampaignMetrics(date: string) {
+  // level=campaign ensures we get the full campaign aggregate, not per-ad breakdowns.
+  // limit=500 avoids pagination truncation if the API returns multiple rows.
   const params = new URLSearchParams({
     access_token: META_TOKEN,
     fields:       "spend,impressions,reach,frequency,cpm,actions",
     time_range:   JSON.stringify({ since: date, until: date }),
+    level:        "campaign",
+    limit:        "500",
   });
   const res = await fetch(
     `https://graph.facebook.com/v19.0/${CAMPAIGN_ID}/insights?${params}`,
@@ -247,18 +251,31 @@ async function fetchCampaignMetrics(date: string) {
   };
   if (!res.ok) throw new Error(`Meta API failed: ${json?.error?.message ?? JSON.stringify(json)}`);
 
-  const row     = (json.data ?? [])[0] as Record<string, unknown> ?? {};
-  const actions = (row.actions ?? []) as { action_type: string; value: string }[];
-  const linkClicks  = parseFloat(actions.find(a => a.action_type === "link_click")?.value ?? "0") || 0;
-  const spend       = parseFloat(row.spend       as string ?? "0") || 0;
-  const impressions = parseFloat(row.impressions as string ?? "0") || 0;
+  console.log(`  Meta API returned ${(json.data ?? []).length} row(s)`);
+
+  // Sum all rows in the response (should be 1 with level=campaign, but be safe)
+  let spend = 0, impressions = 0, reach = 0, frequency = 0, cpm = 0, linkClicks = 0;
+  for (const row of (json.data ?? []) as Record<string, unknown>[]) {
+    const actions = (row.actions ?? []) as { action_type: string; value: string }[];
+    spend       += parseFloat(row.spend       as string ?? "0") || 0;
+    impressions += parseFloat(row.impressions as string ?? "0") || 0;
+    reach       += parseFloat(row.reach       as string ?? "0") || 0;
+    frequency   += parseFloat(row.frequency   as string ?? "0") || 0;
+    cpm         += parseFloat(row.cpm         as string ?? "0") || 0;
+    linkClicks  += parseFloat(actions.find(a => a.action_type === "link_click")?.value ?? "0") || 0;
+  }
+
+  // Average frequency and CPM across rows if more than one
+  const rowCount = Math.max((json.data ?? []).length, 1);
+  frequency = frequency / rowCount;
+  cpm       = cpm       / rowCount;
 
   return {
     spend,
     impressions,
-    reach:      parseFloat(row.reach      as string ?? "0") || 0,
-    frequency:  parseFloat(row.frequency  as string ?? "0") || 0,
-    cpm:        parseFloat(row.cpm        as string ?? "0") || 0,
+    reach,
+    frequency,
+    cpm,
     linkClicks,
     ctr: impressions > 0 ? (linkClicks / impressions) * 100 : 0,
     cpc: linkClicks  > 0 ? spend / linkClicks : 0,
