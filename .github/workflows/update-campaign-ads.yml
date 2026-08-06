@@ -1,11 +1,11 @@
 name: Update Campaign Ads (Hourly)
 
 on:
-  # Every hour from 6 AM to 11 PM EDT (10:00–03:00 UTC)
-  # EDT = UTC-4 (Mar–Nov). Adjust to 11:00–04:00 UTC in winter (EST = UTC-5).
+  # Every 30 minutes from 6 AM to 11:30 PM EDT (10:00–03:30 UTC)
+  # EDT = UTC-4 (Mar–Nov). Adjust to 11:00–04:30 UTC in winter (EST = UTC-5).
   schedule:
-    - cron: "0 10-23 * * *"   # 6 AM – 7 PM EDT
-    - cron: "0 0-3 * * *"     # 8 PM – 11 PM EDT (next UTC day)
+    - cron: "*/30 10-23 * * *"   # 6 AM – 7:30 PM EDT
+    - cron: "*/30 0-3 * * *"     # 8 PM – 11:30 PM EDT (next UTC day)
 
   # Allow manual trigger from the Actions tab
   workflow_dispatch:
