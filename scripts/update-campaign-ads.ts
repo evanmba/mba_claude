@@ -50,8 +50,14 @@ if (missing.length) throw new Error(`Missing env vars: ${missing.join(", ")}`);
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
+/** Returns today's date in YYYY-MM-DD using America/New_York (handles EDT/EST automatically) */
 function getTodayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year:     "numeric",
+    month:    "2-digit",
+    day:      "2-digit",
+  }).format(new Date()); // en-CA locale produces YYYY-MM-DD
 }
 
 /** YYYY-MM-DD → M/D/YY  e.g. 2026-07-01 → "7/1/26" */
