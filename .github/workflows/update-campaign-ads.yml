@@ -1,4 +1,4 @@
-name: Update Campaign Ads (Hourly)
+name: Update Campaign Ads (every 30 min)
 
 on:
   # Every 30 minutes from 6 AM to 11:30 PM EDT (10:00–03:30 UTC)
