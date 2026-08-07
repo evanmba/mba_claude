@@ -1,4 +1,4 @@
-name: Update Today's Meta Ads (every 30 min)
+name: Call Funnel Data (every 30 min)
 
 on:
   schedule:
