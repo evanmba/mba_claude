@@ -84,8 +84,6 @@ export interface SpeedToLeadData {
 // ─── Setters ──────────────────────────────────────────────────────────────────
 
 export const DIALERS: DialerInfo[] = [
-  { id: "daneile-brown",         name: "Daneile Brown",        color: "#3b82f6",  sheetName: "Daneile- MAR 2026" },
-  { id: "gabriana-brown",        name: "Gabriana Brown",       color: "#d946ef",  sheetName: "Gabriana- MAR 2026" },
   { id: "allieandra-alexander",  name: "Allieandra Alexander", color: "#22c55e",  sheetName: "Allieandra- MAR 2026" },
 ];
 
@@ -103,8 +101,6 @@ export const GOALS_DATA: GoalsData = {
     daysElapsed: 5,
     totalWorkdays: 7,
     setters: [
-      { name: "Daneile Brown",        id: "daneile-brown",        booked: 4 },
-      { name: "Gabriana Brown",       id: "gabriana-brown",       booked: 3 },
       { name: "Allieandra Alexander", id: "allieandra-alexander",  booked: 2 },
     ],
   },
