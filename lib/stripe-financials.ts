@@ -144,20 +144,31 @@ async function _fetchFinancialsData(resolvedKey: string): Promise<FinancialsData
     const in3Months = nowUnix + 92 * 24 * 60 * 60;
 
     const upcomingPayments: UpcomingPayment[] = subscriptions
-      .map((sub) => {
+      .flatMap((sub) => {
+        // Subscriptions set to cancel at period end won't charge again — the
+        // current period is already paid, so skip them entirely.
+        if (sub.cancel_at_period_end) return [];
+
         const item = sub.items.data[0];
         const amountCents = item?.price?.unit_amount ?? 0;
         const interval = item?.price?.recurring?.interval ?? "month";
         const intervalCount = item?.price?.recurring?.interval_count ?? 1;
         const nextDate = nextChargeDate(sub.billing_cycle_anchor, interval, intervalCount);
-        return {
+
+        // If the subscription has a hard cancellation date and the next computed
+        // charge falls on or after that date, no payment will actually be
+        // collected (e.g. a 3-payment plan that ends Aug 26 must not show a
+        // phantom Sep charge).
+        if (sub.cancel_at != null && nextDate >= sub.cancel_at) return [];
+
+        return [{
           id: sub.id,
           customerName: getCustomerName(sub.customer as Stripe.Customer | Stripe.DeletedCustomer | string | null),
           customerEmail: getCustomerEmail(sub.customer as Stripe.Customer | Stripe.DeletedCustomer | string | null),
           amount: amountCents,
           nextPaymentDate: nextDate,
           planLabel: planLabel(amountCents),
-        };
+        }];
       })
       .filter((p) => p.nextPaymentDate >= nowUnix && p.nextPaymentDate <= in3Months)
       .sort((a, b) => a.nextPaymentDate - b.nextPaymentDate);
