@@ -156,10 +156,14 @@ export async function fetchMetaAdsInsights(date: string): Promise<MetaAdsInsight
   };
 }
 
-/** Returns yesterday's date in UTC as YYYY-MM-DD. */
+/** Returns yesterday's date in Central Time (America/Chicago) as YYYY-MM-DD. */
 export function getYesterdayDate(): string {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - 1);
+  const todayCT = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+  const d = new Date(todayCT + "T12:00:00");
+  d.setDate(d.getDate() - 1);
   return d.toISOString().slice(0, 10);
 }
 
