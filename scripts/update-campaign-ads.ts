@@ -53,7 +53,7 @@ if (missing.length) throw new Error(`Missing env vars: ${missing.join(", ")}`);
 /** Returns today's date in YYYY-MM-DD using America/New_York (handles EDT/EST automatically) */
 function getTodayISO(): string {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
+    timeZone: "America/Chicago",
     year:     "numeric",
     month:    "2-digit",
     day:      "2-digit",
