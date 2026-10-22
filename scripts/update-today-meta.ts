@@ -34,13 +34,12 @@ const SPREADSHEET_ID = process.env.MASTER_TRACKER_SHEET_ID ?? "";
 const SA_EMAIL       = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? "";
 const SA_KEY         = (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY ?? "").replace(/\\n/g, "\n");
 const META_TOKEN     = process.env.META_ADS_ACCESS_TOKEN ?? "";
-const META_ACCOUNT   = process.env.META_ADS_ACCOUNT_ID ?? "";
+const CAMPAIGN_ID    = process.env.META_CAMPAIGN_ID ?? "120255274601870699";
 
 if (!SPREADSHEET_ID) throw new Error("MASTER_TRACKER_SHEET_ID is not set");
 if (!SA_EMAIL)       throw new Error("GOOGLE_SERVICE_ACCOUNT_EMAIL is not set");
 if (!SA_KEY)         throw new Error("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY is not set");
 if (!META_TOKEN)     throw new Error("META_ADS_ACCESS_TOKEN is not set");
-if (!META_ACCOUNT)   throw new Error("META_ADS_ACCOUNT_ID is not set");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -112,15 +111,14 @@ async function writeRange(token: string, range: string, values: (string|number)[
 // ─── Meta API ─────────────────────────────────────────────────────────────────
 
 async function fetchTodayMeta(date: string) {
-  const accountId = META_ACCOUNT.startsWith("act_") ? META_ACCOUNT : `act_${META_ACCOUNT}`;
   const params = new URLSearchParams({
     access_token: META_TOKEN,
     fields: "spend,frequency,reach,impressions,unique_actions",
     time_range: JSON.stringify({ since: date, until: date }),
-    level: "account",
-    limit: "1",
+    level: "campaign",
+    limit: "500",
   });
-  const res = await fetch(`https://graph.facebook.com/v19.0/${accountId}/insights?${params}`);
+  const res = await fetch(`https://graph.facebook.com/v19.0/${CAMPAIGN_ID}/insights?${params}`);
   const json = await res.json();
   if (!res.ok) throw new Error(`Meta API failed: ${json?.error?.message ?? JSON.stringify(json)}`);
 
