@@ -2,10 +2,12 @@ name: Call Funnel Data (every 30 min)
 
 on:
   schedule:
-    # Runs every 30 minutes, 6 AM–11:30 PM Eastern (EDT = UTC-4: 10:00–03:30 UTC)
-    # Covers the full day so the sheet stays current throughout business hours
-    - cron: "*/30 10-23 * * *"  # 10:00–23:30 UTC (6 AM–7:30 PM EDT)
-    - cron: "*/30 0-3 * * *"    # 00:00–03:30 UTC (8 PM–11:30 PM EDT)
+    # 3x daily at 10 AM, 4 PM, and 8 PM Eastern
+    # EDT (Mar–Nov) = UTC-4:  14:00, 20:00, 00:00 UTC
+    # EST (Nov–Mar) = UTC-5:  15:00, 21:00, 01:00 UTC  ← adjust in winter
+    - cron: "0 14 * * *"   # 10 AM EDT
+    - cron: "0 20 * * *"   # 4 PM EDT
+    - cron: "0 0 * * *"    # 8 PM EDT
 
   # Manual trigger for testing
   workflow_dispatch:
