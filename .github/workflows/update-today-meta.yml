@@ -2,12 +2,7 @@ name: Call Funnel Data (every 30 min)
 
 on:
   schedule:
-    # 3x daily at 10 AM, 4 PM, and 8 PM Eastern
-    # EDT (Mar–Nov) = UTC-4:  14:00, 20:00, 00:00 UTC
-    # EST (Nov–Mar) = UTC-5:  15:00, 21:00, 01:00 UTC  ← adjust in winter
-    - cron: "0 14 * * *"   # 10 AM EDT
-    - cron: "0 20 * * *"   # 4 PM EDT
-    - cron: "0 0 * * *"    # 8 PM EDT
+    - cron: "0 * * * *"   # every hour, all day
 
   # Manual trigger for testing
   workflow_dispatch:
