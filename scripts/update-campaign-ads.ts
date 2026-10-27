@@ -345,26 +345,35 @@ async function main() {
   }
 
   // ── Dashboard tab ───────────────────────────────────────────────────────────
+  // B and C use VLOOKUP against the AD SPEND tab, keyed on the date in A6,
+  // so they always stay in sync without the script passing raw values.
+  // AD SPEND: col 2 = Amount Spent, col 5 = Link Clicks
 
   {
     console.log(`\nDashboard tab ("${DASHBOARD_TAB}"):`);
     const a6 = (await readCell(token, DASHBOARD_TAB, "A6")).trim();
     console.log(`  A6 = "${a6}", today = "${todaySheet}"`);
 
+    const spendFormula = (row: number) =>
+      `=IFERROR(VLOOKUP($A${row},'${AD_SPEND_TAB}'!$A:$E,2,FALSE),0)`;
+    const clicksFormula = (row: number) =>
+      `=IFERROR(VLOOKUP($A${row},'${AD_SPEND_TAB}'!$A:$E,5,FALSE),0)`;
+
     if (a6 === todaySheet) {
-      // Row already exists for today — just refresh spend and clicks (B and C)
-      console.log("  A6 is already today — updating B6:C6 (spend + clicks)");
-      await writeRow(token, `'${DASHBOARD_TAB}'!B6:C6`, [metrics.spend, metrics.linkClicks]);
+      // Row already exists for today — refresh VLOOKUP formulas in B6:C6
+      console.log("  A6 is already today — writing VLOOKUP formulas to B6:C6");
+      await writeRow(token, `'${DASHBOARD_TAB}'!B6:C6`, [spendFormula(6), clicksFormula(6)]);
     } else {
-      // New day: insert row, copy old row 6 (A:AB) into it, then write today's date + metrics
+      // New day: insert row, copy old row 6 (A:AB) into it, write date + formulas
       console.log("  A6 is a different date — inserting new row 6 and copying A:AB from old row 6");
       const sheetId = await getSheetIdByName(token, DASHBOARD_TAB);
       // 1. Insert blank row at position 6 (0-based: 5); old row 6 shifts to row 7
       await insertRowAt(token, sheetId, 5);
       // 2. Copy old row 6 (now row 7, 0-based: 6) → new blank row 6 (0-based: 5), cols A:AB
       await copyRowDown(token, sheetId, 6, 5);
-      // 3. Write today's date in A6, spend in B6, clicks in C6
-      await writeRow(token, `'${DASHBOARD_TAB}'!A6:C6`, [todaySheet, metrics.spend, metrics.linkClicks]);
+      // 3. Write today's date in A6, then VLOOKUP formulas in B6:C6
+      await writeRow(token, `'${DASHBOARD_TAB}'!A6`, [todaySheet]);
+      await writeRow(token, `'${DASHBOARD_TAB}'!B6:C6`, [spendFormula(6), clicksFormula(6)]);
     }
     console.log("  Done");
   }
