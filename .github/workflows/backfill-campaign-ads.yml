@@ -1,0 +1,38 @@
+name: Backfill Campaign Ads (manual only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: "Override start date (YYYY-MM-DD). Leave blank to auto-detect from Meta."
+        required: false
+        default: ""
+
+jobs:
+  backfill:
+    name: Backfill AD SPEND Tab
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run backfill script
+        env:
+          META_ADS_ACCESS_TOKEN: ${{ secrets.META_ADS_ACCESS_TOKEN }}
+          META_CAMPAIGN_ID: "120255274601870699"
+          CAMPAIGN_TRACKER_SHEET_ID: ${{ secrets.CAMPAIGN_TRACKER_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+          BACKFILL_START_DATE: ${{ github.event.inputs.start_date }}
+        run: npx tsx scripts/backfill-campaign-ads.ts
