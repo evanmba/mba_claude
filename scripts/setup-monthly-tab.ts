@@ -1,18 +1,18 @@
 /**
  * scripts/setup-monthly-tab.ts
  *
- * One-time setup (re-runnable): rebuilds the MONTHLY tab in the campaign tracker.
- *   - Row 1: same headers as DASHBOARD row 1
- *   - Row 2+: one row per month from campaign start to current month (oldest first)
+ * Builds / updates the MONTHLY tab in the campaign tracker:
  *
- * Count metrics (Spend, Clicks, Leads, Apps, Calls, Offers, Deals, Cash, Revenue)
- *   → SUMIFS against DASHBOARD for that month's date range
- * Rate/cost metrics (CPM, CTR, CPC, CPL, etc.)
- *   → calculated from the monthly sums within MONTHLY
- * Page Conversion Rate, CPM, Link CTR
- *   → AVERAGEIFS (these don't add across days)
+ *   Row 1:    Column headers (same as DASHBOARD)
+ *   Rows 2–5: Rolling period summaries — 4 / 7 / 14 / 30 days (live TODAY() formulas)
+ *   Row 6+:   One row per month, oldest first
  *
- * Tip: format column A as "MMM YYYY" after running.
+ * On re-run:
+ *   - Always rewrites rows 1–5 (headers + rolling periods)
+ *   - Updates formulas in existing monthly rows without touching their formatting
+ *   - Copies the last formatted month row's styles before inserting any new month
+ *
+ * Trigger manually (or via monthly cron) with the "Setup Monthly Tab" workflow.
  */
 
 import { createSign } from "crypto";
@@ -35,17 +35,7 @@ const missing = [
 ].filter(Boolean);
 if (missing.length) throw new Error(`Missing env vars: ${missing.join(", ")}`);
 
-// ─── Headers (matches DASHBOARD row 1) ───────────────────────────────────────
-// A  B                    C               D    E       F         G
-// Day  Page Conv Rate     Amount Spent    CPM  Clicks  Link CTR  Cost Per Click
-// H             I                J               K                 L           M
-// Total Leads   Lead Opt In Rate  Cost Per Lead   Full Applications Full App %  Cost Per Full App
-// N              O          P                    Q            R           S
-// Booked Calls   App->Book  Cost Per Booked Call  Taken Calls  Show Rate%  Cost Per Taken Call
-// T            U                  V             W             X                  Y
-// Offers Made  Taken->Offer Rate  Cost/Offer    Deals Closed  Taken->Close Rate  Cost Per Acquisition
-// Z     AA       AB                AC         AD            AE
-// Cash  Revenue  Cash:Rev Ratio    Cash ROAS  Revenue ROAS  Change Log
+// ─── Headers ──────────────────────────────────────────────────────────────────
 
 const HEADERS = [
   "Day",
@@ -101,10 +91,17 @@ function monthsInRange(startISO: string, endISO: string): string[] {
   return months;
 }
 
-/** YYYY-MM → "M/1/YY" — USER_ENTERED makes Sheets store it as a date serial */
+/** YYYY-MM → "M/1/YY" so USER_ENTERED stores it as a date serial */
 function firstOfMonth(ym: string): string {
   const [y, m] = ym.split("-");
   return `${parseInt(m)}/1/${y.slice(-2)}`;
+}
+
+/** Google Sheets date serial (days since Dec 30 1899) */
+function dateSerial(year: number, month: number, day: number): number {
+  const epoch  = Date.UTC(1899, 11, 30);
+  const target = Date.UTC(year, month - 1, day);
+  return Math.round((target - epoch) / 86400000);
 }
 
 // ─── Google auth ──────────────────────────────────────────────────────────────
@@ -132,14 +129,30 @@ async function getGoogleToken(): Promise<string> {
 
 // ─── Sheets helpers ───────────────────────────────────────────────────────────
 
-async function clearRange(token: string, tab: string, range: string): Promise<void> {
-  const encoded = encodeURIComponent(`'${tab}'!${range}`);
+async function getSheetIdByName(token: string, tabName: string): Promise<number> {
   const res = await fetch(
-    `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encoded}:clear`,
-    { method: "POST", headers: { Authorization: `Bearer ${token}` } },
+    `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties`,
+    { headers: { Authorization: `Bearer ${token}` } },
   );
-  const json = await res.json() as { error?: unknown };
-  if (!res.ok) throw new Error(`Sheets clear failed: ${JSON.stringify(json)}`);
+  const json = await res.json() as { sheets?: { properties: { title: string; sheetId: number } }[] };
+  if (!res.ok) throw new Error(`Sheets metadata failed: ${JSON.stringify(json)}`);
+  const sheet = json.sheets?.find(s => s.properties.title === tabName);
+  if (!sheet) throw new Error(`Tab "${tabName}" not found`);
+  return sheet.properties.sheetId;
+}
+
+/** Read a column as raw (unformatted) values — date cells come back as serials */
+async function readColumnRaw(
+  token: string, tab: string, col: string, startRow: number, count: number,
+): Promise<(number | string)[]> {
+  const range = encodeURIComponent(`'${tab}'!${col}${startRow}:${col}${startRow + count - 1}`);
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?valueRenderOption=UNFORMATTED_VALUE`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  const json = await res.json() as { values?: (number | string)[][] };
+  if (!res.ok) throw new Error(`Sheets readColumnRaw failed: ${JSON.stringify(json)}`);
+  return ((json.values ?? []) as (number | string)[][]).map(r => r[0] ?? 0);
 }
 
 async function batchWrite(
@@ -158,6 +171,134 @@ async function batchWrite(
   if (!res.ok) throw new Error(`Sheets batchWrite failed: ${JSON.stringify(json)}`);
 }
 
+/** Copy only the formatting (number formats, colours, borders) from one row to another */
+async function copyRowFormat(
+  token: string, sheetId: number, sourceRow: number, destRow: number,
+): Promise<void> {
+  const res = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requests: [{
+          copyPaste: {
+            source: {
+              sheetId,
+              startRowIndex:    sourceRow - 1,
+              endRowIndex:      sourceRow,
+              startColumnIndex: 0,
+              endColumnIndex:   31, // A through AE
+            },
+            destination: {
+              sheetId,
+              startRowIndex:    destRow - 1,
+              endRowIndex:      destRow,
+              startColumnIndex: 0,
+              endColumnIndex:   31,
+            },
+            pasteType:        "PASTE_FORMAT",
+            pasteOrientation: "NORMAL",
+          },
+        }],
+      }),
+    },
+  );
+  const json = await res.json() as { error?: unknown };
+  if (!res.ok) throw new Error(`copyRowFormat failed: ${JSON.stringify(json)}`);
+}
+
+// ─── Formula builders ─────────────────────────────────────────────────────────
+
+const DASH = `'${DASHBOARD_TAB}'`;
+
+/** Rolling period row: formulas keyed on TODAY()-N, label in column A */
+function buildRollingRow(row: number, days: number, label: string): (string | number)[] {
+  const n = days - 1; // "4 days" = today + 3 prior days
+  const s = (col: string) =>
+    `=IFERROR(SUMIFS(${DASH}!$${col}:$${col},${DASH}!$A:$A,">="&TODAY()-${n},${DASH}!$A:$A,"<="&TODAY()),0)`;
+  const a = (col: string) =>
+    `=IFERROR(AVERAGEIFS(${DASH}!$${col}:$${col},${DASH}!$A:$A,">="&TODAY()-${n},${DASH}!$A:$A,"<="&TODAY()),0)`;
+  const d = (num: string, den: string) => `=IFERROR(${num}${row}/${den}${row},0)`;
+
+  return [
+    label,       // A
+    a("B"),      // B  Page Conversion Rate
+    s("C"),      // C  Amount Spent
+    a("D"),      // D  CPM
+    s("E"),      // E  Clicks
+    a("F"),      // F  Link CTR
+    d("C","E"),  // G  Cost Per Click
+    s("H"),      // H  Total Leads
+    d("H","E"),  // I  Lead Opt In Rate
+    d("C","H"),  // J  Cost Per Lead
+    s("K"),      // K  Full Applications
+    d("K","H"),  // L  Full App %
+    d("C","K"),  // M  Cost Per Full App
+    s("N"),      // N  Booked Calls
+    d("N","K"),  // O  App->Book
+    d("C","N"),  // P  Cost Per Booked Call
+    s("Q"),      // Q  Taken Calls
+    d("Q","N"),  // R  Show Rate %
+    d("C","Q"),  // S  Cost Per Taken Call
+    s("T"),      // T  Offers Made
+    d("T","Q"),  // U  Taken->Offer Rate
+    d("C","T"),  // V  Cost Per Offer
+    s("W"),      // W  Deals Closed
+    d("W","Q"),  // X  Taken->Close Rate
+    d("C","W"),  // Y  Cost Per Acquisition
+    s("Z"),      // Z  Cash
+    s("AA"),     // AA Revenue
+    d("Z","AA"), // AB Cash:Revenue Ratio
+    d("Z","C"),  // AC Cash ROAS
+    d("AA","C"), // AD Revenue ROAS
+    "",          // AE Change Log
+  ];
+}
+
+/** Monthly row: formulas keyed on EOMONTH(A{row}, 0), date value in column A */
+function buildMonthRow(row: number, monthFirstDay: string): (string | number)[] {
+  const s = (col: string) =>
+    `=IFERROR(SUMIFS(${DASH}!$${col}:$${col},${DASH}!$A:$A,">="&A${row},${DASH}!$A:$A,"<="&EOMONTH(A${row},0)),0)`;
+  const a = (col: string) =>
+    `=IFERROR(AVERAGEIFS(${DASH}!$${col}:$${col},${DASH}!$A:$A,">="&A${row},${DASH}!$A:$A,"<="&EOMONTH(A${row},0)),0)`;
+  const d = (num: string, den: string) => `=IFERROR(${num}${row}/${den}${row},0)`;
+
+  return [
+    monthFirstDay, // A  first-of-month date
+    a("B"),        // B  Page Conversion Rate
+    s("C"),        // C  Amount Spent
+    a("D"),        // D  CPM
+    s("E"),        // E  Clicks
+    a("F"),        // F  Link CTR
+    d("C","E"),    // G  Cost Per Click
+    s("H"),        // H  Total Leads
+    d("H","E"),    // I  Lead Opt In Rate
+    d("C","H"),    // J  Cost Per Lead
+    s("K"),        // K  Full Applications
+    d("K","H"),    // L  Full App %
+    d("C","K"),    // M  Cost Per Full App
+    s("N"),        // N  Booked Calls
+    d("N","K"),    // O  App->Book
+    d("C","N"),    // P  Cost Per Booked Call
+    s("Q"),        // Q  Taken Calls
+    d("Q","N"),    // R  Show Rate %
+    d("C","Q"),    // S  Cost Per Taken Call
+    s("T"),        // T  Offers Made
+    d("T","Q"),    // U  Taken->Offer Rate
+    d("C","T"),    // V  Cost Per Offer
+    s("W"),        // W  Deals Closed
+    d("W","Q"),    // X  Taken->Close Rate
+    d("C","W"),    // Y  Cost Per Acquisition
+    s("Z"),        // Z  Cash
+    s("AA"),       // AA Revenue
+    d("Z","AA"),   // AB Cash:Revenue Ratio
+    d("Z","C"),    // AC Cash ROAS
+    d("AA","C"),   // AD Revenue ROAS
+    "",            // AE Change Log
+  ];
+}
+
 // ─── Meta: campaign start date ────────────────────────────────────────────────
 
 async function getCampaignStartDate(): Promise<string> {
@@ -169,74 +310,6 @@ async function getCampaignStartDate(): Promise<string> {
   return json.start_time.slice(0, 10);
 }
 
-// ─── Formula builders ─────────────────────────────────────────────────────────
-
-const DASH = `'${DASHBOARD_TAB}'`;
-
-/** SUMIFS from DASHBOARD for the calendar month containing the date in column A of MONTHLY */
-function sumif(col: string, row: number): string {
-  return `=IFERROR(SUMIFS(${DASH}!$${col}:$${col},${DASH}!$A:$A,">="&A${row},${DASH}!$A:$A,"<="&EOMONTH(A${row},0)),0)`;
-}
-
-/** AVERAGEIFS from DASHBOARD — for metrics that shouldn't be summed */
-function avgif(col: string, row: number): string {
-  return `=IFERROR(AVERAGEIFS(${DASH}!$${col}:$${col},${DASH}!$A:$A,">="&A${row},${DASH}!$A:$A,"<="&EOMONTH(A${row},0)),0)`;
-}
-
-/** Division of two cells within MONTHLY — for calculated rate/cost columns */
-function calc(num: string, den: string, row: number): string {
-  return `=IFERROR(${num}${row}/${den}${row},0)`;
-}
-
-/**
- * Builds the full 31-column row (A through AE) for a given MONTHLY row number.
- * monthFirstDay is the "M/1/YY" string for column A.
- */
-function buildMonthRow(row: number, monthFirstDay: string): (string | number)[] {
-  return [
-    monthFirstDay,          // A  – first of month date
-
-    avgif("B", row),        // B  – Page Conversion Rate (average)
-    sumif("C", row),        // C  – Amount Spent (sum)
-    avgif("D", row),        // D  – CPM (average — rate metric)
-    sumif("E", row),        // E  – Clicks (sum)
-    avgif("F", row),        // F  – Link CTR (average — rate metric)
-    calc("C", "E", row),    // G  – Cost Per Click = Spend / Clicks
-
-    sumif("H", row),        // H  – Total Leads (sum)
-    calc("H", "E", row),    // I  – Lead Opt In Rate = Leads / Clicks
-    calc("C", "H", row),    // J  – Cost Per Lead = Spend / Leads
-
-    sumif("K", row),        // K  – Full Applications (sum)
-    calc("K", "H", row),    // L  – Full App % = Full Apps / Leads
-    calc("C", "K", row),    // M  – Cost Per Full App = Spend / Full Apps
-
-    sumif("N", row),        // N  – Booked Calls (sum)
-    calc("N", "K", row),    // O  – App->Book = Booked / Full Apps
-    calc("C", "N", row),    // P  – Cost Per Booked Call = Spend / Booked
-
-    sumif("Q", row),        // Q  – Taken Calls (sum)
-    calc("Q", "N", row),    // R  – Show Rate % = Taken / Booked
-    calc("C", "Q", row),    // S  – Cost Per Taken Call = Spend / Taken
-
-    sumif("T", row),        // T  – Offers Made (sum)
-    calc("T", "Q", row),    // U  – Taken->Offer Rate = Offers / Taken
-    calc("C", "T", row),    // V  – Cost Per Offer = Spend / Offers
-
-    sumif("W", row),        // W  – Deals Closed (sum)
-    calc("W", "Q", row),    // X  – Taken->Close Rate = Deals / Taken
-    calc("C", "W", row),    // Y  – Cost Per Acquisition = Spend / Deals
-
-    sumif("Z", row),        // Z  – Cash (sum)
-    sumif("AA", row),       // AA – Revenue (sum)
-    calc("Z", "AA", row),   // AB – Cash:Revenue Ratio = Cash / Revenue
-    calc("Z", "C", row),    // AC – Cash ROAS = Cash / Spend
-    calc("AA", "C", row),   // AD – Revenue ROAS = Revenue / Spend
-
-    "",                     // AE – Change Log (blank)
-  ];
-}
-
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -245,34 +318,71 @@ async function main() {
   const months    = monthsInRange(startDate, todayISO);
 
   console.log(`Campaign: ${CAMPAIGN_ID}`);
-  console.log(`Date range: ${startDate} → ${todayISO}`);
-  console.log(`Months found: ${months.join(", ")}`);
-  console.log(`Writing to "${MONTHLY_TAB}" tab\n`);
+  console.log(`Range: ${startDate} → ${todayISO}`);
+  console.log(`Months: ${months.join(", ")}\n`);
 
-  const token = await getGoogleToken();
+  const token   = await getGoogleToken();
+  const sheetId = await getSheetIdByName(token, MONTHLY_TAB);
   console.log("Google auth: OK");
 
-  // Write headers to row 1
-  const updates: { range: string; values: (string | number)[][] }[] = [
+  // 1. Always rewrite headers + rolling period rows
+  await batchWrite(token, [
     { range: `'${MONTHLY_TAB}'!A1:AE1`, values: [HEADERS] },
-  ];
+    { range: `'${MONTHLY_TAB}'!A2:AE2`, values: [buildRollingRow(2,  4,  "4 Days")] },
+    { range: `'${MONTHLY_TAB}'!A3:AE3`, values: [buildRollingRow(3,  7,  "7 Days")] },
+    { range: `'${MONTHLY_TAB}'!A4:AE4`, values: [buildRollingRow(4, 14, "14 Days")] },
+    { range: `'${MONTHLY_TAB}'!A5:AE5`, values: [buildRollingRow(5, 30, "30 Days")] },
+  ]);
+  console.log("Wrote headers + rolling period rows (2–5)");
 
-  // Build one row per month (oldest → row 2, newest → last row)
-  for (let i = 0; i < months.length; i++) {
-    const row = i + 2;
-    updates.push({
-      range: `'${MONTHLY_TAB}'!A${row}:AE${row}`,
-      values: [buildMonthRow(row, firstOfMonth(months[i]))],
-    });
-    console.log(`  Row ${row}: ${months[i]}`);
+  // 2. Read existing monthly rows (col A, rows 6+) as raw serials
+  const existingVals = await readColumnRaw(token, MONTHLY_TAB, "A", 6, months.length + 20);
+
+  // Build map: date serial → row number for existing months
+  const serialToRow = new Map<number, number>();
+  let lastMonthRow = 5;
+  for (let i = 0; i < existingVals.length; i++) {
+    const val = existingVals[i];
+    if (typeof val === "number" && val > 1) {
+      const row = i + 6;
+      serialToRow.set(Math.round(val), row);
+      if (row > lastMonthRow) lastMonthRow = row;
+    }
+  }
+  console.log(`Found ${serialToRow.size} existing month row(s), last at row ${lastMonthRow}\n`);
+
+  // 3. Process each month
+  const updates: { range: string; values: (string | number)[][] }[] = [];
+
+  for (const ym of months) {
+    const [y, m] = ym.split("-").map(Number);
+    const serial   = dateSerial(y, m, 1);
+    const firstDay = firstOfMonth(ym);
+
+    if (serialToRow.has(serial)) {
+      // Existing row — update formulas only, formatting untouched
+      const row = serialToRow.get(serial)!;
+      updates.push({ range: `'${MONTHLY_TAB}'!A${row}:AE${row}`, values: [buildMonthRow(row, firstDay)] });
+      console.log(`  Updated  row ${row}: ${ym}`);
+    } else {
+      // New month — copy previous row's formatting first, then write formulas
+      lastMonthRow++;
+      const row = lastMonthRow;
+      if (row > 6) {
+        await copyRowFormat(token, sheetId, row - 1, row);
+      }
+      updates.push({ range: `'${MONTHLY_TAB}'!A${row}:AE${row}`, values: [buildMonthRow(row, firstDay)] });
+      serialToRow.set(serial, row);
+      console.log(`  Inserted row ${row}: ${ym} (new — format copied from row ${row - 1})`);
+    }
   }
 
-  // Clear existing data first, then write everything in one batch
-  await clearRange(token, MONTHLY_TAB, "A1:AE1000");
-  await batchWrite(token, updates);
+  if (updates.length > 0) {
+    await batchWrite(token, updates);
+  }
 
-  console.log(`\n=== Done: ${months.length} month(s) written ===`);
-  console.log(`Tip: select column A in "${MONTHLY_TAB}" and format as MMM YYYY to show month names.`);
+  console.log(`\n=== Done: ${months.length} month(s) processed ===`);
+  console.log(`Tip: format column A in "${MONTHLY_TAB}" as MMM YYYY to show month names.`);
 }
 
 main().catch(err => {
