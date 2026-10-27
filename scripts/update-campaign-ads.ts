@@ -195,8 +195,7 @@ async function insertRowAt(token: string, sheetId: number, zeroBasedIndex: numbe
   if (!res.ok) throw new Error(`Insert row failed: ${JSON.stringify(json)}`);
 }
 
-// Copy one row into another (same sheet). Copies columns A:AB (indices 0–27).
-// Dashboard columns: A(Day) B(Spend) C(Clicks) D(CPC) … AA(Revenue ROAS) AB(Change Log)
+// Copy one row into another (same sheet). Copies columns A:BZ (indices 0–77).
 async function copyRowDown(
   token: string,
   sheetId: number,
@@ -216,14 +215,14 @@ async function copyRowDown(
               startRowIndex:    sourceZeroIndex,
               endRowIndex:      sourceZeroIndex + 1,
               startColumnIndex: 0,
-              endColumnIndex:   28, // A(0) through AB(27), exclusive end = 28
+              endColumnIndex:   78, // A(0) through BZ(77), exclusive end = 78
             },
             destination: {
               sheetId,
               startRowIndex:    destZeroIndex,
               endRowIndex:      destZeroIndex + 1,
               startColumnIndex: 0,
-              endColumnIndex:   28,
+              endColumnIndex:   78,
             },
             pasteType:        "PASTE_NORMAL",
             pasteOrientation: "NORMAL",
