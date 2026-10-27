@@ -2,6 +2,8 @@ name: Setup Monthly Tab (manual only)
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 9 1 * *"  # 9 AM UTC on the 1st of every month
 
 jobs:
   setup:
