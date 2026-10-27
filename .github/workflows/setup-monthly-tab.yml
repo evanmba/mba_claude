@@ -1,0 +1,32 @@
+name: Setup Monthly Tab (manual only)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    name: Rebuild MONTHLY Tab
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run setup script
+        env:
+          META_ADS_ACCESS_TOKEN: ${{ secrets.META_ADS_ACCESS_TOKEN }}
+          META_CAMPAIGN_ID: "120255274601870699"
+          CAMPAIGN_TRACKER_SHEET_ID: ${{ secrets.CAMPAIGN_TRACKER_SHEET_ID }}
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+        run: npx tsx scripts/setup-monthly-tab.ts
