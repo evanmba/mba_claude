@@ -46,7 +46,12 @@ if (!RAW_ACCOUNT_ID)  throw new Error("META_ADS_ACCOUNT_ID is not set");
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function getTodayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago",
+    year:  "numeric",
+    month: "2-digit",
+    day:   "2-digit",
+  }).format(new Date());
 }
 
 /** YYYY-MM-DD → M/DD/YY  e.g. 2026-03-27 → "3/27/26" */
