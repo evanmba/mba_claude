@@ -47,6 +47,23 @@ function projectCount(actual: number, daysWithData: number, totalDays: number): 
   return Math.round((actual / daysWithData) * totalDays);
 }
 
+// Tapered projection for cash/revenue: early-month pace is front-loaded and slows
+// down. A simple linear pace over-projects significantly in the first week.
+//
+// Formula: remaining days are worth (taper × daily_rate) rather than full rate.
+//   taper = 0.35 + 0.65 × √(daysElapsed / totalDays)
+//   Day 2 of 30 → taper ≈ 0.52  (projects ~110k when linear would say 200k)
+//   Day 8 of 30 → taper ≈ 0.69  (projects ~130k when linear would say 170k)
+//   Day 25 of 30 → taper ≈ 0.94 (nearly linear — pace is reliable this late)
+function projectTapered(actual: number, daysElapsed: number, totalDays: number): number | null {
+  if (actual <= 0 || daysElapsed <= 0 || daysElapsed >= totalDays) return null;
+  const pct = daysElapsed / totalDays;
+  const taper = 0.35 + 0.65 * Math.sqrt(pct);
+  const dailyRate = actual / daysElapsed;
+  const remaining = totalDays - daysElapsed;
+  return Math.round(actual + remaining * dailyRate * taper);
+}
+
 // ─── MoM badge ────────────────────────────────────────────────────────────────
 function MomBadge({ cur, prv, hib = true }: { cur: number | undefined; prv: number | undefined; hib?: boolean }) {
   if (prv == null || cur == null) {
@@ -372,8 +389,8 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
     bookedCalls:  projectCount(kpi.bookedCalls,  daysWithData, totalDays),
     takenCalls:   projectCount(kpi.takenCalls,   daysWithData, totalDays),
     dealsClosed:  projectCount(kpi.dealsClosed,  daysWithData, totalDays),
-    cash:         projectCount(kpi.cash,         daysWithData, totalDays),
-    revenue:      projectCount(kpi.revenue,      daysWithData, totalDays),
+    cash:         projectTapered(kpi.cash,    daysWithData, totalDays),
+    revenue:      projectTapered(kpi.revenue, daysWithData, totalDays),
   } : null;
 
   // Only show projections on the Month tab — for Today/4d/14d just report actuals
