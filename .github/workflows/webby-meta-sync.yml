@@ -1,0 +1,46 @@
+name: Webby Meta Sync (hourly)
+
+# Pulls Meta Ads spend / CPM / LCTR into [MBA] Webby -> Webinar Tracker every hour.
+# Code lives in meta-sync/. Logs intentionally print no numbers (public repo).
+on:
+  schedule:
+    - cron: "0 * * * *"   # top of every hour (GitHub may start it a few minutes late)
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "normal | backfill | dry-run"
+        default: normal
+
+concurrency:
+  group: webby-meta-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: meta-sync
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: meta-sync/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - name: Sync Meta -> Webby sheet
+        env:
+          SHEET_ID: 1CISLbothwSxekz12wiV6cPwJu2mc0_pgVHdJqxAKEfY   # [MBA] Webby
+          META_AD_ACCOUNT_ID: "338337595416498"                     # GamePlan Media Ad Account
+          META_ADS_ACCESS_TOKEN: ${{ secrets.META_ADS_ACCESS_TOKEN }}
+          GOOGLE_SERVICE_ACCOUNT_EMAIL: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_EMAIL }}
+          GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY }}
+        run: |
+          case "${{ inputs.mode }}" in
+            backfill) node src/sync.js --backfill ;;
+            dry-run)  node src/sync.js --dry-run ;;
+            *)        node src/sync.js ;;
+          esac

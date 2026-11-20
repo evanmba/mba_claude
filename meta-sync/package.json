@@ -1,0 +1,13 @@
+{
+  "name": "webby-meta-sync",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "sync": "node src/sync.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "google-auth-library": "^9.15.1"
+  }
+}
