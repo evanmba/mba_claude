@@ -20,7 +20,7 @@ const VERBOSE = process.env.VERBOSE === '1'; // public repo: Actions logs never 
 
 const auth = new GoogleAuth({
   credentials: {
-    client_email: env('GOOGLE_SERVICE_ACCOUNT_EMAIL'),
+    client_email: env('GOOGLE_SERVICE_ACCOUNT_EMAIL').trim(),
     private_key: env('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY').replace(/\\n/g, '\n'),
   },
   scopes: ['https://www.googleapis.com/auth/spreadsheets'],
@@ -28,9 +28,19 @@ const auth = new GoogleAuth({
 const gclient = await auth.getClient();
 const SHEETS = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`;
 
+const SA_EMAIL = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL.trim();
+const maskEmail = (e) => e.replace(/^(.{2}).*?@(.{6}).*$/, '$1***@$2***');
+
 async function sheets(path, { method = 'GET', body } = {}) {
-  const res = await gclient.request({ url: SHEETS + path, method, data: body });
-  return res.data;
+  try {
+    const res = await gclient.request({ url: SHEETS + path, method, data: body });
+    return res.data;
+  } catch (e) {
+    if (e?.response?.status === 403) {
+      throw new Error(`Sheet access denied for service account ${maskEmail(SA_EMAIL)} — share the sheet (Editor) with the full email stored in GOOGLE_SERVICE_ACCOUNT_EMAIL.`);
+    }
+    throw e;
+  }
 }
 const q = (s) => `'${CONFIG.SHEET_NAME.replace(/'/g, "''")}'!${s}`;
 
