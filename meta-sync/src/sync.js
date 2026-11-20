@@ -5,6 +5,7 @@
 import { GoogleAuth } from 'google-auth-library';
 import {
   CONFIG, cutoffInstant, ymdIn, formatCT, parseKey, nextWorkshopYmd, isExcluded, colLetter, sumHourly,
+  FOOTER, OLD_FOOTER_LABELS, footerFormulas,
 } from './lib.js';
 
 const env = (k) => { const v = process.env[k]; if (!v) throw new Error(`Missing env ${k}`); return v; };
@@ -70,7 +71,8 @@ async function getSheetId() {
   const d = await sheets('?fields=sheets.properties');
   const s = d.sheets.find((x) => x.properties.title === CONFIG.SHEET_NAME);
   if (!s) throw new Error(`Tab "${CONFIG.SHEET_NAME}" not found`);
-  return { sheetId: s.properties.sheetId, columnCount: s.properties.gridProperties.columnCount };
+  const g = s.properties.gridProperties;
+  return { sheetId: s.properties.sheetId, columnCount: g.columnCount, rowCount: g.rowCount };
 }
 
 async function getCols(sheetId, columnCount) {
@@ -93,6 +95,8 @@ async function getCols(sheetId, columnCount) {
     await batchUpdate([{ appendDimension: { sheetId, dimension: 'COLUMNS', length: last - columnCount } }]);
   }
   await flushWrites();
+  cols.headerMap = Object.fromEntries(header.map((h, i) => [h, i + 1]).filter(([h]) => h));
+  cols.lastCol = header.length;
   return cols;
 }
 
@@ -233,6 +237,53 @@ async function ensureNextRow(sheetId, cols, now) {
   return true;
 }
 
+/**
+ * Footer under the workshop rows (one blank row between): Past 2 Weeks / Past Month / Past 3 Months / Totals.
+ * Rewritten every run with explicit ranges so it stays right as new workshop rows are inserted above it.
+ */
+async function updateFooter(sheetId, cols, now) {
+  const { rowCount } = await getSheetId(); // re-read: a new workshop row may have just been inserted
+  const rows = await getWorkshopRows(cols);
+  if (!rows.length) return [];
+  const lastData = Math.max(...rows.map((r) => r.row));
+  const firstData = Math.min(...rows.map((r) => r.row));
+
+  const L = colLetter(cols.key);
+  const colA = await getValues(`${L}${lastData + 1}:${L}${Math.max(rowCount, lastData + 1)}`);
+  const labels = new Set([...FOOTER.map((f) => f.label.toLowerCase()), ...OLD_FOOTER_LABELS]);
+  const existing = colA.map((v, i) => [String(v[0] || '').trim().toLowerCase(), lastData + 1 + i])
+    .filter(([v]) => labels.has(v)).map(([, r]) => r);
+  const start = existing.length ? existing[0] : lastData + 2;
+  const end = start + FOOTER.length - 1;
+
+  const reqs = [];
+  if (end > rowCount) reqs.push({ appendDimension: { sheetId, dimension: 'ROWS', length: end - rowCount } });
+  // Same look as the first footer row for every footer row.
+  reqs.push({ copyPaste: {
+    source: { sheetId, startRowIndex: start - 1, endRowIndex: start },
+    destination: { sheetId, startRowIndex: start, endRowIndex: end },
+    pasteType: 'PASTE_FORMAT',
+  } });
+  await batchUpdate(reqs);
+
+  const completed = rows.filter((r) => cutoffInstant(r.ymd) <= now).sort((a, b) => a.row - b.row);
+  FOOTER.forEach((f, i) => {
+    const row = start + i;
+    let r1 = firstData, r2 = lastData;
+    if (f.count && completed.length) {
+      const win = completed.slice(-f.count);
+      r1 = win[0].row; r2 = win.at(-1).row;
+    }
+    const formulas = footerFormulas(cols.headerMap, row, r1, r2);
+    const values = Array.from({ length: cols.lastCol }, (_, c) => formulas[c + 1] ?? '');
+    values[cols.key - 1] = f.label;
+    pendingWrites.push({ range: q(`A${row}:${colLetter(cols.lastCol)}${row}`), values: [values] });
+  });
+  await flushWrites();
+  console.log(`Footer rows ${start}-${end} updated`);
+  return Array.from({ length: FOOTER.length }, (_, i) => start + i);
+}
+
 /* -------------------------------- Main -------------------------------- */
 
 const now = new Date();
@@ -252,5 +303,6 @@ for (let i = 1; i < rows.length; i++) {
   touched.push(rows[i].row);
 }
 await flushWrites();
-await batchUpdate(numberFormats(sheetId, cols, touched));
+const footerRows = await updateFooter(sheetId, cols, now);
+await batchUpdate(numberFormats(sheetId, cols, [...touched, ...footerRows]));
 console.log(`Done. Updated rows: ${touched.join(', ') || 'none'}`);

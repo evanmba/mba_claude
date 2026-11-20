@@ -47,3 +47,15 @@ test('misc helpers', () => {
   assert.equal(ymdIn(new Date('2026-11-23T01:30:00Z'), 'America/Chicago'), '2026-11-22');
   assert.equal(colLetter(40), 'AN');
 });
+
+import { footerFormulas, FOOTER_SUM_COLS, FOOTER_RATIO_COLS } from '../src/lib.js';
+test('footer formulas use sums and window ranges', () => {
+  const names = [...FOOTER_SUM_COLS, ...Object.keys(FOOTER_RATIO_COLS)];
+  const headerCols = Object.fromEntries(names.map((n, i) => [n.toLowerCase(), i + 2]));
+  const f = footerFormulas(headerCols, 44, 38, 41);
+  const col = (n) => headerCols[n.toLowerCase()];
+  assert.equal(f[col('Amount Spent')], '=SUM(B38:B41)');
+  assert.match(f[col('CPM')], /^=IFERROR\(SUMPRODUCT\([A-Z]+38:[A-Z]+41,[A-Z]+38:[A-Z]+41\)\/[A-Z]+44,""\)$/);
+  assert.match(f[col('Upsell %')], /^=IF\([A-Z]+44=0,"",[A-Z]+44\/[A-Z]+44\)$/);
+  assert.equal(Object.keys(f).length, names.length);
+});

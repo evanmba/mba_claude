@@ -95,3 +95,66 @@ export function sumHourly(rows, start, end, acctTz) {
   }
   return { spend, impressions };
 }
+
+/* ------------------------------- Footer ------------------------------- */
+
+// Footer rows (in order) under the workshop rows. `count` = last N completed workshops; null = all rows.
+export const FOOTER = [
+  { label: 'Past 2 Weeks (4)', count: 4 },
+  { label: 'Past Month (8)', count: 8 },
+  { label: 'Past 3 Months (24)', count: 24 },
+  { label: 'Totals', count: null },
+];
+// Old footer labels to take over.
+export const OLD_FOOTER_LABELS = ['sums', 'averages'];
+
+export const FOOTER_SUM_COLS = [
+  'Amount Spent', 'Registrants', 'Age Q Reg', 'Upsells', 'Upsell Rev', 'Peak Attendance', 'Retained to $CTA',
+  'Calls Pre Webby', 'Calls Post Webby', 'Total Calls', 'Shown Appts', 'Offers', 'Deals',
+  'Cash From Deals', 'Total Cash Collected', 'Unique Link Clicks', 'Impressions', 'Reach',
+];
+
+// {Header} = this footer row's cell in that column; {Header:range} = that column over the window.
+export const FOOTER_RATIO_COLS = {
+  'CPM': '=IFERROR(SUMPRODUCT({CPM:range},{Impressions:range})/{Impressions},"")',
+  'LCTR': '=IFERROR({Unique Link Clicks}/{Reach},"")',
+  'Page AgeQ Opt-In': '=IFERROR({Age Q Reg}/SUMIFS({Unique Link Clicks:range},{Age Q Reg:range},">0"),"")',
+  'AgeQ %': '=IFERROR({Age Q Reg}/{Registrants},"")',
+  'Cost Per Reg': '=IFERROR({Amount Spent}/{Registrants},"")',
+  'Cost Per AgeQ': '=IFERROR({Amount Spent}/{Age Q Reg},"")',
+  'Upsell %': '=IF({Registrants}=0,"",{Upsells}/{Registrants})',
+  'Show % on AgeQ': '=IF({Age Q Reg}=0,"",{Peak Attendance}/{Age Q Reg})',
+  'Cost Per Attendance': '=IF({Peak Attendance}=0,"",{Amount Spent}/{Peak Attendance})',
+  'Retention %': '=IF({Peak Attendance}=0,"",{Retained to $CTA}/{Peak Attendance})',
+  'Cost Per Retention': '=IF({Retained to $CTA}=0,"",{Amount Spent}/{Retained to $CTA})',
+  'Pre->Booked %': '=IF({Registrants}=0,"",{Calls Pre Webby}/{Registrants})',
+  'Post->Booked %': '=IF({Retained to $CTA}=0,"",{Calls Post Webby}/{Retained to $CTA})',
+  'Show->Book %': '=IF({Retained to $CTA}=0,"",{Total Calls}/{Retained to $CTA})',
+  'CPC': '=IF({Total Calls}=0,"",{Amount Spent}/{Total Calls})',
+  'Cost Per Show': '=IF({Shown Appts}=0,"-",{Amount Spent}/{Shown Appts})',
+  'Show %': '=IF({Total Calls}=0,"-",{Shown Appts}/{Total Calls})',
+  'Cost Per Offer': '=IF({Offers}=0,"-",{Amount Spent}/{Offers})',
+  'Offer %': '=IF({Shown Appts}=0,"-",{Offers}/{Shown Appts})',
+  'CPA': '=IF({Deals}=0,"-",{Amount Spent}/{Deals})',
+  'Close Rate': '=IF({Offers}=0,"-",{Deals}/{Offers})',
+  'Cash ROAS': '=IF({Amount Spent}=0,"",{Total Cash Collected}/{Amount Spent})',
+};
+
+/**
+ * Builds { colNumber: formula } for one footer row.
+ * headerCols: { 'header name lowercased': colNumber }, row: footer row, [r1, r2]: data window rows.
+ */
+export function footerFormulas(headerCols, row, r1, r2) {
+  const L = (name) => {
+    const c = headerCols[name.toLowerCase()];
+    if (!c) throw new Error(`Footer: header not found: ${name}`);
+    return colLetter(c);
+  };
+  const out = {};
+  for (const name of FOOTER_SUM_COLS) out[headerCols[name.toLowerCase()]] = `=SUM(${L(name)}${r1}:${L(name)}${r2})`;
+  for (const [name, tpl] of Object.entries(FOOTER_RATIO_COLS)) {
+    out[headerCols[name.toLowerCase()]] = tpl.replace(/\{([^}:]+)(:range)?\}/g, (_, h, rng) =>
+      rng ? `${L(h)}${r1}:${L(h)}${r2}` : `${L(h)}${row}`);
+  }
+  return out;
+}
