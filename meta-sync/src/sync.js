@@ -258,11 +258,19 @@ async function updateFooter(sheetId, cols, now) {
 
   const reqs = [];
   if (end > rowCount) reqs.push({ appendDimension: { sheetId, dimension: 'ROWS', length: end - rowCount } });
-  // Same look as the first footer row for every footer row.
+  const footerRange = { sheetId, startRowIndex: start - 1, endRowIndex: end };
+  // One cell per column per footer row (the old SUMS/AVERAGES rows had merged rate cells).
+  reqs.push({ unmergeCells: { range: footerRange } });
+  // Number formats from the last workshop row, then bold.
   reqs.push({ copyPaste: {
-    source: { sheetId, startRowIndex: start - 1, endRowIndex: start },
-    destination: { sheetId, startRowIndex: start, endRowIndex: end },
+    source: { sheetId, startRowIndex: lastData - 1, endRowIndex: lastData },
+    destination: footerRange,
     pasteType: 'PASTE_FORMAT',
+  } });
+  reqs.push({ repeatCell: {
+    range: footerRange,
+    cell: { userEnteredFormat: { textFormat: { bold: true } } },
+    fields: 'userEnteredFormat.textFormat.bold',
   } });
   await batchUpdate(reqs);
 
