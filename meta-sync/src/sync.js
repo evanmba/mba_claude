@@ -70,10 +70,10 @@ async function getSheetId() {
   const d = await sheets('?fields=sheets.properties');
   const s = d.sheets.find((x) => x.properties.title === CONFIG.SHEET_NAME);
   if (!s) throw new Error(`Tab "${CONFIG.SHEET_NAME}" not found`);
-  return s.properties.sheetId;
+  return { sheetId: s.properties.sheetId, columnCount: s.properties.gridProperties.columnCount };
 }
 
-async function getCols() {
+async function getCols(sheetId, columnCount) {
   const header = ((await getValues(`${CONFIG.HEADER_ROW}:${CONFIG.HEADER_ROW}`))[0] || [])
     .map((h) => String(h).trim().toLowerCase());
   const cols = {};
@@ -87,6 +87,10 @@ async function getCols() {
     let idx = header.indexOf(h.toLowerCase());
     if (idx === -1) { last += 1; idx = last - 1; header.push(h.toLowerCase()); write(CONFIG.HEADER_ROW, last, h); }
     cols[h] = idx + 1;
+  }
+  // Grow the grid if the helper headers land past the last existing column.
+  if (last > columnCount) {
+    await batchUpdate([{ appendDimension: { sheetId, dimension: 'COLUMNS', length: last - columnCount } }]);
   }
   await flushWrites();
   return cols;
@@ -232,8 +236,8 @@ async function ensureNextRow(sheetId, cols, now) {
 /* -------------------------------- Main -------------------------------- */
 
 const now = new Date();
-const sheetId = await getSheetId();
-const cols = await getCols();
+const { sheetId, columnCount } = await getSheetId();
+const cols = await getCols(sheetId, columnCount);
 if (!BACKFILL) await ensureNextRow(sheetId, cols, now);
 
 const rows = await getWorkshopRows(cols);
