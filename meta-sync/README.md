@@ -31,6 +31,10 @@ Sheet ID and ad account ID are set in the workflow file.
 
 This repo is public, so Actions logs print no metric values. For full output run locally with `VERBOSE=1`.
 
+## Reliable hourly runs
+
+GitHub cron is best-effort and skips most runs. `apps-script/hourly-trigger.gs` (installed in the Webby sheet via Extensions → Apps Script) starts the workflow once an hour instead; the GitHub cron stays as a backup.
+
 ## Notes
 - GitHub cron starts "at the top of the hour" but can run several minutes late under load.
 - Each hourly run rewrites Amount Spent / CPM / LCTR for the open row (and the row that closed in the last 3h).
