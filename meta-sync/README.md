@@ -33,7 +33,7 @@ This repo is public, so Actions logs print no metric values. For full output run
 
 ## Reliable hourly runs
 
-GitHub cron is best-effort and skips most runs. `apps-script/hourly-trigger.gs` (installed in the Webby sheet via Extensions → Apps Script) starts the workflow once an hour instead; the GitHub cron stays as a backup.
+GitHub cron is best-effort and skips most runs. `apps-script/hourly-trigger.gs` (installed in the Webby sheet via Extensions → Apps Script) starts the workflows on time instead (Webby, Update Campaign Ads, Call Funnel Data hourly; Master Tracker sync daily 5am CT). The GitHub crons stay as a backup.
 
 ## Notes
 - GitHub cron starts "at the top of the hour" but can run several minutes late under load.
