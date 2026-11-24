@@ -548,20 +548,7 @@ export function ScoreboardView({ scoreboard, monthly, prevMonthly, ytd, ytd2025,
         <MetricCard label="Cost Per Lead"  value={kpi ? $$(kpi.costPerLead)  : "—"} mv={kpi ? c$$(kpi.costPerLead) : "—"} cur={kpi?.costPerLead  ?? 0} prv={showMoM ? prev.costPerLead : undefined}  hib={false} />
       </div>
 
-      {/* ── Row 3: Apps ── */}
-      <SectionLabel label="Applications" color="#06b6d4" />
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <MetricCard label="Total Apps"
-          value={effectiveProj?.apps != null ? num(effectiveProj.apps) : (kpi ? num(kpi.apps) : "—")}
-          mv={effectiveProj?.apps != null ? cnum(effectiveProj.apps) : (kpi ? cnum(kpi.apps) : "—")}
-          cur={effectiveProj?.apps ?? kpi?.apps ?? 0} prv={showMoM ? prev.apps : undefined} hib={true}
-          actual={effectiveProj?.apps != null && kpi ? num(kpi.apps) : undefined}
-          ma={effectiveProj?.apps != null && kpi ? cnum(kpi.apps) : undefined} />
-        <MetricCard label="App Conv %"   value={kpi ? pct(kpi.appConv)    : "—"} cur={kpi?.appConv    ?? 0} prv={showMoM ? prev.appConv : undefined}    hib={true}  />
-        <MetricCard label="Cost Per App" value={kpi ? $$(kpi.costPerApp)  : "—"} mv={kpi ? c$$(kpi.costPerApp) : "—"} cur={kpi?.costPerApp  ?? 0} prv={showMoM ? prev.costPerApp : undefined}  hib={false} />
-      </div>
-
-      {/* ── Row 4: Booked Calls ── */}
+      {/* ── Row 3: Booked Calls ── */}
       <SectionLabel label="Booked Calls" color="#22c55e" />
       <div className="grid grid-cols-3 gap-2 sm:gap-3">
         <MetricCard label="Booked Calls"

@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { DollarSign, AlertCircle, Calendar, CreditCard, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { DollarSign, AlertCircle, Calendar, CreditCard, TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import type { FinancialsData } from "@/lib/stripe-financials";
+import { revalidateFinancials } from "@/app/financials/actions";
 
 function fmt(cents: number) {
   return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -140,9 +142,17 @@ function PaymentRow({ payment, index }: { payment: FinancialsData["upcomingPayme
 
 export function FinancialsDashboard({ data }: { data: FinancialsData }) {
   const tabs = getMonthTabs();
-  // Default to current month (second-to-last tab; last is projection)
   const [selectedIdx, setSelectedIdx] = useState(tabs.length - 2);
   const selected = tabs[selectedIdx];
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  function handleRefresh() {
+    startTransition(async () => {
+      await revalidateFinancials();
+      router.refresh();
+    });
+  }
 
   if (data.stripeError) {
     return (
@@ -209,8 +219,37 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold" style={{ color: "var(--foreground)" }}>Financials</h1>
           <p className="text-xs sm:text-sm mt-1" style={{ color: "var(--muted-foreground)" }}>
-            Live from Stripe · installment revenue &amp; upcoming charges
+            Stripe installment revenue &amp; upcoming charges
           </p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0 self-center">
+          {/* Live indicator */}
+          {!isPending && (
+            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full"
+              style={{ background: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)" }}>
+              <span style={{
+                width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block",
+                boxShadow: "0 0 0 2px rgba(34,197,94,0.25)",
+                animation: "pulse 2s cubic-bezier(0.4,0,0.6,1) infinite",
+              }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: "#22c55e" }}>Live</span>
+            </div>
+          )}
+          {/* Refresh button */}
+          <button
+            onClick={handleRefresh}
+            disabled={isPending}
+            title="Refresh from Stripe"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all"
+            style={{
+              background: "var(--card)", border: "1px solid var(--border)",
+              color: isPending ? "var(--muted-foreground)" : "var(--foreground)",
+              cursor: isPending ? "not-allowed" : "pointer",
+              opacity: isPending ? 0.7 : 1,
+            }}>
+            <RefreshCw size={12} style={{ animation: isPending ? "spin 0.8s linear infinite" : "none" }} />
+            <span className="hidden sm:inline">{isPending ? "Refreshing…" : "Refresh"}</span>
+          </button>
         </div>
 
         {/* Month navigator */}
