@@ -306,45 +306,84 @@ export function FinancialsDashboard({ data }: { data: FinancialsData }) {
         </div>
       )}
 
-      {/* Bar chart */}
+      {/* Line chart */}
       <div className="rounded-2xl p-4 sm:p-5" style={{ background: "var(--card)", border: "1px solid var(--border)" }}>
         <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "var(--muted-foreground)" }}>
           2026 Cash Collected — Month by Month
         </p>
-        <div className="flex items-end gap-1.5 sm:gap-2" style={{ height: 80 }}>
-          {tabs.map((tab, i) => {
+        {(() => {
+          const W = 800, H = 140;
+          const padL = 16, padR = 16, padT = 28, padB = 28;
+          const plotW = W - padL - padR;
+          const plotH = H - padT - padB;
+          const n = tabs.length;
+          const pts = tabs.map((tab, i) => {
             const val = barValues[i];
-            const heightPct = val > 0 ? Math.max(8, (val / maxVal) * 100) : 4;
-            const isSelected = i === selectedIdx;
-            return (
-              <button
-                key={`${tab.year}-${tab.month}`}
-                onClick={() => setSelectedIdx(i)}
-                className="flex flex-col items-center gap-1 flex-1"
-                style={{ cursor: "pointer" }}>
-                <span style={{ fontSize: 9, color: isSelected ? (tab.isProjection ? "#a78bfa" : "#3b82f6") : "#475569", fontWeight: isSelected ? 700 : 400 }}>
-                  {val > 0 ? fmt(val) : "—"}
-                </span>
-                <div style={{
-                  width: "100%", height: `${heightPct}%`,
-                  background: isSelected
-                    ? (tab.isProjection ? "#7c3aed" : "#3b82f6")
-                    : tab.isProjection
-                      ? "rgba(124,58,237,0.2)"
-                      : val > 0 ? "#1e3a5f" : "#1e293b",
-                  borderRadius: 4,
-                  border: tab.isProjection
-                    ? `1px dashed ${isSelected ? "#a78bfa" : "rgba(124,58,237,0.4)"}`
-                    : isSelected ? "1px solid #60a5fa" : "1px solid transparent",
-                  transition: "background 0.15s",
-                }} />
-                <span style={{ fontSize: 9, color: isSelected ? "#e2e8f0" : tab.isProjection ? "#7c3aed" : "#475569", fontWeight: isSelected ? 600 : 400 }}>
-                  {tab.label}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+            const x = padL + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
+            const y = val > 0 ? padT + (1 - val / maxVal) * plotH : padT + plotH;
+            return { x, y, val, tab, i };
+          });
+          const realPts = pts.filter(p => !p.tab.isProjection && p.val > 0);
+          const projPt = pts.find(p => p.tab.isProjection && p.val > 0) ?? null;
+          const lastReal = realPts[realPts.length - 1] ?? null;
+          return (
+            <svg viewBox={`0 0 ${W} ${H}`}
+              style={{ width: "100%", height: 150, display: "block" }}
+              preserveAspectRatio="none">
+              {[0.33, 0.66, 1].map(t => (
+                <line key={t} x1={padL} x2={W - padR}
+                  y1={padT + (1 - t) * plotH} y2={padT + (1 - t) * plotH}
+                  stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+              ))}
+              {realPts.length >= 2 && (
+                <polygon
+                  points={[`${realPts[0].x},${padT + plotH}`, ...realPts.map(p => `${p.x},${p.y}`), `${realPts[realPts.length - 1].x},${padT + plotH}`].join(" ")}
+                  fill="rgba(59,130,246,0.07)"
+                />
+              )}
+              {realPts.length >= 2 && (
+                <polyline points={realPts.map(p => `${p.x},${p.y}`).join(" ")}
+                  fill="none" stroke="#3b82f6" strokeWidth="2.5"
+                  strokeLinejoin="round" strokeLinecap="round" />
+              )}
+              {lastReal && projPt && (
+                <line x1={lastReal.x} y1={lastReal.y} x2={projPt.x} y2={projPt.y}
+                  stroke="#7c3aed" strokeWidth="2" strokeDasharray="5 4" />
+              )}
+              {pts.map(({ x, y, val, tab, i }) => {
+                const isSelected = i === selectedIdx;
+                const isProj = tab.isProjection;
+                const hasVal = val > 0;
+                return (
+                  <g key={i} onClick={() => setSelectedIdx(i)} style={{ cursor: "pointer" }}>
+                    <rect x={x - 20} y={padT} width={40} height={plotH + padB} fill="transparent" />
+                    {isSelected && hasVal && (
+                      <circle cx={x} cy={y} r={10} fill={isProj ? "rgba(124,58,237,0.15)" : "rgba(59,130,246,0.15)"} />
+                    )}
+                    {hasVal && (
+                      <circle cx={x} cy={y} r={isSelected ? 5 : 3.5}
+                        fill={isSelected ? "#fff" : isProj ? "#7c3aed" : "#3b82f6"}
+                        stroke={isSelected ? (isProj ? "#7c3aed" : "#3b82f6") : "none"}
+                        strokeWidth={isSelected ? 2 : 0} />
+                    )}
+                    {(isSelected || (isProj && hasVal)) && hasVal && (
+                      <text x={x} y={y - 11} textAnchor="middle"
+                        fill={isProj ? "#a78bfa" : "#93c5fd"}
+                        fontSize={isSelected ? "10" : "9"} fontWeight="700">
+                        {fmt(val)}
+                      </text>
+                    )}
+                    <text x={x} y={H - 4} textAnchor="middle"
+                      fill={isSelected ? (isProj ? "#a78bfa" : "#e2e8f0") : isProj ? "rgba(124,58,237,0.6)" : "#475569"}
+                      fontSize="9" fontWeight={isSelected ? "700" : "400"}>
+                      {tab.label}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          );
+        })()}
       </div>
 
       {/* Stat cards */}
